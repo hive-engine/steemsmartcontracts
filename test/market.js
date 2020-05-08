@@ -176,6 +176,155 @@ describe('Market', function() {
         })
   });
 
+  it('market buys from one seller', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+
+      // test 1 - completely fill sell order
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refSteemBlockNumber: 1,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['satoshi', 'vitalik'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'satoshi');
+      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].balance, 433.389);
+
+      assert.equal(balances[1].account, 'satoshi');
+      assert.equal(balances[1].symbol, 'TKN');
+      assert.equal(balances[1].balance, 100);
+
+      assert.equal(balances[2].account, 'vitalik');
+      assert.equal(balances[2].symbol, 'TKN');
+      assert.equal(balances[2].balance, 23.456);
+
+      assert.equal(balances[3].account, 'vitalik');
+      assert.equal(balances[3].symbol, 'STEEMP');
+      assert.equal(balances[3].balance, 23.4);
+
+      const sellOrders = await database1.find({
+        contract: 'market',
+        table: 'sellBook',
+        query: {
+          account: 'vitalik',
+          symbol: 'TKN'
+        }
+      });
+
+      assert.equal(sellOrders.length, 0);
+
+      // test 2 - try to market buy an empty order book
+      transactions = [];
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1239', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refSteemBlockNumber: 2,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['satoshi'] }
+        }
+      });
+
+      assert.equal(balances[0].account, 'satoshi');
+      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].balance, 433.389);
+
+      assert.equal(balances[1].account, 'satoshi');
+      assert.equal(balances[1].symbol, 'TKN');
+      assert.equal(balances[1].balance, 100);
+
+      // test 3 - partially fill sell order
+      transactions = [];
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "23", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1241', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "4", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refSteemBlockNumber: 3,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['satoshi', 'vitalik'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'satoshi');
+      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].balance, 429.389);
+
+      assert.equal(balances[1].account, 'satoshi');
+      assert.equal(balances[1].symbol, 'TKN');
+      assert.equal(balances[1].balance, 117.094);
+
+      assert.equal(balances[2].account, 'vitalik');
+      assert.equal(balances[2].symbol, 'TKN');
+      assert.equal(balances[2].balance, 0.456);
+
+      assert.equal(balances[3].account, 'vitalik');
+      assert.equal(balances[3].symbol, 'STEEMP');
+      assert.equal(balances[3].balance, 27.4);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('creates a buy order', (done) => {
     new Promise(async (resolve) => {
       

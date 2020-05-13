@@ -818,7 +818,7 @@ actions.marketBuy = async (payload) => {
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && symbol && typeof symbol === 'string' && symbol !== STEEM_PEGGED_SYMBOL
-    && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN()) {
+    && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN() && api.BigNumber(quantity).gt(0)) {
     // get the token params
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
 

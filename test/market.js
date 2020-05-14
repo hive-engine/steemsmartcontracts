@@ -176,6 +176,258 @@ describe('Market', function() {
         })
   });
 
+  it('market sells to multiple buyers', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "satoshi", "quantity": "523.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "vitalik", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1237', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "aggroed", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+
+      // setup buy order book with several orders
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1238', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.734", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1239', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "20", "price": "0.634", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1240', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "30", "price": "0.534", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1241', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.434", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1242', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.334", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1243', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "60", "price": "0.234", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refSteemBlockNumber: 1,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // check market contract has correct token amounts
+      let balances = await database1.find({
+        contract: 'tokens',
+        table: 'contractsBalances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['market'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'market');
+      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].balance, 84.14);
+
+      // test 1 - sell to half the order book
+      transactions = [];
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1244', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "80.001", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refSteemBlockNumber: 2,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'aggroed');
+      assert.equal(balances[0].symbol,  'STEEMP');
+      assert.equal(balances[0].balance, 412.709);
+
+      assert.equal(balances[1].account, 'aggroed');
+      assert.equal(balances[1].symbol,  'TKN');
+      assert.equal(balances[1].balance, 40.001);
+
+      assert.equal(balances[2].account, 'satoshi');
+      assert.equal(balances[2].symbol,  'TKN');
+      assert.equal(balances[2].balance, 443.455);
+
+      assert.equal(balances[3].account, 'satoshi');
+      assert.equal(balances[3].symbol,  'STEEMP');
+      assert.equal(balances[3].balance, 44.720434);
+
+      assert.equal(balances[4].account, 'vitalik');
+      assert.equal(balances[4].symbol,  'STEEMP');
+      assert.equal(balances[4].balance, 416.729);
+
+      assert.equal(balances[5].account, 'vitalik');
+      assert.equal(balances[5].symbol,  'TKN');
+      assert.equal(balances[5].balance, 40);
+
+      let buyOrders = await database1.find({
+        contract: 'market',
+        table: 'buyBook',
+        query: {
+          account: { $in: ['vitalik', 'aggroed'] },
+          symbol: 'TKN'
+        },
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(buyOrders);
+      assert.equal(buyOrders.length, 3);
+
+      assert.equal(buyOrders[0].txId, 'TXID1241');
+      assert.equal(buyOrders[0].account, 'aggroed');
+      assert.equal(buyOrders[0].symbol, 'TKN');
+      assert.equal(buyOrders[0].quantity, 19.999);
+
+      assert.equal(buyOrders[1].txId, 'TXID1242');
+      assert.equal(buyOrders[1].account, 'vitalik');
+      assert.equal(buyOrders[1].symbol, 'TKN');
+      assert.equal(buyOrders[1].quantity, 50);
+
+      assert.equal(buyOrders[2].txId, 'TXID1243');
+      assert.equal(buyOrders[2].account, 'aggroed');
+      assert.equal(buyOrders[2].symbol, 'TKN');
+      assert.equal(buyOrders[2].quantity, 60);
+
+      // check market contract has correct token amounts
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'contractsBalances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['market'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'market');
+      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].balance, 39.419566);
+
+      assert.equal(balances[1].account, 'market');
+      assert.equal(balances[1].symbol, 'TKN');
+      assert.equal(balances[1].balance, 0);
+
+      // test 2 - sell to wipe out the entire order book
+      transactions = [];
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1245', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "150", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refSteemBlockNumber: 3,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // check user balances are correct
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'aggroed');
+      assert.equal(balances[0].symbol,  'STEEMP');
+      assert.equal(balances[0].balance, 412.709);
+
+      assert.equal(balances[1].account, 'aggroed');
+      assert.equal(balances[1].symbol,  'TKN');
+      assert.equal(balances[1].balance, 120);
+
+      assert.equal(balances[2].account, 'satoshi');
+      assert.equal(balances[2].symbol,  'TKN');
+      assert.equal(balances[2].balance, 313.456);
+
+      assert.equal(balances[3].account, 'satoshi');
+      assert.equal(balances[3].symbol,  'STEEMP');
+      assert.equal(balances[3].balance, 84.14);
+
+      assert.equal(balances[4].account, 'vitalik');
+      assert.equal(balances[4].symbol,  'STEEMP');
+      assert.equal(balances[4].balance, 416.729);
+
+      assert.equal(balances[5].account, 'vitalik');
+      assert.equal(balances[5].symbol,  'TKN');
+      assert.equal(balances[5].balance, 90);
+
+      // check market contract has correct token amounts
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'contractsBalances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['market'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'market');
+      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].balance, 0);
+
+      assert.equal(balances[1].account, 'market');
+      assert.equal(balances[1].symbol, 'TKN');
+      assert.equal(balances[1].balance, 0);
+
+      // check buy orders are gone
+      buyOrders = await database1.find({
+        contract: 'market',
+        table: 'buyBook',
+        query: {
+          account: { $in: ['vitalik', 'aggroed'] },
+          symbol: 'TKN'
+        },
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      assert.equal(buyOrders.length, 0);
+
+      // check volume metric looks OK
+      const metric = await database1.findOne({
+        contract: 'market',
+        table: 'metrics',
+        query: {
+        }
+      });
+
+      console.log(metric);
+
+      assert.equal(metric.symbol, 'TKN');
+      assert.equal(metric.volume, 84.14);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('market buys from multiple sellers', (done) => {
     new Promise(async (resolve) => {
 

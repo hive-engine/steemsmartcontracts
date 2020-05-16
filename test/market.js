@@ -184,21 +184,21 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "satoshi", "quantity": "523.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "vitalik", "quantity": "456.789", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1237', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "aggroed", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "satoshi", "quantity": "523.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "vitalik", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "aggroed", "quantity": "456.789", "isSignedWithActiveKey": true }'));
 
       // setup buy order book with several orders
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1238', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.734", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1239', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "20", "price": "0.634", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1240', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "30", "price": "0.534", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1241', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.434", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1242', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.334", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1243', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "60", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.734", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "20", "price": "0.634", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "30", "price": "0.534", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.434", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1242', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.334", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1243', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "60", "price": "0.234", "isSignedWithActiveKey": true }'));
 
       let block = {
         refSteemBlockNumber: 1,
@@ -228,7 +228,7 @@ describe('Market', function() {
 
       // test 1 - sell to half the order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1244', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "80.001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1244', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "80.001", "isSignedWithActiveKey": true }'));
 
       block = {
         refSteemBlockNumber: 2,
@@ -325,7 +325,7 @@ describe('Market', function() {
 
       // test 2 - sell to wipe out the entire order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1245', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "150", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1245', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "150", "isSignedWithActiveKey": true }'));
 
       block = {
         refSteemBlockNumber: 3,
@@ -436,21 +436,21 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "523.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1237', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "aggroed", "quantity": "200", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "523.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "aggroed", "quantity": "200", "isSignedWithActiveKey": true }'));
 
       // setup sell order book with several orders
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1238', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "10", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1239', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.334", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "30", "price": "0.434", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1241', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "40", "price": "0.534", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1242', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "50", "price": "0.634", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1243', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "60", "price": "0.734", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "10", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.334", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "30", "price": "0.434", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "40", "price": "0.534", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1242', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "50", "price": "0.634", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1243', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "60", "price": "0.734", "isSignedWithActiveKey": true }'));
 
       let block = {
         refSteemBlockNumber: 1,
@@ -480,7 +480,7 @@ describe('Market', function() {
 
       // test 1 - buy up half the order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1244', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "32.040", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1244', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "32.040", "isSignedWithActiveKey": true }'));
 
       block = {
         refSteemBlockNumber: 2,
@@ -517,7 +517,7 @@ describe('Market', function() {
 
       assert.equal(balances[3].account, 'satoshi');
       assert.equal(balances[3].symbol, 'TKN');
-      assert.equal(balances[3].balance, 78.727);
+      assert.equal(balances[3].balance, 78.726);
 
       assert.equal(balances[4].account, 'vitalik');
       assert.equal(balances[4].symbol, 'TKN');
@@ -543,7 +543,7 @@ describe('Market', function() {
       assert.equal(sellOrders[0].txId, 'TXID1241');
       assert.equal(sellOrders[0].account, 'aggroed');
       assert.equal(sellOrders[0].symbol, 'TKN');
-      assert.equal(sellOrders[0].quantity, 21.273);
+      assert.equal(sellOrders[0].quantity, 21.274);
 
       assert.equal(sellOrders[1].txId, 'TXID1242');
       assert.equal(sellOrders[1].account, 'vitalik');
@@ -569,7 +569,7 @@ describe('Market', function() {
 
       assert.equal(balances[0].account, 'market');
       assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].balance, 131.273);
+      assert.equal(balances[0].balance, 131.274);
 
       assert.equal(balances[1].account, 'market');
       assert.equal(balances[1].symbol, 'STEEMP');
@@ -577,7 +577,7 @@ describe('Market', function() {
 
       // test 2 - buy up the entire order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1245', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1245', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }'));
 
       block = {
         refSteemBlockNumber: 3,
@@ -607,11 +607,11 @@ describe('Market', function() {
 
       assert.equal(balances[1].account, 'aggroed');
       assert.equal(balances[1].symbol, 'STEEMP');
-      assert.equal(balances[1].balance, 72.079782);
+      assert.equal(balances[1].balance, 72.080316);
 
       assert.equal(balances[2].account, 'satoshi');
       assert.equal(balances[2].symbol, 'STEEMP');
-      assert.equal(balances[2].balance, 337.649218);
+      assert.equal(balances[2].balance, 337.648684);
 
       assert.equal(balances[3].account, 'satoshi');
       assert.equal(balances[3].symbol, 'TKN');
@@ -669,7 +669,81 @@ describe('Market', function() {
       console.log(metric);
 
       assert.equal(metric.symbol, 'TKN');
-      assert.equal(metric.volume, 119.139782);
+      assert.equal(metric.volume, 119.140316);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('does not market buy dust amounts', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+
+      // try to buy too small amount
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refSteemBlockNumber: 1,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: { $in: ['TKN', 'STEEMP'] },
+          account: { $in: ['satoshi', 'vitalik'] }
+        }
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'satoshi');
+      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].balance, 456.789);
+
+      assert.equal(balances[1].account, 'vitalik');
+      assert.equal(balances[1].symbol, 'TKN');
+      assert.equal(balances[1].balance, 23.456);
+
+      let sellOrders = await database1.find({
+        contract: 'market',
+        table: 'sellBook',
+        query: {
+          account: 'vitalik',
+          symbol: 'TKN'
+        }
+      });
+
+      assert.equal(sellOrders.length, 1);
+
+      console.log(sellOrders);
+
+      assert.equal(sellOrders[0].account, 'vitalik');
+      assert.equal(sellOrders[0].symbol, 'TKN');
+      assert.equal(sellOrders[0].quantity, 100);
 
       resolve();
     })
@@ -688,16 +762,16 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
 
       // test 1 - completely fill sell order
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "23.4", "isSignedWithActiveKey": true }'));
 
       let block = {
         refSteemBlockNumber: 1,
@@ -749,7 +823,7 @@ describe('Market', function() {
 
       // test 2 - try to market buy an empty order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1239', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
 
       block = {
         refSteemBlockNumber: 2,
@@ -780,8 +854,8 @@ describe('Market', function() {
 
       // test 3 - partially fill sell order
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "23", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1241', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "23", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "4", "isSignedWithActiveKey": true }'));
 
       block = {
         refSteemBlockNumber: 3,
@@ -888,16 +962,16 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
 
       // test 1 - completely fill buy order
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1237', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1238', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "100.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "100.789", "isSignedWithActiveKey": true }'));
 
       let block = {
         refSteemBlockNumber: 1,
@@ -949,7 +1023,7 @@ describe('Market', function() {
 
       // test 2 - try to market sell to an empty order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1239', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
 
        block = {
         refSteemBlockNumber: 2,
@@ -980,8 +1054,8 @@ describe('Market', function() {
 
       // test 3 - partially fill buy order
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1240', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER, 'TXID1241', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
 
       block = {
         refSteemBlockNumber: 3,

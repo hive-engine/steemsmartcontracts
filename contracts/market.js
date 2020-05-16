@@ -854,33 +854,21 @@ actions.marketBuy = async (payload) => {
             const sellOrder = sellOrderBook[inc];
             const qtyTokensToSend = api.BigNumber(steempRemaining)
               .dividedBy(sellOrder.price)
-              .toFixed(token.precision);
-
-            const qtyTokensToSendRounded = api.BigNumber(steempRemaining)
-              .dividedBy(sellOrder.price)
               .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
 
-            if ((api.BigNumber(qtyTokensToSend).lte(sellOrder.quantity)
-                || api.BigNumber(qtyTokensToSendRounded).lte(sellOrder.quantity))
-              && (api.BigNumber(qtyTokensToSend).gt(0)
-                || api.BigNumber(qtyTokensToSendRounded).gt(0))) {
-              if (api.assert((api.BigNumber(qtyTokensToSend).gt(0)
-                  || api.BigNumber(qtyTokensToSendRounded).gt(0))
+            if (api.BigNumber(qtyTokensToSend).lte(sellOrder.quantity)
+              && api.BigNumber(qtyTokensToSend).gt(0)) {
+              if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
                 && api.BigNumber(steempRemaining).gt(0), 'the order cannot be filled')) {
                 // transfer the tokens to the buyer
-                let res;
-                const finalQuantitySent = api.BigNumber(qtyTokensToSend).lte(sellOrder.quantity)
-                  ? qtyTokensToSend
-                  : qtyTokensToSendRounded;
-
-                res = await api.transferTokens(api.sender, symbol, finalQuantitySent, 'user');
+                let res = await api.transferTokens(api.sender, symbol, qtyTokensToSend, 'user');
 
                 if (res.errors) {
                   api.debug(res.errors);
                   api.debug(`TXID: ${api.transactionId}`);
                   api.debug(api.sender);
                   api.debug(symbol);
-                  api.debug(finalQuantitySent);
+                  api.debug(qtyTokensToSend);
                 }
 
                 // transfer the tokens to the seller
@@ -896,7 +884,7 @@ actions.marketBuy = async (payload) => {
 
                 // update the sell order
                 const qtyLeftSellOrder = api.BigNumber(sellOrder.quantity)
-                  .minus(finalQuantitySent)
+                  .minus(qtyTokensToSend)
                   .toFixed(token.precision);
                 const nbTokensToFillOrder = api.BigNumber(sellOrder.price)
                   .multipliedBy(qtyLeftSellOrder)
@@ -915,15 +903,14 @@ actions.marketBuy = async (payload) => {
                 }
 
                 // add the trade to the history
-                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, finalQuantitySent, sellOrder.price, steempRemaining);
+                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, qtyTokensToSend, sellOrder.price, steempRemaining);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(steempRemaining);
 
                 steempRemaining = '0';
               }
-            } else if (api.BigNumber(qtyTokensToSend).gt(0)
-              || api.BigNumber(qtyTokensToSendRounded).gt(0)) {
+            } else if (api.BigNumber(qtyTokensToSend).gt(0)) {
               let qtySteempToSend = api.BigNumber(sellOrder.price)
                 .multipliedBy(sellOrder.quantity)
                 .toFixed(STEEM_PEGGED_SYMBOL_PRESICION);
@@ -1014,7 +1001,7 @@ actions.marketSell = async (payload) => {
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && symbol && typeof symbol === 'string' && symbol !== STEEM_PEGGED_SYMBOL
-    && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN()) {
+    && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN() && api.BigNumber(quantity).gt(0)) {
     // get the token params
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
 

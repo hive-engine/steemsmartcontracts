@@ -166,7 +166,7 @@ describe('Database', function () {
       && CONSTANTS.UTILITY_TOKEN_SYMBOL === 'BEE') {
         assert.equal(genesisBlock.hash, '13bcc1207ec01a24c949bb423c37b00548457660c985fb2795745981edf17d7a');
         assert.equal(genesisBlock.databaseHash, '9358cdfbc5d508a188506b51b6fbcb2a1a43322bf74179665520b7dc0510f0c7');
-        assert.equal(genesisBlock.merkleRoot, '6452aef2193270163dc48cf4de6708e9dc7573f0b8467b0349b512b7b69e2914');
+        assert.equal(genesisBlock.merkleRoot, '5100259ec554ba31ffe14cb9a92817535258834536fc0b14d248875293541d6f');
       }
 
       resolve();

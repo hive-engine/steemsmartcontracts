@@ -185,26 +185,26 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "satoshi", "quantity": "523.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "vitalik", "quantity": "456.789", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "aggroed", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "satoshi", "quantity": "523.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1236', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "vitalik", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1237', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "aggroed", "quantity": "456.789", "isSignedWithActiveKey": true }'));
 
       // setup buy order book with several orders
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.734", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "20", "price": "0.634", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "30", "price": "0.534", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.434", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1242', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.334", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1243', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "60", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1238', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.734", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1239', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "20", "price": "0.634", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1240', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "30", "price": "0.534", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1241', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.434", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1242', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.334", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1243', 'aggroed', 'market', 'buy', '{ "symbol": "TKN", "quantity": "60", "price": "0.234", "isSignedWithActiveKey": true }'));
 
       let block = {
-        refSteemBlockNumber: 1,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 1,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -216,7 +216,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -224,17 +224,17 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'market');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 84.14);
 
       // test 1 - sell to half the order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1244', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "80.001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1244', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "80.001", "isSignedWithActiveKey": true }'));
 
       block = {
-        refSteemBlockNumber: 2,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 2,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -245,7 +245,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
         }
       });
@@ -253,7 +253,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'aggroed');
-      assert.equal(balances[0].symbol,  'STEEMP');
+      assert.equal(balances[0].symbol,  'SWAP.HIVE');
       assert.equal(balances[0].balance, 412.709);
 
       assert.equal(balances[1].account, 'aggroed');
@@ -265,11 +265,11 @@ describe('Market', function() {
       assert.equal(balances[2].balance, 443.455);
 
       assert.equal(balances[3].account, 'satoshi');
-      assert.equal(balances[3].symbol,  'STEEMP');
+      assert.equal(balances[3].symbol,  'SWAP.HIVE');
       assert.equal(balances[3].balance, 44.720434);
 
       assert.equal(balances[4].account, 'vitalik');
-      assert.equal(balances[4].symbol,  'STEEMP');
+      assert.equal(balances[4].symbol,  'SWAP.HIVE');
       assert.equal(balances[4].balance, 416.729);
 
       assert.equal(balances[5].account, 'vitalik');
@@ -309,7 +309,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -317,7 +317,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'market');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 39.419566);
 
       assert.equal(balances[1].account, 'market');
@@ -326,12 +326,12 @@ describe('Market', function() {
 
       // test 2 - sell to wipe out the entire order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1245', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "150", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1245', 'satoshi', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "150", "isSignedWithActiveKey": true }'));
 
       block = {
-        refSteemBlockNumber: 3,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 3,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -343,7 +343,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
         }
       });
@@ -351,7 +351,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'aggroed');
-      assert.equal(balances[0].symbol,  'STEEMP');
+      assert.equal(balances[0].symbol,  'SWAP.HIVE');
       assert.equal(balances[0].balance, 412.709);
 
       assert.equal(balances[1].account, 'aggroed');
@@ -363,11 +363,11 @@ describe('Market', function() {
       assert.equal(balances[2].balance, 313.456);
 
       assert.equal(balances[3].account, 'satoshi');
-      assert.equal(balances[3].symbol,  'STEEMP');
+      assert.equal(balances[3].symbol,  'SWAP.HIVE');
       assert.equal(balances[3].balance, 84.14);
 
       assert.equal(balances[4].account, 'vitalik');
-      assert.equal(balances[4].symbol,  'STEEMP');
+      assert.equal(balances[4].symbol,  'SWAP.HIVE');
       assert.equal(balances[4].balance, 416.729);
 
       assert.equal(balances[5].account, 'vitalik');
@@ -379,7 +379,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -387,7 +387,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'market');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 0);
 
       assert.equal(balances[1].account, 'market');
@@ -437,26 +437,26 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "523.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "aggroed", "quantity": "200", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "523.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1236', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "aggroed", "quantity": "200", "isSignedWithActiveKey": true }'));
 
       // setup sell order book with several orders
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "10", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.334", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "30", "price": "0.434", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "40", "price": "0.534", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1242', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "50", "price": "0.634", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1243', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "60", "price": "0.734", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1238', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "10", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1239', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.334", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "30", "price": "0.434", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1241', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "40", "price": "0.534", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1242', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "50", "price": "0.634", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1243', 'aggroed', 'market', 'sell', '{ "symbol": "TKN", "quantity": "60", "price": "0.734", "isSignedWithActiveKey": true }'));
 
       let block = {
-        refSteemBlockNumber: 1,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 1,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -468,7 +468,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -481,12 +481,12 @@ describe('Market', function() {
 
       // test 1 - buy up half the order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1244', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "32.040", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1244', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "32.040", "isSignedWithActiveKey": true }'));
 
       block = {
-        refSteemBlockNumber: 2,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 2,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -497,7 +497,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
         }
       });
@@ -509,11 +509,11 @@ describe('Market', function() {
       assert.equal(balances[0].balance, 80);
 
       assert.equal(balances[1].account, 'aggroed');
-      assert.equal(balances[1].symbol, 'STEEMP');
+      assert.equal(balances[1].symbol, 'SWAP.HIVE');
       assert.equal(balances[1].balance, 16.68);
 
       assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'STEEMP');
+      assert.equal(balances[2].symbol, 'SWAP.HIVE');
       assert.equal(balances[2].balance, 424.749);
 
       assert.equal(balances[3].account, 'satoshi');
@@ -525,7 +525,7 @@ describe('Market', function() {
       assert.equal(balances[4].balance, 433.456);
 
       assert.equal(balances[5].account, 'vitalik');
-      assert.equal(balances[5].symbol, 'STEEMP');
+      assert.equal(balances[5].symbol, 'SWAP.HIVE');
       assert.equal(balances[5].balance, 15.36);
 
       let sellOrders = await database1.find({
@@ -561,7 +561,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -573,17 +573,17 @@ describe('Market', function() {
       assert.equal(balances[0].balance, 131.274);
 
       assert.equal(balances[1].account, 'market');
-      assert.equal(balances[1].symbol, 'STEEMP');
+      assert.equal(balances[1].symbol, 'SWAP.HIVE');
       assert.equal(balances[1].balance, 0);
 
       // test 2 - buy up the entire order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1245', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1245', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }'));
 
       block = {
-        refSteemBlockNumber: 3,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 3,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -595,7 +595,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
         }
       });
@@ -607,11 +607,11 @@ describe('Market', function() {
       assert.equal(balances[0].balance, 80);
 
       assert.equal(balances[1].account, 'aggroed');
-      assert.equal(balances[1].symbol, 'STEEMP');
+      assert.equal(balances[1].symbol, 'SWAP.HIVE');
       assert.equal(balances[1].balance, 72.080316);
 
       assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'STEEMP');
+      assert.equal(balances[2].symbol, 'SWAP.HIVE');
       assert.equal(balances[2].balance, 337.648684);
 
       assert.equal(balances[3].account, 'satoshi');
@@ -623,7 +623,7 @@ describe('Market', function() {
       assert.equal(balances[4].balance, 433.456);
 
       assert.equal(balances[5].account, 'vitalik');
-      assert.equal(balances[5].symbol, 'STEEMP');
+      assert.equal(balances[5].symbol, 'SWAP.HIVE');
       assert.equal(balances[5].balance, 47.06);
 
       // check market contract has correct token amounts
@@ -631,7 +631,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -643,7 +643,7 @@ describe('Market', function() {
       assert.equal(balances[0].balance, 0);
 
       assert.equal(balances[1].account, 'market');
-      assert.equal(balances[1].symbol, 'STEEMP');
+      assert.equal(balances[1].symbol, 'SWAP.HIVE');
       assert.equal(balances[1].balance, 0);
 
       // check sell orders are gone
@@ -689,21 +689,21 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1236', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
 
       // try to buy too small amount
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       let block = {
-        refSteemBlockNumber: 1,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 1,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -714,7 +714,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik'] }
         }
       });
@@ -722,7 +722,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 456.789);
 
       assert.equal(balances[1].account, 'vitalik');
@@ -763,21 +763,21 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1236', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
 
       // test 1 - completely fill sell order
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "23.4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1237', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "100", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1238', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "23.4", "isSignedWithActiveKey": true }'));
 
       let block = {
-        refSteemBlockNumber: 1,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 1,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -788,7 +788,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik'] }
         }
       });
@@ -796,7 +796,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 433.389);
 
       assert.equal(balances[1].account, 'satoshi');
@@ -808,7 +808,7 @@ describe('Market', function() {
       assert.equal(balances[2].balance, 23.456);
 
       assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'STEEMP');
+      assert.equal(balances[3].symbol, 'SWAP.HIVE');
       assert.equal(balances[3].balance, 23.4);
 
       let sellOrders = await database1.find({
@@ -824,12 +824,12 @@ describe('Market', function() {
 
       // test 2 - try to market buy an empty order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1239', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
 
       block = {
-        refSteemBlockNumber: 2,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 2,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -840,13 +840,13 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi'] }
         }
       });
 
       assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 433.389);
 
       assert.equal(balances[1].account, 'satoshi');
@@ -855,13 +855,13 @@ describe('Market', function() {
 
       // test 3 - partially fill sell order
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "23", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1240', 'vitalik', 'market', 'sell', '{ "symbol": "TKN", "quantity": "23", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1241', 'satoshi', 'market', 'marketBuy', '{ "symbol": "TKN", "quantity": "4", "isSignedWithActiveKey": true }'));
 
       block = {
-        refSteemBlockNumber: 3,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 3,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -873,7 +873,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik'] }
         }
       });
@@ -881,7 +881,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 429.389);
 
       assert.equal(balances[1].account, 'satoshi');
@@ -893,7 +893,7 @@ describe('Market', function() {
       assert.equal(balances[2].balance, 0.456);
 
       assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'STEEMP');
+      assert.equal(balances[3].symbol, 'SWAP.HIVE');
       assert.equal(balances[3].balance, 27.4);
 
       // check market contract has correct token amounts
@@ -901,7 +901,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -913,7 +913,7 @@ describe('Market', function() {
       assert.equal(balances[0].balance, 5.906);
 
       assert.equal(balances[1].account, 'market');
-      assert.equal(balances[1].symbol, 'STEEMP');
+      assert.equal(balances[1].symbol, 'SWAP.HIVE');
       assert.equal(balances[1].balance, 0);
 
       // check sell order was updated
@@ -963,21 +963,21 @@ describe('Market', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1230', 'steemsc', 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1231', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1232', 'steemsc', 'contract', 'update', JSON.stringify(mktContractPayload)));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1234', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1235', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1236', CONSTANTS.STEEM_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "STEEMP", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1236', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "satoshi", "quantity": "456.789", "isSignedWithActiveKey": true }'));
 
       // test 1 - completely fill buy order
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1237', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1238', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "100.789", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1237', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "50", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1238', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "100.789", "isSignedWithActiveKey": true }'));
 
       let block = {
-        refSteemBlockNumber: 1,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 1,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -988,7 +988,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik'] }
         }
       });
@@ -996,7 +996,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 445.089);
 
       assert.equal(balances[1].account, 'satoshi');
@@ -1008,7 +1008,7 @@ describe('Market', function() {
       assert.equal(balances[2].balance, 73.456);
 
       assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'STEEMP');
+      assert.equal(balances[3].symbol, 'SWAP.HIVE');
       assert.equal(balances[3].balance, 11.7);
 
       let buyOrders = await database1.find({
@@ -1024,12 +1024,12 @@ describe('Market', function() {
 
       // test 2 - try to market sell to an empty order book
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1239', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1239', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
 
        block = {
-        refSteemBlockNumber: 2,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 2,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -1040,7 +1040,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['vitalik'] }
         }
       });
@@ -1050,18 +1050,18 @@ describe('Market', function() {
       assert.equal(balances[0].balance, 73.456);
 
       assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].symbol, 'STEEMP');
+      assert.equal(balances[1].symbol, 'SWAP.HIVE');
       assert.equal(balances[1].balance, 11.7);
 
       // test 3 - partially fill buy order
       transactions = [];
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1240', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.234", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER*2, 'TXID1241', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1240', 'satoshi', 'market', 'buy', '{ "symbol": "TKN", "quantity": "40", "price": "0.234", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(40000000, 'TXID1241', 'vitalik', 'market', 'marketSell', '{ "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
 
       block = {
-        refSteemBlockNumber: 3,
-        refSteemBlockId: 'ABCD1',
-        prevRefSteemBlockId: 'ABCD2',
+        refHiveBlockNumber: 3,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
@@ -1073,7 +1073,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'balances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['satoshi', 'vitalik'] }
         }
       });
@@ -1081,7 +1081,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 435.729);
 
       assert.equal(balances[1].account, 'satoshi');
@@ -1093,7 +1093,7 @@ describe('Market', function() {
       assert.equal(balances[2].balance, 63.456);
 
       assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'STEEMP');
+      assert.equal(balances[3].symbol, 'SWAP.HIVE');
       assert.equal(balances[3].balance, 14.04);
 
       // check market contract has correct token amounts
@@ -1101,7 +1101,7 @@ describe('Market', function() {
         contract: 'tokens',
         table: 'contractsBalances',
         query: {
-          symbol: { $in: ['TKN', 'STEEMP'] },
+          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
           account: { $in: ['market'] }
         }
       });
@@ -1109,7 +1109,7 @@ describe('Market', function() {
       console.log(balances);
 
       assert.equal(balances[0].account, 'market');
-      assert.equal(balances[0].symbol, 'STEEMP');
+      assert.equal(balances[0].symbol, 'SWAP.HIVE');
       assert.equal(balances[0].balance, 7.02);
 
       assert.equal(balances[1].account, 'market');

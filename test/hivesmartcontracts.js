@@ -164,7 +164,7 @@ describe('Database', function () {
         assert.equal(genesisBlock.merkleRoot, '7048315fc8861b98fe1b2a82b86a24f80aa6e6dd225223e39771807532f5fb21');
       } else if (configFile.chainId === 'mainnet-hive'
       && CONSTANTS.UTILITY_TOKEN_SYMBOL === 'BEE') {
-        assert.equal(genesisBlock.hash, 'b4f162b6eb686e7b6943c59432a04fed2240af95ab02eccf6f2915cb43fa397c');
+        assert.equal(genesisBlock.hash, '13bcc1207ec01a24c949bb423c37b00548457660c985fb2795745981edf17d7a');
         assert.equal(genesisBlock.databaseHash, '9358cdfbc5d508a188506b51b6fbcb2a1a43322bf74179665520b7dc0510f0c7');
         assert.equal(genesisBlock.merkleRoot, '6452aef2193270163dc48cf4de6708e9dc7573f0b8467b0349b512b7b69e2914');
       }

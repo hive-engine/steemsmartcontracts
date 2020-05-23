@@ -126,6 +126,7 @@ let mktContractPayload = {
 contractCode = fs.readFileSync('./contracts/marketmaker.js');
 contractCode = contractCode.toString();
 contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+contractCode = contractCode.replace(/'\$\{CHAIN_TYPE\}\$'/g, 'HIVE');
 base64ContractCode = Base64.encode(contractCode);
 
 let mmContractPayload = {
@@ -190,7 +191,7 @@ describe('marketmaker', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "premiumBaseStake": "999", "premiumStakePerMarket": "50", "freeDurationBlocks": "100", "freeCooldownBlocks": "150", "authorizedTicker": "theboss" }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": "100", "basicCooldownBlocks": "150", "authorizedTicker": "theboss" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -202,6 +203,12 @@ describe('marketmaker', function() {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
+      const res = await database1.getBlockInfo(1);
+
+      const block1 = res;
+      const transactionsBlock1 = block1.transactions;
+      console.log(transactionsBlock1[0].logs);
+
       // check if the params updated OK
       const params = await database1.findOne({
         contract: 'marketmaker',
@@ -211,10 +218,13 @@ describe('marketmaker', function() {
 
       console.log(params);
 
+      assert.equal(params.basicFee, '1');
+      assert.equal(params.basicSettingsFee, '2');
+      assert.equal(params.premiumFee, '3');
       assert.equal(params.premiumBaseStake, '999');
-      assert.equal(params.premiumStakePerMarket, '50');
-      assert.equal(params.freeDurationBlocks, '100');
-      assert.equal(params.freeCooldownBlocks, '150');
+      assert.equal(params.stakePerMarket, '50');
+      assert.equal(params.basicDurationBlocks, '100');
+      assert.equal(params.basicCooldownBlocks, '150');
       assert.equal(params.authorizedTicker, 'theboss');
 
       resolve();
@@ -235,7 +245,7 @@ describe('marketmaker', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'marketmaker', 'updateParams', '{ "premiumBaseStake": "999", "premiumStakePerMarket": "50", "freeDurationBlocks": "100", "freeCooldownBlocks": "150" }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": "100", "basicCooldownBlocks": "150", "authorizedTicker": "theboss" }'));
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "wrongKey": "oops"  }'));
       transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "premiumBaseStake": 666 }'));
 
@@ -258,10 +268,13 @@ describe('marketmaker', function() {
 
       console.log(params);
 
+      assert.equal(params.basicFee, '100');
+      assert.equal(params.basicSettingsFee, '1');
+      assert.equal(params.premiumFee, '100');
       assert.equal(params.premiumBaseStake, '1000');
-      assert.equal(params.premiumStakePerMarket, '200');
-      assert.equal(params.freeDurationBlocks, '403200');
-      assert.equal(params.freeCooldownBlocks, '403200');
+      assert.equal(params.stakePerMarket, '200');
+      assert.equal(params.basicDurationBlocks, '403200');
+      assert.equal(params.basicCooldownBlocks, '403200');
       assert.equal(params.authorizedTicker, 'enginemaker');
 
       resolve();
@@ -282,7 +295,7 @@ describe('marketmaker', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "premiumBaseStake": "100", "premiumStakePerMarket": "10", "freeDurationBlocks": "1000", "freeCooldownBlocks": "1000" }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": "100", "basicCooldownBlocks": "100", "authorizedTicker": "enginemaker" }'));
       transactions.push(new Transaction(38145386, 'TXID1232', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -309,9 +322,10 @@ describe('marketmaker', function() {
       assert.equal(user.isOnCooldown, false );
       assert.equal(user.isEnabled, true );
       assert.equal(user.markets, 0 );
-      assert.equal(user.timeLimitBlocks, '1000');
+      assert.equal(user.timeLimitBlocks, '100');
       assert.equal(user.lastTickBlock, 0);
       assert.equal(user.creationTimestamp, 1527811200000);
+      assert.equal(user.creationBlock, 1);
 
       // verify failure conditions
       transactions = [];

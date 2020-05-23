@@ -9,6 +9,9 @@ const CONTRACT_NAME = 'marketmaker';
 // eslint-disable-next-line no-template-curly-in-string
 const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
 
+// either HIVE or STEEM
+const CHAIN_TYPE = "'${CHAIN_TYPE}$'";
+
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('users');
   if (tableExists === false) {
@@ -17,10 +20,15 @@ actions.createSSC = async () => {
     await api.db.createTable('params');
 
     const params = {};
+    params.basicFee = '100';
+    params.basicSettingsFee = '1';
+    params.premiumFee = '100';
     params.premiumBaseStake = '1000';
-    params.premiumStakePerMarket = '200';
-    params.freeDurationBlocks = '403200';  // 14 days
-    params.freeCooldownBlocks = '403200';  // 14 days
+    params.stakePerMarket = '200';
+    params.basicDurationBlocks = 403200; // 14 days
+    params.basicCooldownBlocks = 403200; // 14 days
+    params.basicMinTickIntervalBlocks = 200; // 10 minutes
+    params.premiumMinTickIntervalBlocks = 100; // 5 minutes
     params.authorizedTicker = 'enginemaker';
     await api.db.insert('params', params);
   }
@@ -30,26 +38,46 @@ actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
   const {
+    basicFee,
+    basicSettingsFee,
+    premiumFee,
     premiumBaseStake,
-    premiumStakePerMarket,
-    freeDurationBlocks,
-    freeCooldownBlocks,
+    stakePerMarket,
+    basicDurationBlocks,
+    basicCooldownBlocks,
+    basicMinTickIntervalBlocks,
+    premiumMinTickIntervalBlocks,
     authorizedTicker,
   } = payload;
 
   const params = await api.db.findOne('params', {});
 
+  if (basicFee && typeof basicFee === 'string' && !api.BigNumber(basicFee).isNaN() && api.BigNumber(basicFee).gte(0)) {
+    params.basicFee = basicFee;
+  }
+  if (basicSettingsFee && typeof basicSettingsFee === 'string' && !api.BigNumber(basicSettingsFee).isNaN() && api.BigNumber(basicSettingsFee).gte(0)) {
+    params.basicSettingsFee = basicSettingsFee;
+  }
+  if (premiumFee && typeof premiumFee === 'string' && !api.BigNumber(premiumFee).isNaN() && api.BigNumber(premiumFee).gte(0)) {
+    params.premiumFee = premiumFee;
+  }
   if (premiumBaseStake && typeof premiumBaseStake === 'string' && !api.BigNumber(premiumBaseStake).isNaN() && api.BigNumber(premiumBaseStake).gte(0)) {
     params.premiumBaseStake = premiumBaseStake;
   }
-  if (premiumStakePerMarket && typeof premiumStakePerMarket === 'string' && !api.BigNumber(premiumStakePerMarket).isNaN() && api.BigNumber(premiumStakePerMarket).gte(0)) {
-    params.premiumStakePerMarket = premiumStakePerMarket;
+  if (stakePerMarket && typeof stakePerMarket === 'string' && !api.BigNumber(stakePerMarket).isNaN() && api.BigNumber(stakePerMarket).gte(0)) {
+    params.stakePerMarket = stakePerMarket;
   }
-  if (freeDurationBlocks && typeof freeDurationBlocks === 'string' && !api.BigNumber(freeDurationBlocks).isNaN() && api.BigNumber(freeDurationBlocks).gte(0)) {
-    params.freeDurationBlocks = freeDurationBlocks;
+  if (basicDurationBlocks && typeof basicDurationBlocks === 'number' && Number.isInteger(basicDurationBlocks) && basicDurationBlocks >= 0) {
+    params.basicDurationBlocks = basicDurationBlocks;
   }
-  if (freeCooldownBlocks && typeof freeCooldownBlocks === 'string' && !api.BigNumber(freeCooldownBlocks).isNaN() && api.BigNumber(freeCooldownBlocks).gte(0)) {
-    params.freeCooldownBlocks = freeCooldownBlocks;
+  if (basicCooldownBlocks && typeof basicCooldownBlocks === 'number' && Number.isInteger(basicCooldownBlocks) && basicCooldownBlocks >= 0) {
+    params.basicCooldownBlocks = basicCooldownBlocks;
+  }
+  if (basicMinTickIntervalBlocks && typeof basicMinTickIntervalBlocks === 'number' && Number.isInteger(basicMinTickIntervalBlocks) && basicMinTickIntervalBlocks >= 0) {
+    params.basicMinTickIntervalBlocks = basicMinTickIntervalBlocks;
+  }
+  if (premiumMinTickIntervalBlocks && typeof premiumMinTickIntervalBlocks === 'number' && Number.isInteger(premiumMinTickIntervalBlocks) && premiumMinTickIntervalBlocks >= 0) {
+    params.premiumMinTickIntervalBlocks = premiumMinTickIntervalBlocks;
   }
   if (authorizedTicker && typeof authorizedTicker === 'string') {
     params.authorizedTicker = authorizedTicker;
@@ -74,6 +102,8 @@ const calculateBalance = (balance, quantity, precision, add) => (add
 
 const countDecimals = value => api.BigNumber(value).dp();
 
+const blockTimestamp = (CHAIN_TYPE === 'HIVE') ? api.hiveBlockTimestamp : api.steemBlockTimestamp;
+
 actions.tickUser = async (payload) => {
   const {
     account,
@@ -87,12 +117,12 @@ actions.tickUser = async (payload) => {
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(account === undefined || (account && api.sender === params.authorizedTicker), 'not authorized to specify account parameter')
     && api.assert(account === undefined || api.isValidAccountName(account), 'invalid account name')
-    && api.assert(market === undefined || (market && typeof market === 'string'), 'invalid params')) {
+    && api.assert(market === undefined || (market && typeof market === 'string'), 'invalid market')) {
     const finalAccount = account ? account : api.sender;
 
     // check if user is registered
     const user = await api.db.findOne('users', { account: finalAccount });
-    if (api.assert(user !== null, 'user not registered') {
+    if (api.assert(user !== null, 'user not registered')) {
       const lastTickBlock = user.lastTickBlock;
       const currentTickBlock = api.blockNumber;
     }
@@ -111,7 +141,7 @@ actions.register = async (payload) => {
     // check if this user is already registered
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user === null, 'user already registered')) {
-      const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+      const blockDate = new Date(`${blockTimestamp}.000Z`);
       const creationTimestamp = blockDate.getTime();
 
       const newUser = {
@@ -120,9 +150,10 @@ actions.register = async (payload) => {
         isOnCooldown: false,
         isEnabled: true,
         markets: 0,
-        timeLimitBlocks: params.freeDurationBlocks,
+        timeLimitBlocks: params.basicDurationBlocks,
         lastTickBlock: 0,
         creationTimestamp,
+        creationBlock: api.blockNumber,
       };
 
       await api.db.insert('users', newUser);

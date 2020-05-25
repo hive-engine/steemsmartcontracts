@@ -191,7 +191,7 @@ describe('marketmaker', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": "100", "basicCooldownBlocks": "150", "authorizedTicker": "theboss" }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "basicMinTickIntervalBlocks": 200, "premiumMinTickIntervalBlocks": 250, "authorizedTicker": "theboss" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -223,8 +223,10 @@ describe('marketmaker', function() {
       assert.equal(params.premiumFee, '3');
       assert.equal(params.premiumBaseStake, '999');
       assert.equal(params.stakePerMarket, '50');
-      assert.equal(params.basicDurationBlocks, '100');
-      assert.equal(params.basicCooldownBlocks, '150');
+      assert.equal(params.basicDurationBlocks, 100);
+      assert.equal(params.basicCooldownBlocks, 150);
+      assert.equal(params.basicMinTickIntervalBlocks, 200);
+      assert.equal(params.premiumMinTickIntervalBlocks, 250);
       assert.equal(params.authorizedTicker, 'theboss');
 
       resolve();
@@ -245,9 +247,9 @@ describe('marketmaker', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": "100", "basicCooldownBlocks": "150", "authorizedTicker": "theboss" }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "authorizedTicker": "theboss" }'));
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "wrongKey": "oops"  }'));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "premiumBaseStake": 666 }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicCooldownBlocks": "150" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -273,8 +275,10 @@ describe('marketmaker', function() {
       assert.equal(params.premiumFee, '100');
       assert.equal(params.premiumBaseStake, '1000');
       assert.equal(params.stakePerMarket, '200');
-      assert.equal(params.basicDurationBlocks, '403200');
-      assert.equal(params.basicCooldownBlocks, '403200');
+      assert.equal(params.basicDurationBlocks, 403200);
+      assert.equal(params.basicCooldownBlocks, 403200);
+      assert.equal(params.basicMinTickIntervalBlocks, 200);
+      assert.equal(params.premiumMinTickIntervalBlocks, 100);
       assert.equal(params.authorizedTicker, 'enginemaker');
 
       resolve();
@@ -294,9 +298,11 @@ describe('marketmaker', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": "100", "basicCooldownBlocks": "100", "authorizedTicker": "enginemaker" }'));
-      transactions.push(new Transaction(38145386, 'TXID1232', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
+      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -322,15 +328,36 @@ describe('marketmaker', function() {
       assert.equal(user.isOnCooldown, false );
       assert.equal(user.isEnabled, true );
       assert.equal(user.markets, 0 );
-      assert.equal(user.timeLimitBlocks, '100');
+      assert.equal(user.timeLimitBlocks, 100);
       assert.equal(user.lastTickBlock, 0);
       assert.equal(user.creationTimestamp, 1527811200000);
       assert.equal(user.creationBlock, 1);
 
+      // verify registration fee has been burned
+      const balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL,
+          account: { $in: ['null', 'cryptomancer'] }
+        },
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'null');
+      assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+      assert.equal(balances[0].balance, 100);
+      assert.equal(balances[1].account, 'cryptomancer');
+      assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+      assert.equal(balances[1].balance, 900);
+
       // verify failure conditions
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1233', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1234', 'aggroed', 'marketmaker', 'register', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1235', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1236', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1237', 'aggroed', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -347,9 +374,11 @@ describe('marketmaker', function() {
 
       console.log(transactionsBlock2[0].logs);
       console.log(transactionsBlock2[1].logs);
+      console.log(transactionsBlock2[2].logs);
 
       assert.equal(JSON.parse(transactionsBlock2[0].logs).errors[0], 'user already registered');
       assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'you must use a custom_json signed with your active key');
+      assert.equal(JSON.parse(transactionsBlock2[2].logs).errors[0], 'you must have enough tokens to cover the registration fee');
 
       resolve();
     })

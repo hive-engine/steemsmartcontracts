@@ -86,6 +86,8 @@ actions.updateParams = async (payload) => {
   await api.db.update('params', params);
 };
 
+// ----- START UTILITY FUNCTIONS -----
+
 // check that token transfers succeeded
 const isTokenTransferVerified = (result, from, to, symbol, quantity, eventStr) => {
   if (result.errors === undefined
@@ -103,6 +105,32 @@ const calculateBalance = (balance, quantity, precision, add) => (add
 const countDecimals = value => api.BigNumber(value).dp();
 
 const blockTimestamp = (CHAIN_TYPE === 'HIVE') ? api.hiveBlockTimestamp : api.steemBlockTimestamp;
+
+const verifyUtilityTokenBalance = async (amount) => {
+  if (api.BigNumber(amount).lte(0)) {
+    return true;
+  }
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
+  if (utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(amount)) {
+    return true;
+  }
+  return false;
+};
+
+const burnFee = async (amount, isSignedWithActiveKey) => {
+  if (api.BigNumber(amount).gt(0)) {
+    const res = await api.executeSmartContract('tokens', 'transfer', {
+      to: 'null', symbol: UTILITY_TOKEN_SYMBOL, quantity: amount, isSignedWithActiveKey,
+    });
+    // check if the tokens were sent
+    if (!isTokenTransferVerified(res, api.sender, 'null', UTILITY_TOKEN_SYMBOL, amount, 'transfer')) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// ----- END UTILITY FUNCTIONS -----
 
 actions.tickUser = async (payload) => {
   const {
@@ -134,13 +162,19 @@ actions.register = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  // get contract params
   const params = await api.db.findOne('params', {});
+  const authorizedRegistration = await verifyUtilityTokenBalance(params.basicFee);
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
+  if (api.assert(authorizedRegistration, 'you must have enough tokens to cover the registration fee')
+    && api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
     // check if this user is already registered
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user === null, 'user already registered')) {
+      // burn the registration fee
+      if (!(await burnFee(params.basicFee, isSignedWithActiveKey))) {
+        return false;
+      }
+
       const blockDate = new Date(`${blockTimestamp}.000Z`);
       const creationTimestamp = blockDate.getTime();
 

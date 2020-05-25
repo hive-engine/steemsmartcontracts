@@ -325,6 +325,7 @@ describe('marketmaker', function() {
 
       assert.equal(user.account, 'cryptomancer');
       assert.equal(user.isPremium, false );
+      assert.equal(user.isPremiumFeePaid, false );
       assert.equal(user.isOnCooldown, false );
       assert.equal(user.isEnabled, true );
       assert.equal(user.markets, 0 );

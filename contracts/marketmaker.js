@@ -106,6 +106,17 @@ const countDecimals = value => api.BigNumber(value).dp();
 
 const blockTimestamp = (CHAIN_TYPE === 'HIVE') ? api.hiveBlockTimestamp : api.steemBlockTimestamp;
 
+const verifyUtilityTokenStake = async (amount) => {
+  if (api.BigNumber(amount).lte(0)) {
+    return true;
+  }
+  const utilityTokenStake = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
+  if (utilityTokenStake && api.BigNumber(utilityTokenStake.stake).gte(amount)) {
+    return true;
+  }
+  return false;
+};
+
 const verifyUtilityTokenBalance = async (amount) => {
   if (api.BigNumber(amount).lte(0)) {
     return true;
@@ -157,6 +168,27 @@ actions.tickUser = async (payload) => {
   }
 };
 
+actions.upgrade = async (payload) => {
+  const {
+    isSignedWithActiveKey,
+  } = payload;
+
+  const params = await api.db.findOne('params', {});
+  const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake);
+
+  if (api.assert(hasEnoughStake, 'you do not have enough tokens staked')
+    && api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
+    // check if this user exists
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      // check if this user is already premium
+      if (api.assert(!user.isPremium, 'user is already premium')) {
+        // TODO: finish me!
+      }
+    }
+  }
+};
+
 actions.register = async (payload) => {
   const {
     isSignedWithActiveKey,
@@ -181,6 +213,7 @@ actions.register = async (payload) => {
       const newUser = {
         account: api.sender,
         isPremium: false,
+        isPremiumFeePaid: false,
         isOnCooldown: false,
         isEnabled: true,
         markets: 0,

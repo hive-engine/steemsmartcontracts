@@ -4,6 +4,16 @@
 // eslint-disable-next-line no-template-curly-in-string
 const HIVE_PEGGED_SYMBOL = "'${CONSTANTS.HIVE_PEGGED_SYMBOL}$'";
 
+// transfers to these accounts are blocked
+const ACCOUNT_BLACKLIST = {
+  'gateiodeposit': 1,
+  'deepcrypto8': 1,
+  'bittrex': 1,
+  'poloniex': 1,
+  'huobi-pro': 1,
+  'binance-hot': 1,
+};
+
 const RESERVED_SYMBOLS = {
   ENG: 'null',
   STEEMP: 'steem-peg',
@@ -914,8 +924,6 @@ const addBalance = async (account, token, quantity, table) => {
   return false;
 };
 
-const canTransferToAccount = account => !['binance-hot', 'deepcrypto8', 'bittrex'].includes(account);
-
 actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
@@ -1216,13 +1224,13 @@ actions.transfer = async (payload) => {
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const finalTo = to.trim();
     if (api.assert(finalTo !== api.sender, 'cannot transfer to self')) {
-      if (api.assert(api.isValidAccountName(finalTo), 'invalid to')) {
+      if (api.assert(api.isValidAccountName(finalTo), 'invalid to')
+        && api.assert(ACCOUNT_BLACKLIST[finalTo] === undefined, `not allowed to send to ${finalTo}`)) {
         const token = await api.db.findOne('tokens', { symbol });
 
         // the symbol must exist
         // then we need to check that the quantity is correct
         if (api.assert(token !== null, 'symbol does not exist')
-          && api.assert(symbol !== HIVE_PEGGED_SYMBOL || canTransferToAccount(finalTo), 'cannot transfer to this account')
           && api.assert(countDecimals(quantity) <= token.precision, 'symbol precision mismatch')
           && api.assert(api.BigNumber(quantity).gt(0), 'must transfer positive quantity')) {
           if (await subBalance(api.sender, token, quantity, 'balances')) {

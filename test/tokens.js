@@ -797,6 +797,38 @@ describe('Tokens smart contract', function () {
 
       assert.equal(balNTKvitalik.balance, "0.00000001");
 
+      // verify tokens can't be sent to a blacklisted account
+      transactions = [];
+      transactions.push(new Transaction(12345678902, 'TXID12312', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "quantity": "100", "to": "cryptomancer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, 'TXID12313', 'cryptomancer', 'tokens', 'transfer', '{ "symbol": "TKN.TEST", "quantity": "10", "to": "deepcrypto8", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.findOne({
+          contract: 'tokens',
+          table: 'balances',
+          query: {
+            account: 'cryptomancer',
+            symbol: "TKN.TEST"
+          }
+        });
+
+      assert.equal(res.balance, 100);
+
+      res = await database1.getBlockInfo(2);
+      const block2 = res;
+      const transactionsBlock2 = block2.transactions;
+
+      assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'not allowed to send to deepcrypto8');
+
       resolve();
     })
       .then(() => {
@@ -992,7 +1024,7 @@ describe('Tokens smart contract', function () {
       assert.equal(JSON.parse(transactionsBlock1[9].logs).errors[0], 'must transfer positive quantity');
       assert.equal(JSON.parse(transactionsBlock1[10].logs).errors[0], 'balance does not exist');
       assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], 'overdrawn balance');
-      assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'cannot transfer to this account');
+      assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'not allowed to send to deepcrypto8');
 
       resolve();
     })

@@ -209,6 +209,52 @@ actions.upgrade = async (payload) => {
   return false;
 };
 
+actions.turnOff = async (payload) => {
+  const {
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
+    // check if this user is already registered
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      if (api.assert(user.isEnabled, 'account already turned off')) {
+        user.isEnabled = false;
+
+        await api.db.update('users', user);
+
+        // TODO: in future, maybe pull any orders the bot has placed for this user?
+        api.emit('turnOff', {
+          account: api.sender
+        });
+      }
+    }
+  }
+};
+
+actions.turnOn = async (payload) => {
+  const {
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
+    // check if this user is already registered
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      if (api.assert(!user.isEnabled, 'account already turned on')
+        && api.assert(user.isPremium || !user.isOnCooldown, 'account must not be on cooldown')) {
+        user.isEnabled = true;
+
+        await api.db.update('users', user);
+
+        api.emit('turnOn', {
+          account: api.sender
+        });
+      }
+    }
+  }
+};
+
 actions.register = async (payload) => {
   const {
     isSignedWithActiveKey,

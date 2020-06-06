@@ -183,10 +183,30 @@ actions.upgrade = async (payload) => {
     if (api.assert(user !== null, 'user not registered')) {
       // check if this user is already premium
       if (api.assert(!user.isPremium, 'user is already premium')) {
-        // TODO: finish me!
+        if (!user.isPremiumFeePaid) {
+          // burn the upgrade fee
+          const authorizedUpgrade = await verifyUtilityTokenBalance(params.premiumFee);
+          if (!api.assert(authorizedUpgrade, 'you must have enough tokens to cover the premium upgrade fee')) {
+            return false;
+          }
+          if (!(await burnFee(params.premiumFee, isSignedWithActiveKey))) {
+            return false;
+          }
+        }
+
+        user.isPremiumFeePaid = true;
+        user.isPremium = true;
+
+        await api.db.update('users', user);
+
+        api.emit('upgrade', {
+          account: api.sender
+        });
+        return true;
       }
     }
   }
+  return false;
 };
 
 actions.register = async (payload) => {

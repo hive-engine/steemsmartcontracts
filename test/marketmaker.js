@@ -290,6 +290,131 @@ describe('marketmaker', function() {
       });
   });
 
+  it('upgrades a user to premium', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
+      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1235', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 38145386,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // check if the user was registered OK
+      let user = await database1.findOne({
+        contract: 'marketmaker',
+        table: 'users',
+        query: {}
+      });
+
+      console.log(user);
+
+      assert.equal(user.account, 'cryptomancer');
+      assert.equal(user.isPremium, true );
+      assert.equal(user.isPremiumFeePaid, true );
+      assert.equal(user.isOnCooldown, false );
+      assert.equal(user.isEnabled, true );
+      assert.equal(user.markets, 0 );
+      assert.equal(user.timeLimitBlocks, 100);
+      assert.equal(user.lastTickBlock, 0);
+      assert.equal(user.creationTimestamp, 1527811200000);
+      assert.equal(user.creationBlock, 1);
+
+      // verify registration fee has been burned
+      const balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL,
+          account: { $in: ['null', 'cryptomancer'] }
+        },
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'null');
+      assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+      assert.equal(balances[0].balance, 200);
+      assert.equal(balances[1].account, 'cryptomancer');
+      assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+      assert.equal(balances[1].balance, 800);
+      assert.equal(balances[1].stake, 1000);
+
+      // verify failure conditions
+      transactions = [];
+      transactions.push(new Transaction(38145387, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145387, 'TXID1238', 'cryptomancer', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1239', 'cryptomancer', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1240', 'aggroed', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1241', 'aggroed', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145387, 'TXID1242', 'aggroed', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1243', 'aggroed', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 38145387,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const block2 = await database1.getBlockInfo(2);
+      const transactionsBlock2 = block2.transactions;
+
+      console.log(transactionsBlock2[1].logs);
+      console.log(transactionsBlock2[2].logs);
+      console.log(transactionsBlock2[3].logs);
+      console.log(transactionsBlock2[5].logs);
+      console.log(transactionsBlock2[7].logs);
+
+      assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'user is already premium');
+      assert.equal(JSON.parse(transactionsBlock2[2].logs).errors[0], 'you must use a custom_json signed with your active key');
+      assert.equal(JSON.parse(transactionsBlock2[3].logs).errors[0], 'you do not have enough tokens staked');
+      assert.equal(JSON.parse(transactionsBlock2[5].logs).errors[0], 'user not registered');
+      assert.equal(JSON.parse(transactionsBlock2[7].logs).errors[0], 'you must have enough tokens to cover the premium upgrade fee');
+
+      // make sure user aggroed was NOT upgraded
+      user = await database1.findOne({
+        contract: 'marketmaker',
+        table: 'users',
+        query: { account: 'aggroed' }
+      });
+
+      console.log(user);
+
+      assert.equal(user.account, 'aggroed');
+      assert.equal(user.isPremium, false );
+      assert.equal(user.isPremiumFeePaid, false );
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('registers a new user', (done) => {
     new Promise(async (resolve) => {
 

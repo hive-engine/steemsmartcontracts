@@ -778,6 +778,38 @@ describe('Tokens smart contract', function () {
 
       assert.equal(balNTKvitalik.balance, "0.00000001");
 
+      // verify tokens can't be sent to a blacklisted account
+      transactions = [];
+      transactions.push(new Transaction(12345678902, 'TXID12312', 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "cryptomancer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, 'TXID12313', 'cryptomancer', 'tokens', 'transfer', '{ "symbol": "TKN", "quantity": "10", "to": "deepcrypto8", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refSteemBlockNumber: 12345678902,
+        refSteemBlockId: 'ABCD1',
+        prevRefSteemBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.findOne({
+          contract: 'tokens',
+          table: 'balances',
+          query: {
+            account: 'cryptomancer',
+            symbol: "TKN"
+          }
+        });
+
+      assert.equal(res.balance, 100);
+
+      res = await database1.getBlockInfo(2);
+      const block2 = res;
+      const transactionsBlock2 = block2.transactions;
+
+      assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'not allowed to send to deepcrypto8');
+
       resolve();
     })
       .then(() => {

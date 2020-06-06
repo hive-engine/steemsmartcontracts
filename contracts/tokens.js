@@ -1,6 +1,16 @@
 /* eslint-disable no-await-in-loop */
 /* global actions, api */
 
+// transfers to these accounts are blocked
+const ACCOUNT_BLACKLIST = {
+  'gateiodeposit': 1,
+  'deepcrypto8': 1,
+  'bittrex': 1,
+  'poloniex': 1,
+  'huobi-pro': 1,
+  'honey-swap': 1,
+};
+
 actions.createSSC = async () => {
   let tableExists = await api.db.tableExists('tokens');
   if (tableExists === false) {
@@ -468,7 +478,8 @@ actions.transfer = async (payload) => {
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const finalTo = to.trim();
     if (api.assert(finalTo !== api.sender, 'cannot transfer to self')) {
-      if (api.assert(api.isValidAccountName(finalTo), 'invalid to')) {
+      if (api.assert(api.isValidAccountName(finalTo), 'invalid to')
+        && api.assert(ACCOUNT_BLACKLIST[finalTo] === undefined, `not allowed to send to ${finalTo}`)) {
         const token = await api.db.findOne('tokens', { symbol });
 
         // the symbol must exist

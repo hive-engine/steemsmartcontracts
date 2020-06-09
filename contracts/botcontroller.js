@@ -164,6 +164,36 @@ actions.tickUser = async (payload) => {
     if (api.assert(user !== null, 'user not registered')) {
       const lastTickBlock = user.lastTickBlock;
       const currentTickBlock = api.blockNumber;
+      const tickInterval = currentTickBlock - lastTickBlock;
+      const minTickInterval = user.isPremium ? params.premiumMinTickIntervalBlocks : params.basicMinTickIntervalBlocks;
+      // has enough time passed since the last tick?
+      if (api.assert(tickInterval >= minTickInterval, 'must wait longer to tick')) {
+        user.lastTickBlock = currentTickBlock;
+
+        // update duration
+        if (!user.isPremium) {
+          if (user.isEnabled || user.isOnCooldown) {
+            user.timeLimitBlocks = user.timeLimitBlocks - tickInterval;
+          }
+          if (user.timeLimitBlocks <= 0) {
+            user.timeLimitBlocks = params.basicDurationBlocks;
+            user.isOnCooldown = !user.isOnCooldown;
+            if (user.isOnCooldown) {
+              user.isEnabled = false;
+            }
+          }
+        }
+
+        // demote account if no longer eligible for premium
+        if (user.isPremium) {
+          const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake);
+          if (!hasEnoughStake) {
+            user.isPremium = false;
+          }
+        }
+
+        await api.db.update('users', user);
+      }
     }
   }
 };

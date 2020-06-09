@@ -3,7 +3,7 @@
 /* eslint-disable max-len */
 /* global actions, api */
 
-const CONTRACT_NAME = 'marketmaker';
+const CONTRACT_NAME = 'botcontroller';
 
 // this placeholder represents BEE tokens on Hive Engine, ENG on Steem Engine, and SSC on the testnet
 // eslint-disable-next-line no-template-curly-in-string

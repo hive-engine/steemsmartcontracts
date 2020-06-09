@@ -122,21 +122,21 @@ let mktContractPayload = {
   code: base64ContractCode,
 };
 
-// prepare market maker contract for deployment
-contractCode = fs.readFileSync('./contracts/marketmaker.js');
+// prepare bot controller contract for deployment
+contractCode = fs.readFileSync('./contracts/botcontroller.js');
 contractCode = contractCode.toString();
 contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
 contractCode = contractCode.replace(/'\$\{CHAIN_TYPE\}\$'/g, 'HIVE');
 base64ContractCode = Base64.encode(contractCode);
 
-let mmContractPayload = {
-  name: 'marketmaker',
+let bcContractPayload = {
+  name: 'botcontroller',
   params: '',
   code: base64ContractCode,
 };
 
-// marketmaker 
-describe('marketmaker', function() {
+// botcontroller
+describe('botcontroller', function() {
   this.timeout(200000);
 
   before((done) => {
@@ -190,8 +190,8 @@ describe('marketmaker', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "basicMinTickIntervalBlocks": 200, "premiumMinTickIntervalBlocks": 250, "authorizedTicker": "theboss" }'));
+      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "basicMinTickIntervalBlocks": 200, "premiumMinTickIntervalBlocks": 250, "authorizedTicker": "theboss" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -211,7 +211,7 @@ describe('marketmaker', function() {
 
       // check if the params updated OK
       const params = await database1.findOne({
-        contract: 'marketmaker',
+        contract: 'botcontroller',
         table: 'params',
         query: {}
       });
@@ -246,10 +246,10 @@ describe('marketmaker', function() {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'marketmaker', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "authorizedTicker": "theboss" }'));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "wrongKey": "oops"  }'));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicCooldownBlocks": "150" }'));
+      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "authorizedTicker": "theboss" }'));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "wrongKey": "oops"  }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicCooldownBlocks": "150" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -263,7 +263,7 @@ describe('marketmaker', function() {
 
       // params should not have changed from their initial values
       const params = await database1.findOne({
-        contract: 'marketmaker',
+        contract: 'botcontroller',
         table: 'params',
         query: {}
       });
@@ -299,12 +299,12 @@ describe('marketmaker', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "2000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
-      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
+      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1235', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -318,7 +318,7 @@ describe('marketmaker', function() {
 
       // check if the user was registered OK
       let user = await database1.findOne({
-        contract: 'marketmaker',
+        contract: 'botcontroller',
         table: 'users',
         query: {}
       });
@@ -360,13 +360,13 @@ describe('marketmaker', function() {
       // verify failure conditions
       transactions = [];
       transactions.push(new Transaction(38145387, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1100", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145387, 'TXID1238', 'cryptomancer', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1239', 'cryptomancer', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(38145387, 'TXID1240', 'aggroed', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1238', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1239', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1240', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145387, 'TXID1241', 'aggroed', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145387, 'TXID1242', 'aggroed', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1243', 'aggroed', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'marketmaker', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1242', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1243', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -395,7 +395,7 @@ describe('marketmaker', function() {
 
       // make sure user aggroed was NOT upgraded
       user = await database1.findOne({
-        contract: 'marketmaker',
+        contract: 'botcontroller',
         table: 'users',
         query: { account: 'aggroed' }
       });
@@ -424,10 +424,10 @@ describe('marketmaker', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'marketmaker', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
-      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
+      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -441,7 +441,7 @@ describe('marketmaker', function() {
 
       // check if the user was registered OK
       const user = await database1.findOne({
-        contract: 'marketmaker',
+        contract: 'botcontroller',
         table: 'users',
         query: {}
       });
@@ -481,9 +481,9 @@ describe('marketmaker', function() {
 
       // verify failure conditions
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1235', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1236', 'cryptomancer', 'marketmaker', 'register', '{ "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(38145387, 'TXID1237', 'aggroed', 'marketmaker', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1235', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1236', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1237', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,

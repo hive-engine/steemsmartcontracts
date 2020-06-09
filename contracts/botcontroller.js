@@ -166,8 +166,9 @@ actions.tickUser = async (payload) => {
       const currentTickBlock = api.blockNumber;
       const tickInterval = currentTickBlock - lastTickBlock;
       const minTickInterval = user.isPremium ? params.premiumMinTickIntervalBlocks : params.basicMinTickIntervalBlocks;
-      // has enough time passed since the last tick?
-      if (api.assert(tickInterval >= minTickInterval, 'must wait longer to tick')) {
+      // has enough time passed since the last tick, and is the user enabled?
+      if (api.assert(tickInterval >= minTickInterval, 'must wait longer to tick')
+        && api.assert(user.isEnabled, 'user not enabled')) {
         user.lastTickBlock = currentTickBlock;
 
         // update duration
@@ -267,13 +268,20 @@ actions.turnOn = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
+  const params = await api.db.findOne('params', {});
+
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
     // check if this user is already registered
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user !== null, 'user not registered')) {
+      const lastTickBlock = user.lastTickBlock;
+      const currentTickBlock = api.blockNumber;
+      const tickInterval = currentTickBlock - lastTickBlock;
       if (api.assert(!user.isEnabled, 'account already turned on')
-        && api.assert(user.isPremium || !user.isOnCooldown, 'account must not be on cooldown')) {
+        && api.assert(user.isPremium || !user.isOnCooldown || (user.isOnCooldown && tickInterval >= params.basicCooldownBlocks), 'cooldown duration not expired')) {
         user.isEnabled = true;
+        user.isOnCooldown = false;
+        user.lastTickBlock = currentTickBlock;
 
         await api.db.update('users', user);
 

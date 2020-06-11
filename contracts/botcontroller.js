@@ -171,22 +171,17 @@ actions.tickUser = async (payload) => {
         && api.assert(user.isEnabled, 'user not enabled')) {
         user.lastTickBlock = currentTickBlock;
 
-        // update duration
+        // update duration and see if we need to go into cooldown
         if (!user.isPremium) {
-          if (user.isEnabled || user.isOnCooldown) {
-            user.timeLimitBlocks = user.timeLimitBlocks - tickInterval;
-          }
+          user.timeLimitBlocks = user.timeLimitBlocks - tickInterval;
           if (user.timeLimitBlocks <= 0) {
-            user.timeLimitBlocks = params.basicDurationBlocks;
-            user.isOnCooldown = !user.isOnCooldown;
-            if (user.isOnCooldown) {
-              user.isEnabled = false;
-            }
+            user.timeLimitBlocks = 0;
+            user.isOnCooldown = true;
+            user.isEnabled = false;
           }
         }
-
-        // demote account if no longer eligible for premium
-        if (user.isPremium) {
+        else {
+          // demote account if no longer eligible for premium
           const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake);
           if (!hasEnoughStake) {
             user.isPremium = false;
@@ -227,6 +222,11 @@ actions.upgrade = async (payload) => {
 
         user.isPremiumFeePaid = true;
         user.isPremium = true;
+        if (user.isOnCooldown) {
+          user.timeLimitBlocks = params.basicDurationBlocks;
+        }
+        user.isOnCooldown = false;
+        user.lastTickBlock = api.blockNumber;
 
         await api.db.update('users', user);
 
@@ -250,7 +250,18 @@ actions.turnOff = async (payload) => {
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user !== null, 'user not registered')) {
       if (api.assert(user.isEnabled, 'account already turned off')) {
+        // update duration and see if we need to go into cooldown
+        if (!user.isPremium) {
+          const tickInterval = api.blockNumber - user.lastTickBlock;
+          user.timeLimitBlocks = user.timeLimitBlocks - tickInterval;
+          if (user.timeLimitBlocks <= 0) {
+            user.timeLimitBlocks = 0;
+            user.isOnCooldown = true;
+          }
+        }
+
         user.isEnabled = false;
+        user.lastTickBlock = api.blockNumber;
 
         await api.db.update('users', user);
 
@@ -280,6 +291,9 @@ actions.turnOn = async (payload) => {
       if (api.assert(!user.isEnabled, 'account already turned on')
         && api.assert(user.isPremium || !user.isOnCooldown || (user.isOnCooldown && tickInterval >= params.basicCooldownBlocks), 'cooldown duration not expired')) {
         user.isEnabled = true;
+        if (user.isOnCooldown) {
+          user.timeLimitBlocks = params.basicDurationBlocks;
+        }
         user.isOnCooldown = false;
         user.lastTickBlock = currentTickBlock;
 
@@ -322,7 +336,7 @@ actions.register = async (payload) => {
         isEnabled: true,
         markets: 0,
         timeLimitBlocks: params.basicDurationBlocks,
-        lastTickBlock: 0,
+        lastTickBlock: api.blockNumber,
         creationTimestamp,
         creationBlock: api.blockNumber,
       };

@@ -332,7 +332,7 @@ describe('botcontroller', function() {
       assert.equal(user.isEnabled, true );
       assert.equal(user.markets, 0 );
       assert.equal(user.timeLimitBlocks, 100);
-      assert.equal(user.lastTickBlock, 0);
+      assert.equal(user.lastTickBlock, 1);
       assert.equal(user.creationTimestamp, 1527811200000);
       assert.equal(user.creationBlock, 1);
 
@@ -455,7 +455,7 @@ describe('botcontroller', function() {
       assert.equal(user.isEnabled, true );
       assert.equal(user.markets, 0 );
       assert.equal(user.timeLimitBlocks, 100);
-      assert.equal(user.lastTickBlock, 0);
+      assert.equal(user.lastTickBlock, 1);
       assert.equal(user.creationTimestamp, 1527811200000);
       assert.equal(user.creationBlock, 1);
 

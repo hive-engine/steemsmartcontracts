@@ -127,12 +127,43 @@ contractCode = fs.readFileSync('./contracts/botcontroller.js');
 contractCode = contractCode.toString();
 contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
 contractCode = contractCode.replace(/'\$\{CHAIN_TYPE\}\$'/g, 'HIVE');
+contractCode = contractCode.replace(/'\$\{BASE_SYMBOL\}\$'/g, 'SWAP.HIVE');
 base64ContractCode = Base64.encode(contractCode);
 
 let bcContractPayload = {
   name: 'botcontroller',
   params: '',
   code: base64ContractCode,
+};
+
+const getUsers = async (db) => {
+  const users = await db.find({
+    contract: 'botcontroller',
+    table: 'users',
+    query: {},
+    indexes: [{index: '_id', descending: false}],
+  });
+  return users;
+};
+
+const assertFields = (user, fields) => {
+  const {
+    account,
+    isPremium,
+    isOnCooldown,
+    isEnabled,
+    lastTickBlock,
+    timeLimitBlocks,
+  } = fields;
+
+  console.log(user);
+
+  assert.equal(user.account, account );
+  assert.equal(user.isPremium, isPremium );
+  assert.equal(user.isOnCooldown, isOnCooldown );
+  assert.equal(user.isEnabled, isEnabled );
+  assert.equal(user.lastTickBlock, lastTickBlock );
+  assert.equal(user.timeLimitBlocks, timeLimitBlocks );
 };
 
 // botcontroller
@@ -182,6 +213,160 @@ describe('botcontroller', function() {
         })
   });
 
+  it('ticks accounts', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let startRefBlockNum = 44443799;
+      let transactions = [];
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "beggars", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 10, "basicCooldownBlocks": 10, "basicMinTickIntervalBlocks": 5, "premiumMinTickIntervalBlocks": 3, "basicMaxTicksPerBlock": 1, "premiumMaxTicksPerBlock": 2 }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1236', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1237', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1238', 'beggars', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1239', 'beggars', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "beggars", "quantity": "1000", "isSignedWithActiveKey": true }`));
+
+      let block = {
+        refHiveBlockNumber: startRefBlockNum,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // process a bunch of blocks and verify accounts tick OK
+      let numBlocks = 0;
+      for(let i = 0; i < 100; i += 1) {
+        numBlocks += 1;
+        startRefBlockNum += 1;
+        transactions = [];
+        // dummy transaction just to generate a block
+        transactions.push(new Transaction(startRefBlockNum, 'TXID9999' + i.toString(), 'aggroed', 'whatever', 'whatever', '{ "isSignedWithActiveKey": true }'));
+
+        switch(numBlocks) {
+          case 8:
+            // test that turning off an account works OK
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDA000' + i.toString(), 'cryptomancer', 'botcontroller', 'turnOff', '{ "isSignedWithActiveKey": true }'));
+            break;
+          case 15:
+            // test that you can't re-enable an account that is in cooldown
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDB000' + i.toString(), 'aggroed', 'botcontroller', 'turnOn', '{ "isSignedWithActiveKey": true }'));
+            break;
+          case 30:
+            // test that turning on an account works OK
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDC000' + i.toString(), 'cryptomancer', 'botcontroller', 'turnOn', '{ "isSignedWithActiveKey": true }'));
+            break;
+          case 35:
+            // test premium upgrade and turning back on after a cooldown expires
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDD000' + i.toString(), 'aggroed', 'botcontroller', 'turnOn', '{ "isSignedWithActiveKey": true }'));
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDD001' + i.toString(), 'beggars', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDD002' + i.toString(), 'beggars', 'botcontroller', 'turnOn', '{ "isSignedWithActiveKey": true }'));
+          default:
+            break;
+        }
+
+        block = {
+          refHiveBlockNumber: startRefBlockNum,
+          refHiveBlockId: 'ABCD1',
+          prevRefHiveBlockId: 'ABCD2',
+          timestamp: '2018-06-01T00:00:00',
+          transactions,
+        };
+
+        await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+        // verify account state updates OK after each tick
+        let users = await getUsers(database1);
+        let blockInfo = await database1.getBlockInfo(numBlocks + 1);
+        let transactionData = blockInfo.transactions;
+        switch(numBlocks) {
+          case 1:
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 1, timeLimitBlocks: 10 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 1, timeLimitBlocks: 10 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 1, timeLimitBlocks: 10 });
+            break;
+          case 5:
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 6, timeLimitBlocks: 5 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 1, timeLimitBlocks: 10 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 1, timeLimitBlocks: 10 });
+            break;
+          case 6:
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 6, timeLimitBlocks: 5 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 7, timeLimitBlocks: 4 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 1, timeLimitBlocks: 10 });
+            break;
+          case 7:
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 6, timeLimitBlocks: 5 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 7, timeLimitBlocks: 4 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: false, isEnabled: true, lastTickBlock: 8, timeLimitBlocks: 3 });
+            break;
+          case 8: // cryptomancer executes a turnOff action here
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: false, lastTickBlock: 9, timeLimitBlocks: 2 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 7, timeLimitBlocks: 4 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 8, timeLimitBlocks: 3 });
+            break;
+          case 11: // aggroed ticks and goes into cooldown
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: false, lastTickBlock: 9,  timeLimitBlocks: 2 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 12, timeLimitBlocks: 0 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 8,  timeLimitBlocks: 3 });
+            break;
+          case 12: // beggars ticks and goes into cooldown
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: false, lastTickBlock: 9,  timeLimitBlocks: 2 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 12, timeLimitBlocks: 0 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 13, timeLimitBlocks: 0 });
+            break;
+          case 15: // aggroed tries to re-enable, but can't because he's on cooldown
+            console.log('ticking: ' + numBlocks);
+            console.log(transactionData[1].logs);
+            assert.equal(JSON.parse(transactionData[1].logs).errors[0], 'cooldown duration not expired');
+          case 25: // verify state isn't changing while accounts are turned off
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: false, lastTickBlock: 9,  timeLimitBlocks: 2 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 12, timeLimitBlocks: 0 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 13, timeLimitBlocks: 0 });
+            break;
+          case 30: // cryptomancer executes a turnOn action here
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 31, timeLimitBlocks: 2 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 12, timeLimitBlocks: 0 });
+            assertFields(users[2], { account: 'beggars',      isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 13, timeLimitBlocks: 0 });
+            break;
+          case 35: // cryptomancer ticks and goes into cooldown, aggroed does a turnOn, beggars does an upgrade
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimitBlocks: 0 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimitBlocks: 10 });
+            assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimitBlocks: 10 });
+            break;
+          default:
+            break;
+        }
+      }
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('updates parameters', (done) => {
     new Promise(async (resolve) => {
 
@@ -191,7 +376,7 @@ describe('botcontroller', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "basicMinTickIntervalBlocks": 200, "premiumMinTickIntervalBlocks": 250, "authorizedTicker": "theboss" }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "basicMinTickIntervalBlocks": 200, "premiumMinTickIntervalBlocks": 250, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -227,7 +412,8 @@ describe('botcontroller', function() {
       assert.equal(params.basicCooldownBlocks, 150);
       assert.equal(params.basicMinTickIntervalBlocks, 200);
       assert.equal(params.premiumMinTickIntervalBlocks, 250);
-      assert.equal(params.authorizedTicker, 'theboss');
+      assert.equal(params.basicMaxTicksPerBlock, 5);
+      assert.equal(params.premiumMaxTicksPerBlock, 10);
 
       resolve();
     })
@@ -247,7 +433,7 @@ describe('botcontroller', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "authorizedTicker": "theboss" }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150 }'));
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "wrongKey": "oops"  }'));
       transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicCooldownBlocks": "150" }'));
 
@@ -279,7 +465,8 @@ describe('botcontroller', function() {
       assert.equal(params.basicCooldownBlocks, 403200);
       assert.equal(params.basicMinTickIntervalBlocks, 200);
       assert.equal(params.premiumMinTickIntervalBlocks, 100);
-      assert.equal(params.authorizedTicker, 'enginemaker');
+      assert.equal(params.basicMaxTicksPerBlock, 20);
+      assert.equal(params.premiumMaxTicksPerBlock, 30);
 
       resolve();
     })
@@ -301,7 +488,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "2000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
       transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1235', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
@@ -426,7 +613,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "authorizedTicker": "enginemaker" }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
       transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
 
       let block = {

@@ -9,6 +9,9 @@ const CONTRACT_NAME = 'botcontroller';
 // eslint-disable-next-line no-template-curly-in-string
 const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
 
+// either SWAP.HIVE or STEEMP
+const BASE_SYMBOL = "'${BASE_SYMBOL}$'";
+
 // either HIVE or STEEM
 const CHAIN_TYPE = "'${CHAIN_TYPE}$'";
 
@@ -29,7 +32,8 @@ actions.createSSC = async () => {
     params.basicCooldownBlocks = 403200; // 14 days
     params.basicMinTickIntervalBlocks = 200; // 10 minutes
     params.premiumMinTickIntervalBlocks = 100; // 5 minutes
-    params.authorizedTicker = 'enginemaker';
+    params.basicMaxTicksPerBlock = 20;
+    params.premiumMaxTicksPerBlock = 30;
     await api.db.insert('params', params);
   }
 };
@@ -47,7 +51,8 @@ actions.updateParams = async (payload) => {
     basicCooldownBlocks,
     basicMinTickIntervalBlocks,
     premiumMinTickIntervalBlocks,
-    authorizedTicker,
+    basicMaxTicksPerBlock,
+    premiumMaxTicksPerBlock,
   } = payload;
 
   const params = await api.db.findOne('params', {});
@@ -79,8 +84,11 @@ actions.updateParams = async (payload) => {
   if (premiumMinTickIntervalBlocks && typeof premiumMinTickIntervalBlocks === 'number' && Number.isInteger(premiumMinTickIntervalBlocks) && premiumMinTickIntervalBlocks >= 0) {
     params.premiumMinTickIntervalBlocks = premiumMinTickIntervalBlocks;
   }
-  if (authorizedTicker && typeof authorizedTicker === 'string') {
-    params.authorizedTicker = authorizedTicker;
+  if (basicMaxTicksPerBlock && typeof basicMaxTicksPerBlock === 'number' && Number.isInteger(basicMaxTicksPerBlock) && basicMaxTicksPerBlock >= 0) {
+    params.basicMaxTicksPerBlock = basicMaxTicksPerBlock;
+  }
+  if (premiumMaxTicksPerBlock && typeof premiumMaxTicksPerBlock === 'number' && Number.isInteger(premiumMaxTicksPerBlock) && premiumMaxTicksPerBlock >= 0) {
+    params.premiumMaxTicksPerBlock = premiumMaxTicksPerBlock;
   }
 
   await api.db.update('params', params);
@@ -106,22 +114,22 @@ const countDecimals = value => api.BigNumber(value).dp();
 
 const blockTimestamp = (CHAIN_TYPE === 'HIVE') ? api.hiveBlockTimestamp : api.steemBlockTimestamp;
 
-const verifyUtilityTokenStake = async (amount) => {
+const verifyUtilityTokenStake = async (amount, account) => {
   if (api.BigNumber(amount).lte(0)) {
     return true;
   }
-  const utilityTokenStake = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
+  const utilityTokenStake = await api.db.findOneInTable('tokens', 'balances', { account: account, symbol: UTILITY_TOKEN_SYMBOL });
   if (utilityTokenStake && api.BigNumber(utilityTokenStake.stake).gte(amount)) {
     return true;
   }
   return false;
 };
 
-const verifyUtilityTokenBalance = async (amount) => {
+const verifyUtilityTokenBalance = async (amount, account) => {
   if (api.BigNumber(amount).lte(0)) {
     return true;
   }
-  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: account, symbol: UTILITY_TOKEN_SYMBOL });
   if (utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(amount)) {
     return true;
   }
@@ -143,54 +151,71 @@ const burnFee = async (amount, isSignedWithActiveKey) => {
 
 // ----- END UTILITY FUNCTIONS -----
 
-actions.tickUser = async (payload) => {
-  const {
-    account,
-    market,
-    isSignedWithActiveKey,
-  } = payload;
+actions.tick = async () => {
+  if (api.assert(api.sender === 'null', 'not authorized')) {
+    // get contract params
+    const params = await api.db.findOne('params', {});
+    const cutoffBasicBlock = api.blockNumber - params.basicMinTickIntervalBlocks;
+    const cutoffPremiumBlock = api.blockNumber - params.premiumMinTickIntervalBlocks;
 
-  // get contract params
-  const params = await api.db.findOne('params', {});
+    // get some basic accounts that are ready to be ticked
+    const pendingBasicTicks = await api.db.find(
+      'users',
+      {
+        isEnabled: true,
+        isPremium: false,
+        lastTickBlock: {
+          $lte: cutoffBasicBlock,
+        },
+      },
+      params.basicMaxTicksPerBlock,
+      0,
+      [{index: '_id', descending: false}],
+    );
+    await tickUsers(params, pendingBasicTicks);
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(account === undefined || (account && api.sender === params.authorizedTicker), 'not authorized to specify account parameter')
-    && api.assert(account === undefined || api.isValidAccountName(account), 'invalid account name')
-    && api.assert(market === undefined || (market && typeof market === 'string'), 'invalid market')) {
-    const finalAccount = account ? account : api.sender;
+    // get some premium accounts that are ready to be ticked
+    const pendingPremiumTicks = await api.db.find(
+      'users',
+      {
+        isEnabled: true,
+        isPremium: true,
+        lastTickBlock: {
+          $lte: cutoffPremiumBlock,
+        },
+      },
+      params.premiumMaxTicksPerBlock,
+      0,
+      [{index: '_id', descending: false}],
+    );
+    await tickUsers(params, pendingPremiumTicks);
+  }
+};
 
-    // check if user is registered
-    const user = await api.db.findOne('users', { account: finalAccount });
-    if (api.assert(user !== null, 'user not registered')) {
-      const lastTickBlock = user.lastTickBlock;
-      const currentTickBlock = api.blockNumber;
-      const tickInterval = currentTickBlock - lastTickBlock;
-      const minTickInterval = user.isPremium ? params.premiumMinTickIntervalBlocks : params.basicMinTickIntervalBlocks;
-      // has enough time passed since the last tick, and is the user enabled?
-      if (api.assert(tickInterval >= minTickInterval, 'must wait longer to tick')
-        && api.assert(user.isEnabled, 'user not enabled')) {
-        user.lastTickBlock = currentTickBlock;
+const tickUsers = async (params, users) => {
+  for (let i = 0; i < users.length; i += 1) {
+    const user = users[i];
 
-        // update duration and see if we need to go into cooldown
-        if (!user.isPremium) {
-          user.timeLimitBlocks = user.timeLimitBlocks - tickInterval;
-          if (user.timeLimitBlocks <= 0) {
-            user.timeLimitBlocks = 0;
-            user.isOnCooldown = true;
-            user.isEnabled = false;
-          }
-        }
-        else {
-          // demote account if no longer eligible for premium
-          const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake);
-          if (!hasEnoughStake) {
-            user.isPremium = false;
-          }
-        }
-
-        await api.db.update('users', user);
+    // update duration and see if we need to go into cooldown
+    if (!user.isPremium) {
+      const tickInterval = api.blockNumber - user.lastTickBlock;
+      user.timeLimitBlocks = user.timeLimitBlocks - tickInterval;
+      if (user.timeLimitBlocks <= 0) {
+        user.timeLimitBlocks = 0;
+        user.isOnCooldown = true;
+        user.isEnabled = false;
       }
     }
+    else {
+      // demote account if no longer eligible for premium
+      const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake, user.account);
+      if (!hasEnoughStake) {
+        user.isPremium = false;
+      }
+    }
+
+    user.lastTickBlock = api.blockNumber;
+    await api.db.update('users', user);
   }
 };
 
@@ -200,7 +225,7 @@ actions.upgrade = async (payload) => {
   } = payload;
 
   const params = await api.db.findOne('params', {});
-  const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake);
+  const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake, api.sender);
 
   if (api.assert(hasEnoughStake, 'you do not have enough tokens staked')
     && api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
@@ -211,7 +236,7 @@ actions.upgrade = async (payload) => {
       if (api.assert(!user.isPremium, 'user is already premium')) {
         if (!user.isPremiumFeePaid) {
           // burn the upgrade fee
-          const authorizedUpgrade = await verifyUtilityTokenBalance(params.premiumFee);
+          const authorizedUpgrade = await verifyUtilityTokenBalance(params.premiumFee, api.sender);
           if (!api.assert(authorizedUpgrade, 'you must have enough tokens to cover the premium upgrade fee')) {
             return false;
           }
@@ -307,13 +332,36 @@ actions.turnOn = async (payload) => {
   }
 };
 
+actions.addMarket = async (payload) => {
+  const {
+    symbol,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(symbol && typeof symbol === 'string' && symbol !== BASE_SYMBOL, 'invalid params')) {
+    // check if this user is already registered
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
+      if (api.assert(token !== null, 'symbol must exist')) {
+        let market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
+        if (api.assert(market === null, 'market already added')) {
+          // check to see if user is able to add another market
+          const authorizedAddition = (user.isPremium || (user.markets === 0)) ? true : false;
+        }
+      }
+    }
+  }
+};
+
 actions.register = async (payload) => {
   const {
     isSignedWithActiveKey,
   } = payload;
 
   const params = await api.db.findOne('params', {});
-  const authorizedRegistration = await verifyUtilityTokenBalance(params.basicFee);
+  const authorizedRegistration = await verifyUtilityTokenBalance(params.basicFee, api.sender);
 
   if (api.assert(authorizedRegistration, 'you must have enough tokens to cover the registration fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {

@@ -2351,18 +2351,24 @@ describe('Market', function() {
       assert.equal(trades[0].quantity, 2);
       assert.equal(trades[0].price, 3);
       assert.equal(trades[0].timestamp, 1527811200);
+      assert.equal(trades[0].buyTxId, 'TXID1243');
+      assert.equal(trades[0].sellTxId, 'TXID1240');
 
       assert.equal(trades[1].type, 'sell');
       assert.equal(trades[1].symbol, 'TKN');
       assert.equal(trades[1].quantity, 3);
       assert.equal(trades[1].price, 3);
       assert.equal(trades[1].timestamp, 1527811200);
+      assert.equal(trades[1].buyTxId, 'TXID1243');
+      assert.equal(trades[1].sellTxId, 'TXID1241');
 
       assert.equal(trades[2].type, 'sell');
       assert.equal(trades[2].symbol, 'TKN');
       assert.equal(trades[2].quantity, 5);
       assert.equal(trades[2].price, 3);
       assert.equal(trades[2].timestamp, 1527811200);
+      assert.equal(trades[2].buyTxId, 'TXID1243');
+      assert.equal(trades[2].sellTxId, 'TXID1242');
 
       transactions = [];
       transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER + 1, 'TXID12351', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://TKN.token.com", "symbol": "BTC", "precision": 3, "maxSupply": "1000" }'));
@@ -2397,36 +2403,48 @@ describe('Market', function() {
       assert.equal(trades[0].quantity, 2);
       assert.equal(trades[0].price, 3);
       assert.equal(trades[0].timestamp, 1527811200);
+      assert.equal(trades[0].buyTxId, 'TXID1243');
+      assert.equal(trades[0].sellTxId, 'TXID1240');
 
       assert.equal(trades[1].type, 'sell');
       assert.equal(trades[1].symbol, 'TKN');
       assert.equal(trades[1].quantity, 3);
       assert.equal(trades[1].price, 3);
       assert.equal(trades[1].timestamp, 1527811200);
+      assert.equal(trades[1].buyTxId, 'TXID1243');
+      assert.equal(trades[1].sellTxId, 'TXID1241');
 
       assert.equal(trades[2].type, 'sell');
       assert.equal(trades[2].symbol, 'TKN');
       assert.equal(trades[2].quantity, 5);
       assert.equal(trades[2].price, 3);
       assert.equal(trades[2].timestamp, 1527811200);
+      assert.equal(trades[2].buyTxId, 'TXID1243');
+      assert.equal(trades[2].sellTxId, 'TXID1242');
 
       assert.equal(trades[3].type, 'buy');
       assert.equal(trades[3].symbol, 'BTC');
       assert.equal(trades[3].quantity, 2);
       assert.equal(trades[3].price, 1);
       assert.equal(trades[3].timestamp, 1527814800);
+      assert.equal(trades[3].buyTxId, 'TXID12438');
+      assert.equal(trades[3].sellTxId, 'TXID12405');
 
       assert.equal(trades[4].type, 'buy');
       assert.equal(trades[4].symbol, 'BTC');
       assert.equal(trades[4].quantity, 3);
       assert.equal(trades[4].price, 2);
       assert.equal(trades[4].timestamp, 1527814800);
+      assert.equal(trades[4].buyTxId, 'TXID12438');
+      assert.equal(trades[4].sellTxId, 'TXID12416');
 
       assert.equal(trades[5].type, 'buy');
       assert.equal(trades[5].symbol, 'BTC');
       assert.equal(trades[5].quantity, 5);
       assert.equal(trades[5].price, 3);
       assert.equal(trades[5].timestamp, 1527814800);
+      assert.equal(trades[5].buyTxId, 'TXID12438');
+      assert.equal(trades[5].sellTxId, 'TXID12427');
 
       transactions = [];
       transactions.push(new Transaction(CONSTANTS.FORK_BLOCK_NUMBER + 2, 'TXID12432', 'harpagon', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "3", "isSignedWithActiveKey": true }'));
@@ -2457,12 +2475,16 @@ describe('Market', function() {
       assert.equal(trades[0].quantity, 3);
       assert.equal(trades[0].price, 3);
       assert.equal(trades[0].timestamp, 1527987600);
+      assert.equal(trades[0].buyTxId, 'TXID12432');
+      assert.equal(trades[0].sellTxId, 'TXID12413');
 
       assert.equal(trades[1].type, 'sell');
       assert.equal(trades[1].symbol, 'BTC');
       assert.equal(trades[1].quantity, 5);
       assert.equal(trades[1].price, 3);
       assert.equal(trades[1].timestamp, 1527987600);
+      assert.equal(trades[1].buyTxId, 'TXID12433');
+      assert.equal(trades[1].sellTxId, 'TXID12426');
 
       assert.equal(trades.length, 2);
 

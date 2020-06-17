@@ -117,7 +117,7 @@ const updateAskMetric = async (symbol) => {
   await api.db.update('metrics', metric);
 };
 
-const updateTradesHistory = async (type, buyer, seller, symbol, quantity, price, volume) => {
+const updateTradesHistory = async (type, buyer, seller, symbol, quantity, price, volume, buyTxId, sellTxId) => {
   const blockDate = new Date(`${api.steemBlockTimestamp}.000Z`);
   const timestampSec = blockDate.getTime() / 1000;
   const timestampMinus24hrs = blockDate.setDate(blockDate.getDate() - 1) / 1000;
@@ -161,6 +161,8 @@ const updateTradesHistory = async (type, buyer, seller, symbol, quantity, price,
   newTrade.price = price;
   newTrade.timestamp = timestampSec;
   newTrade.volume = volume;
+  newTrade.buyTxId = buyTxId;
+  newTrade.sellTxId = sellTxId;
   await api.db.insert('tradesHistory', newTrade);
   await updatePriceMetrics(symbol, price);
 };
@@ -377,7 +379,7 @@ const findMatchingSellOrders = async (order, tokenPrecision) => {
           }
 
           // add the trade to the history
-          await updateTradesHistory('buy', account, sellOrder.account, symbol, buyOrder.quantity, sellOrder.price, qtyTokensToSend);
+          await updateTradesHistory('buy', account, sellOrder.account, symbol, buyOrder.quantity, sellOrder.price, qtyTokensToSend, buyOrder.txId, sellOrder.txId);
 
           // update the volume
           volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
@@ -444,7 +446,7 @@ const findMatchingSellOrders = async (order, tokenPrecision) => {
           }
 
           // add the trade to the history
-          await updateTradesHistory('buy', account, sellOrder.account, symbol, sellOrder.quantity, sellOrder.price, qtyTokensToSend);
+          await updateTradesHistory('buy', account, sellOrder.account, symbol, sellOrder.quantity, sellOrder.price, qtyTokensToSend, buyOrder.txId, sellOrder.txId);
 
           // update the volume
           volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
@@ -574,7 +576,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
           }
 
           // add the trade to the history
-          await updateTradesHistory('sell', buyOrder.account, account, symbol, sellOrder.quantity, buyOrder.price, qtyTokensToSend);
+          await updateTradesHistory('sell', buyOrder.account, account, symbol, sellOrder.quantity, buyOrder.price, qtyTokensToSend, buyOrder.txId, sellOrder.txId);
 
           // update the volume
           volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
@@ -646,7 +648,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
           }
 
           // add the trade to the history
-          await updateTradesHistory('sell', buyOrder.account, account, symbol, buyOrder.quantity, buyOrder.price, qtyTokensToSend);
+          await updateTradesHistory('sell', buyOrder.account, account, symbol, buyOrder.quantity, buyOrder.price, qtyTokensToSend, buyOrder.txId, sellOrder.txId);
 
           // update the volume
           volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
@@ -903,7 +905,7 @@ actions.marketBuy = async (payload) => {
                 }
 
                 // add the trade to the history
-                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, qtyTokensToSend, sellOrder.price, steempRemaining);
+                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, qtyTokensToSend, sellOrder.price, steempRemaining, api.transactionId, sellOrder.txId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(steempRemaining);
@@ -954,7 +956,7 @@ actions.marketBuy = async (payload) => {
                   .toFixed(STEEM_PEGGED_SYMBOL_PRESICION);
 
                 // add the trade to the history
-                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, sellOrder.quantity, sellOrder.price, qtySteempToSend);
+                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, sellOrder.quantity, sellOrder.price, qtySteempToSend, api.transactionId, sellOrder.txId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(qtySteempToSend);
@@ -1096,7 +1098,7 @@ actions.marketSell = async (payload) => {
                 }
 
                 // add the trade to the history
-                await updateTradesHistory('sell', buyOrder.account, api.sender, symbol, tokensRemaining, buyOrder.price, qtyTokensToSend);
+                await updateTradesHistory('sell', buyOrder.account, api.sender, symbol, tokensRemaining, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
@@ -1155,7 +1157,7 @@ actions.marketSell = async (payload) => {
                   .toFixed(token.precision);
 
                 // add the trade to the history
-                await updateTradesHistory('sell', buyOrder.account, api.sender, symbol, buyOrder.quantity, buyOrder.price, qtyTokensToSend);
+                await updateTradesHistory('sell', buyOrder.account, api.sender, symbol, buyOrder.quantity, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);

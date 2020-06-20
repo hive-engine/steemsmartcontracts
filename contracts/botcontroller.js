@@ -332,6 +332,146 @@ actions.turnOn = async (payload) => {
   }
 };
 
+actions.disableMarket = async (payload) => {
+  const {
+    symbol,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(symbol && typeof symbol === 'string' && symbol !== BASE_SYMBOL, 'invalid params')) {
+    // check if this user is already registered
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      const market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
+      if (api.assert(market !== null, 'market must exist')) {
+        if (market.isEnabled) {
+          market.isEnabled = false;
+
+          await api.db.update('markets', market);
+
+          api.emit('disableMarket', {
+            account: api.sender,
+            symbol: symbol,
+          });
+        }
+      }
+    }
+  }
+};
+
+actions.enableMarket = async (payload) => {
+  const {
+    symbol,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(symbol && typeof symbol === 'string' && symbol !== BASE_SYMBOL, 'invalid params')) {
+    // check if this user is already registered
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      const market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
+      if (api.assert(market !== null, 'market must exist')) {
+        if (!market.isEnabled) {
+          // if user was premium but got demoted, they may have too many markets
+          const authorizedAction = (user.isPremium || (user.markets === 1)) ? true : false;
+          if (api.assert(authorizedAction, 'user has too many markets; premium upgrade required')) {
+            // ensure user has enough tokens staked
+            const params = await api.db.findOne('params', {});
+            let requiredStake = api.BigNumber(params.stakePerMarket).multipliedBy(user.markets);
+            if (user.isPremium) {
+              requiredStake = requiredStake.plus(params.premiumBaseStake);
+            }
+            const hasEnoughStake = await verifyUtilityTokenStake(requiredStake, api.sender);
+            if (api.assert(hasEnoughStake, `must stake more ${UTILITY_TOKEN_SYMBOL} to enable market`)) {
+              market.isEnabled = true;
+
+              await api.db.update('markets', market);
+
+              api.emit('enableMarket', {
+                account: api.sender,
+                symbol: symbol,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+actions.removeMarket = async (payload) => {
+  const {
+    symbol,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(symbol && typeof symbol === 'string' && symbol !== BASE_SYMBOL, 'invalid params')) {
+    // check if this user is already registered
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      const market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
+      if (api.assert(market !== null, 'market must exist')) {
+        await api.db.remove('markets', market);
+
+        // decrease user's market count
+        user.markets -= 1;
+        await api.db.update('users', user);
+
+        api.emit('removeMarket', {
+          account: api.sender,
+          symbol: symbol,
+        });
+      }
+    }
+  }
+};
+
+actions.updateMarket = async (payload) => {
+  const {
+    symbol,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(symbol && typeof symbol === 'string' && symbol !== BASE_SYMBOL, 'invalid params')) {
+    // check if this user is already registered
+    const user = await api.db.findOne('users', { account: api.sender });
+    if (api.assert(user !== null, 'user not registered')) {
+      // if user is not premium, a settings change fee must be paid
+      const params = await api.db.findOne('params', {});
+      let authorizedAction = false;
+      if (user.isPremium) {
+        authorizedAction = true;
+      } else {
+        authorizedAction = await verifyUtilityTokenBalance(params.basicSettingsFee, api.sender);
+      }
+      if (api.assert(authorizedAction, 'you must have enough tokens to cover the settings change fee')) {
+        // TODO: finish me
+        await updateMarketInternal(payload);
+      }
+    }
+  }
+};
+
+const updateMarketInternal = async (payload) => {
+  const {
+    symbol,
+    maxBidPrice,
+    minSellPrice,
+    maxBaseToSpend,
+    minBaseToSpend,
+    maxTokensToSell,
+    minTokensToSell,
+    priceIncrement,
+    minSpread,
+    isSignedWithActiveKey,
+  } = payload;
+  // TODO: finish me
+};
+
 actions.addMarket = async (payload) => {
   const {
     symbol,
@@ -345,10 +485,54 @@ actions.addMarket = async (payload) => {
     if (api.assert(user !== null, 'user not registered')) {
       const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
       if (api.assert(token !== null, 'symbol must exist')) {
-        let market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
+        const market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
         if (api.assert(market === null, 'market already added')) {
           // check to see if user is able to add another market
           const authorizedAddition = (user.isPremium || (user.markets === 0)) ? true : false;
+          if (api.assert(authorizedAddition, 'not allowed to add another market')) {
+            // finally, user must have enough tokens staked
+            const params = await api.db.findOne('params', {});
+            let requiredStake = api.BigNumber(params.stakePerMarket).multipliedBy(user.markets + 1);
+            if (user.isPremium) {
+              requiredStake = requiredStake.plus(params.premiumBaseStake);
+            }
+            const hasEnoughStake = await verifyUtilityTokenStake(requiredStake, api.sender);
+            if (api.assert(hasEnoughStake, `must stake more ${UTILITY_TOKEN_SYMBOL} to add a market`)) {
+              const blockDate = new Date(`${blockTimestamp}.000Z`);
+              const creationTimestamp = blockDate.getTime();
+
+              const newMarket = {
+                account: api.sender,
+                symbol: symbol,
+                precision: token.precision,
+                strategy: 1,
+                maxBidPrice: '1000',
+                minSellPrice: '0.00000001',
+                maxBaseToSpend: '100',
+                minBaseToSpend: '1',
+                maxTokensToSell: '100',
+                minTokensToSell: '1',
+                priceIncrement: '0.00001',
+                minSpread: '0.00000001',
+                isEnabled: true,
+                creationTimestamp,
+                creationBlock: api.blockNumber,
+              };
+
+              await api.db.insert('markets', newMarket);
+
+              api.emit('addMarket', {
+                account: api.sender,
+                symbol: symbol,
+              });
+
+              // increase user's market count
+              user.markets += 1;
+              await api.db.update('users', user);
+
+              // TODO: allow market settings to be configured here by calling update action
+            }
+          }
         }
       }
     }

@@ -477,7 +477,7 @@ describe('botcontroller', function() {
       });
   });
 
-  it('upgrades a user to premium', (done) => {
+  it('upgrades a user to premium and adds multiple markets', (done) => {
     new Promise(async (resolve) => {
 
       await loadPlugin(blockchain);
@@ -487,11 +487,14 @@ describe('botcontroller', function() {
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "2000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
-      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1235', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TESTNFT", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "ATOKEN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145386, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
+      transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1238', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1400", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -538,22 +541,16 @@ describe('botcontroller', function() {
 
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[0].balance, 200);
+      assert.equal(balances[0].balance, 500);
       assert.equal(balances[1].account, 'cryptomancer');
       assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[1].balance, 800);
-      assert.equal(balances[1].stake, 1000);
+      assert.equal(balances[1].balance, 400);
+      assert.equal(balances[1].stake, 1400);
 
-      // verify failure conditions
+      // add a couple markets
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1100", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145387, 'TXID1238', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1239', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(38145387, 'TXID1240', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1241', 'aggroed', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145387, 'TXID1242', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1243', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1240', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -565,20 +562,63 @@ describe('botcontroller', function() {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      const block2 = await database1.getBlockInfo(2);
-      const transactionsBlock2 = block2.transactions;
+      // verify markets have been added
+      user = await database1.findOne({
+        contract: 'botcontroller',
+        table: 'users',
+        query: {}
+      });
+      assert.equal(user.markets, 2 );
 
-      console.log(transactionsBlock2[1].logs);
-      console.log(transactionsBlock2[2].logs);
-      console.log(transactionsBlock2[3].logs);
-      console.log(transactionsBlock2[5].logs);
-      console.log(transactionsBlock2[7].logs);
+      let markets = await database1.find({
+        contract: 'botcontroller',
+        table: 'markets',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(markets);
+      assert.equal(markets.length, 2 );
+      assert.equal(markets[0].symbol, 'TKN' );
+      assert.equal(markets[1].symbol, 'TESTNFT' );
 
-      assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'user is already premium');
-      assert.equal(JSON.parse(transactionsBlock2[2].logs).errors[0], 'you must use a custom_json signed with your active key');
-      assert.equal(JSON.parse(transactionsBlock2[3].logs).errors[0], 'you do not have enough tokens staked');
-      assert.equal(JSON.parse(transactionsBlock2[5].logs).errors[0], 'user not registered');
-      assert.equal(JSON.parse(transactionsBlock2[7].logs).errors[0], 'you must have enough tokens to cover the premium upgrade fee');
+      // verify failure conditions
+      transactions = [];
+      transactions.push(new Transaction(38145388, 'TXID1242', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145388, 'TXID1243', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1244', 'cryptomancer', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145388, 'TXID1245', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1246', 'aggroed', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145388, 'TXID1247', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1248', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1249', 'aggroed', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "ATOKEN", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 38145388,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const block3 = await database1.getBlockInfo(3);
+      const transactionsBlock3 = block3.transactions;
+
+      console.log(transactionsBlock3[1].logs);
+      console.log(transactionsBlock3[2].logs);
+      console.log(transactionsBlock3[3].logs);
+      console.log(transactionsBlock3[5].logs);
+      console.log(transactionsBlock3[7].logs);
+      console.log(transactionsBlock3[8].logs);
+
+      assert.equal(JSON.parse(transactionsBlock3[1].logs).errors[0], 'user is already premium');
+      assert.equal(JSON.parse(transactionsBlock3[2].logs).errors[0], 'you must use a custom_json signed with your active key');
+      assert.equal(JSON.parse(transactionsBlock3[3].logs).errors[0], 'you do not have enough tokens staked');
+      assert.equal(JSON.parse(transactionsBlock3[5].logs).errors[0], 'user not registered');
+      assert.equal(JSON.parse(transactionsBlock3[7].logs).errors[0], 'you must have enough tokens to cover the premium upgrade fee');
+      assert.equal(JSON.parse(transactionsBlock3[8].logs).errors[0], 'must stake more BEE to add a market');
 
       // make sure user aggroed was NOT upgraded
       user = await database1.findOne({
@@ -593,6 +633,24 @@ describe('botcontroller', function() {
       assert.equal(user.isPremium, false );
       assert.equal(user.isPremiumFeePaid, false );
 
+      // verify a third market was NOT added
+      user = await database1.findOne({
+        contract: 'botcontroller',
+        table: 'users',
+        query: {'account': 'cryptomancer'}
+      });
+      assert.equal(user.markets, 2 );
+
+      markets = await database1.find({
+        contract: 'botcontroller',
+        table: 'markets',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      assert.equal(markets.length, 2 );
+      assert.equal(markets[0].symbol, 'TKN' );
+      assert.equal(markets[1].symbol, 'TESTNFT' );
+
       resolve();
     })
       .then(() => {
@@ -602,7 +660,7 @@ describe('botcontroller', function() {
       });
   });
 
-  it('registers a new user', (done) => {
+  it('registers a new user and adds a market', (done) => {
     new Promise(async (resolve) => {
 
       await loadPlugin(blockchain);
@@ -612,9 +670,13 @@ describe('botcontroller', function() {
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
-      transactions.push(new Transaction(38145386, 'TXID1234', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TESTNFT", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
+      transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "200", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1238', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -625,26 +687,6 @@ describe('botcontroller', function() {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      // check if the user was registered OK
-      const user = await database1.findOne({
-        contract: 'botcontroller',
-        table: 'users',
-        query: {}
-      });
-
-      console.log(user);
-
-      assert.equal(user.account, 'cryptomancer');
-      assert.equal(user.isPremium, false );
-      assert.equal(user.isPremiumFeePaid, false );
-      assert.equal(user.isOnCooldown, false );
-      assert.equal(user.isEnabled, true );
-      assert.equal(user.markets, 0 );
-      assert.equal(user.timeLimitBlocks, 100);
-      assert.equal(user.lastTickBlock, 1);
-      assert.equal(user.creationTimestamp, 1527811200000);
-      assert.equal(user.creationBlock, 1);
 
       // verify registration fee has been burned
       const balances = await database1.find({
@@ -661,16 +703,25 @@ describe('botcontroller', function() {
 
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[0].balance, 100);
+      assert.equal(balances[0].balance, 300);
       assert.equal(balances[1].account, 'cryptomancer');
       assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[1].balance, 900);
+      assert.equal(balances[1].balance, 700);
+      assert.equal(balances[1].stake, 200);
 
       // verify failure conditions
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1235', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1236', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(38145387, 'TXID1237', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1239', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1240', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1241', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1242', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1243', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": 123, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1244', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "SWAP.HIVE", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1245', 'aggroed', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1246', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "INVALID", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1247', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1248', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1249', 'cryptomancer', 'botcontroller', 'removeMarket', '{ "symbol": "INVALID", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -688,10 +739,102 @@ describe('botcontroller', function() {
       console.log(transactionsBlock2[0].logs);
       console.log(transactionsBlock2[1].logs);
       console.log(transactionsBlock2[2].logs);
+      console.log(transactionsBlock2[3].logs);
+      console.log(transactionsBlock2[4].logs);
+      console.log(transactionsBlock2[5].logs);
+      console.log(transactionsBlock2[6].logs);
+      console.log(transactionsBlock2[7].logs);
+      console.log(transactionsBlock2[8].logs);
+      console.log(transactionsBlock2[9].logs);
+      console.log(transactionsBlock2[10].logs);
 
       assert.equal(JSON.parse(transactionsBlock2[0].logs).errors[0], 'user already registered');
       assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'you must use a custom_json signed with your active key');
       assert.equal(JSON.parse(transactionsBlock2[2].logs).errors[0], 'you must have enough tokens to cover the registration fee');
+      assert.equal(JSON.parse(transactionsBlock2[3].logs).errors[0], 'you must use a custom_json signed with your active key');
+      assert.equal(JSON.parse(transactionsBlock2[4].logs).errors[0], 'invalid params');
+      assert.equal(JSON.parse(transactionsBlock2[5].logs).errors[0], 'invalid params');
+      assert.equal(JSON.parse(transactionsBlock2[6].logs).errors[0], 'user not registered');
+      assert.equal(JSON.parse(transactionsBlock2[7].logs).errors[0], 'symbol must exist');
+      assert.equal(JSON.parse(transactionsBlock2[8].logs).errors[0], 'market already added');
+      assert.equal(JSON.parse(transactionsBlock2[9].logs).errors[0], 'not allowed to add another market');
+      assert.equal(JSON.parse(transactionsBlock2[10].logs).errors[0], 'market must exist');
+
+      // check if the user was registered OK and no additional markets
+      // were added from above failures
+      let user = await database1.findOne({
+        contract: 'botcontroller',
+        table: 'users',
+        query: {}
+      });
+
+      console.log(user);
+
+      assert.equal(user.account, 'cryptomancer');
+      assert.equal(user.isPremium, false );
+      assert.equal(user.isPremiumFeePaid, false );
+      assert.equal(user.isOnCooldown, false );
+      assert.equal(user.isEnabled, true );
+      assert.equal(user.markets, 1 );
+      assert.equal(user.timeLimitBlocks, 100);
+      assert.equal(user.lastTickBlock, 1);
+      assert.equal(user.creationTimestamp, 1527811200000);
+      assert.equal(user.creationBlock, 1);
+
+      // check if the market was added OK and not affected by above failures
+      let market = await database1.findOne({
+        contract: 'botcontroller',
+        table: 'markets',
+        query: {}
+      });
+
+      console.log(market);
+
+      assert.equal(market.account, 'cryptomancer');
+      assert.equal(market.symbol, 'TKN');
+      assert.equal(market.precision, 3);
+      assert.equal(market.strategy, 1);
+      assert.equal(market.maxBidPrice, '1000');
+      assert.equal(market.minSellPrice, '0.00000001');
+      assert.equal(market.maxBaseToSpend, '100');
+      assert.equal(market.minBaseToSpend, '1');
+      assert.equal(market.maxTokensToSell, '100');
+      assert.equal(market.minTokensToSell, '1');
+      assert.equal(market.priceIncrement, '0.00001');
+      assert.equal(market.minSpread, '0.00000001');
+      assert.equal(market.isEnabled, true);
+      assert.equal(market.creationTimestamp, 1527811200000);
+      assert.equal(market.creationBlock, 1);
+
+      // remove the market
+      transactions = [];
+      transactions.push(new Transaction(38145388, 'TXID1250', 'cryptomancer', 'botcontroller', 'removeMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 38145388,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // verify the market is gone
+      user = await database1.findOne({
+        contract: 'botcontroller',
+        table: 'users',
+        query: {'account': 'cryptomancer'}
+      });
+      assert.equal(user.markets, 0 );
+
+      market = await database1.find({
+        contract: 'botcontroller',
+        table: 'markets',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      assert.equal(market.length, 0 );
 
       resolve();
     })

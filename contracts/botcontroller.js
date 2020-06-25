@@ -11,6 +11,7 @@ const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
 
 // either SWAP.HIVE or STEEMP
 const BASE_SYMBOL = "'${BASE_SYMBOL}$'";
+const BASE_SYMBOL_PRECISION = 8;
 
 // either HIVE or STEEM
 const CHAIN_TYPE = "'${CHAIN_TYPE}$'";
@@ -449,16 +450,25 @@ actions.updateMarket = async (payload) => {
         authorizedAction = await verifyUtilityTokenBalance(params.basicSettingsFee, api.sender);
       }
       if (api.assert(authorizedAction, 'you must have enough tokens to cover the settings change fee')) {
-        // TODO: finish me
-        await updateMarketInternal(payload);
+        const market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
+        if (api.assert(market !== null, 'market must exist')) {
+          // TODO: move this to updateMarketInternal
+          /*if (!user.isPremium) {
+            // burn the settings change fee
+            if (!(await burnFee(params.basicSettingsFee, isSignedWithActiveKey))) {
+              return false;
+            }
+          }*/
+          return await updateMarketInternal(payload, market, !user.isPremium, params);
+        }
       }
     }
   }
+  return false;
 };
 
-const updateMarketInternal = async (payload) => {
+const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
   const {
-    symbol,
     maxBidPrice,
     minSellPrice,
     maxBaseToSpend,
@@ -467,9 +477,11 @@ const updateMarketInternal = async (payload) => {
     minTokensToSell,
     priceIncrement,
     minSpread,
-    isSignedWithActiveKey,
   } = payload;
-  // TODO: finish me
+
+  if (api.assert(maxBidPrice === undefined || (maxBidPrice && typeof maxBidPrice === 'string' && !api.BigNumber(maxBidPrice).isNaN() && api.BigNumber(maxBidPrice).gt(0) && countDecimals(maxBidPrice) <= BASE_SYMBOL_PRECISION), 'invalid params')) {
+    // TODO: finish me
+  }
 };
 
 actions.addMarket = async (payload) => {
@@ -530,7 +542,8 @@ actions.addMarket = async (payload) => {
               user.markets += 1;
               await api.db.update('users', user);
 
-              // TODO: allow market settings to be configured here by calling update action
+              // do initial settings update
+              await updateMarketInternal(payload, newMarket, false, params);
             }
           }
         }

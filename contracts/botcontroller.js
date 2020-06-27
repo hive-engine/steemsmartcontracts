@@ -452,13 +452,6 @@ actions.updateMarket = async (payload) => {
       if (api.assert(authorizedAction, 'you must have enough tokens to cover the settings change fee')) {
         const market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
         if (api.assert(market !== null, 'market must exist')) {
-          // TODO: move this to updateMarketInternal
-          /*if (!user.isPremium) {
-            // burn the settings change fee
-            if (!(await burnFee(params.basicSettingsFee, isSignedWithActiveKey))) {
-              return false;
-            }
-          }*/
           return await updateMarketInternal(payload, market, !user.isPremium, params);
         }
       }
@@ -479,9 +472,80 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     minSpread,
   } = payload;
 
-  if (api.assert(maxBidPrice === undefined || (maxBidPrice && typeof maxBidPrice === 'string' && !api.BigNumber(maxBidPrice).isNaN() && api.BigNumber(maxBidPrice).gt(0) && countDecimals(maxBidPrice) <= BASE_SYMBOL_PRECISION), 'invalid params')) {
-    // TODO: finish me
+  // nothing to do if there's not at least one field to update
+  if (maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined) {
+    return false;
   }
+
+  if (api.assert(maxBidPrice === undefined || (maxBidPrice && typeof maxBidPrice === 'string' && !api.BigNumber(maxBidPrice).isNaN() && api.BigNumber(maxBidPrice).gt(0) && countDecimals(maxBidPrice) <= BASE_SYMBOL_PRECISION), 'invalid maxBidPrice')
+    && api.assert(minSellPrice === undefined || (minSellPrice && typeof minSellPrice === 'string' && !api.BigNumber(minSellPrice).isNaN() && api.BigNumber(minSellPrice).gt(0) && countDecimals(minSellPrice) <= BASE_SYMBOL_PRECISION), 'invalid minSellPrice')
+    && api.assert(maxBaseToSpend === undefined || (maxBaseToSpend && typeof maxBaseToSpend === 'string' && !api.BigNumber(maxBaseToSpend).isNaN() && api.BigNumber(maxBaseToSpend).gt(0) && countDecimals(maxBaseToSpend) <= BASE_SYMBOL_PRECISION), 'invalid maxBaseToSpend')
+    && api.assert(minBaseToSpend === undefined || (minBaseToSpend && typeof minBaseToSpend === 'string' && !api.BigNumber(minBaseToSpend).isNaN() && api.BigNumber(minBaseToSpend).gt(0) && countDecimals(minBaseToSpend) <= BASE_SYMBOL_PRECISION), 'invalid minBaseToSpend')
+    && api.assert(maxTokensToSell === undefined || (maxTokensToSell && typeof maxTokensToSell === 'string' && !api.BigNumber(maxTokensToSell).isNaN() && api.BigNumber(maxTokensToSell).gt(0) && countDecimals(maxTokensToSell) <= market.precision), 'invalid maxTokensToSell')
+    && api.assert(minTokensToSell === undefined || (minTokensToSell && typeof minTokensToSell === 'string' && !api.BigNumber(minTokensToSell).isNaN() && api.BigNumber(minTokensToSell).gt(0) && countDecimals(minTokensToSell) <= market.precision), 'invalid minTokensToSell')
+    && api.assert(priceIncrement === undefined || (priceIncrement && typeof priceIncrement === 'string' && !api.BigNumber(priceIncrement).isNaN() && api.BigNumber(priceIncrement).gt(0) && countDecimals(priceIncrement) <= BASE_SYMBOL_PRECISION), 'invalid priceIncrement')
+    && api.assert(minSpread === undefined || (minSpread && typeof minSpread === 'string' && !api.BigNumber(minSpread).isNaN() && api.BigNumber(minSpread).gt(0) && countDecimals(minSpread) <= BASE_SYMBOL_PRECISION), 'invalid minSpread')) {
+    if (shouldPayFee) {
+      // burn the settings change fee
+      if (!(await burnFee(params.basicSettingsFee, true))) {
+        return false;
+      }
+    }
+
+    const update = {
+      account: market.account,
+      symbol: market.symbol,
+    };
+
+    // all checks have passed, now we can update stuff
+    if (maxBidPrice) {
+      update.oldMaxBidPrice = market.maxBidPrice;
+      market.maxBidPrice = maxBidPrice;
+      update.newMaxBidPrice = maxBidPrice;
+    }
+    if (minSellPrice) {
+      update.oldMinSellPrice = market.minSellPrice;
+      market.minSellPrice = minSellPrice;
+      update.newMinSellPrice = minSellPrice;
+    }
+    if (maxBaseToSpend) {
+      update.oldMaxBaseToSpend = market.maxBaseToSpend;
+      market.maxBaseToSpend = maxBaseToSpend;
+      update.newMaxBaseToSpend = maxBaseToSpend;
+    }
+    if (minBaseToSpend) {
+      update.oldMinBaseToSpend = market.minBaseToSpend;
+      market.minBaseToSpend = minBaseToSpend;
+      update.newMinBaseToSpend = minBaseToSpend;
+    }
+    if (maxTokensToSell) {
+      update.oldMaxTokensToSell = market.maxTokensToSell;
+      market.maxTokensToSell = maxTokensToSell;
+      update.newMaxTokensToSell = maxTokensToSell;
+    }
+    if (minTokensToSell) {
+      update.oldMinTokensToSell = market.minTokensToSell;
+      market.minTokensToSell = minTokensToSell;
+      update.newMinTokensToSell = minTokensToSell;
+    }
+    if (priceIncrement) {
+      update.oldPriceIncrement = market.priceIncrement;
+      market.priceIncrement = priceIncrement;
+      update.newPriceIncrement = priceIncrement;
+    }
+    if (minSpread) {
+      update.oldMinSpread = market.minSpread;
+      market.minSpread = minSpread;
+      update.newMinSpread = minSpread;
+    }
+
+    await api.db.update('markets', market);
+
+    api.emit('updateMarket', update);
+
+    return true;
+  }
+  return false;
 };
 
 actions.addMarket = async (payload) => {

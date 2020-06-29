@@ -386,7 +386,6 @@ class Database {
       if (contract && typeof contract === 'string'
         && table && typeof table === 'string'
         && query && typeof query === 'object'
-        && JSON.stringify(query).indexOf('$regex') === -1
         && Array.isArray(ind)
         && (ind.length === 0
           || (ind.length > 0
@@ -442,8 +441,7 @@ class Database {
       let result = null;
       if (contract && typeof contract === 'string'
         && table && typeof table === 'string'
-        && query && typeof query === 'object'
-        && JSON.stringify(query).indexOf('$regex') === -1) {
+        && query && typeof query === 'object' {
         if (query.$loki) {
           query._id = query.$loki; // eslint-disable-line no-underscore-dangle
           delete query.$loki;

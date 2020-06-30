@@ -196,6 +196,7 @@ actions.tick = async () => {
 const tickUsers = async (params, users) => {
   for (let i = 0; i < users.length; i += 1) {
     const user = users[i];
+    let userBalance = null;
 
     // update duration and see if we need to go into cooldown
     if (!user.isPremium) {
@@ -209,14 +210,53 @@ const tickUsers = async (params, users) => {
     }
     else {
       // demote account if no longer eligible for premium
-      const hasEnoughStake = await verifyUtilityTokenStake(params.premiumBaseStake, user.account);
+      userBalance = await api.db.findOneInTable('tokens', 'balances', { account: user.account, symbol: UTILITY_TOKEN_SYMBOL });
+      const hasEnoughStake = userBalance && api.BigNumber(userBalance.stake).gte(params.premiumBaseStake);
       if (!hasEnoughStake) {
         user.isPremium = false;
       }
     }
 
     user.lastTickBlock = api.blockNumber;
+
+    if (!user.isEnabled || user.enabledMarkets < 1) {
+      await api.db.update('users', user);
+      continue;
+    }
+
+    // if user was premium but got demoted, they may have too many markets
+    const authorizedAction = (user.isPremium || (user.markets === 1)) ? true : false;
+    let hasEnoughStakeForMarkets = false;
+    if (authorizedAction) {
+      // ensure user has enough staked for all markets
+      if (!userBalance) {
+        userBalance = await api.db.findOneInTable('tokens', 'balances', { account: user.account, symbol: UTILITY_TOKEN_SYMBOL });
+      }
+      let requiredStake = api.BigNumber(params.stakePerMarket).multipliedBy(user.markets);
+      if (user.isPremium) {
+        requiredStake = requiredStake.plus(params.premiumBaseStake);
+      }
+      hasEnoughStakeForMarkets = userBalance && api.BigNumber(userBalance.stake).gte(requiredStake);
+    }
+
+    const markets = await api.db.find(
+      'markets',
+      { account: user.account },
+      user.markets,
+      0,
+      [{ index: 'account', descending: false }, { index: 'symbol', descending: false }],
+    );
+
+    if (!authorizedAction || !hasEnoughStakeForMarkets) {
+      // TODO: disable all markets here
+      user.enabledMarkets = 0;
+      await api.db.update('users', user);
+      continue;
+    }
+
     await api.db.update('users', user);
+
+    // TODO: tick markets here
   }
 };
 
@@ -348,8 +388,10 @@ actions.disableMarket = async (payload) => {
       if (api.assert(market !== null, 'market must exist')) {
         if (market.isEnabled) {
           market.isEnabled = false;
-
           await api.db.update('markets', market);
+
+          user.enabledMarkets -= 1;
+          await api.db.update('users', user);
 
           api.emit('disableMarket', {
             account: api.sender,
@@ -387,8 +429,10 @@ actions.enableMarket = async (payload) => {
             const hasEnoughStake = await verifyUtilityTokenStake(requiredStake, api.sender);
             if (api.assert(hasEnoughStake, `must stake more ${UTILITY_TOKEN_SYMBOL} to enable market`)) {
               market.isEnabled = true;
-
               await api.db.update('markets', market);
+
+              user.enabledMarkets += 1;
+              await api.db.update('users', user);
 
               api.emit('enableMarket', {
                 account: api.sender,
@@ -415,11 +459,14 @@ actions.removeMarket = async (payload) => {
     if (api.assert(user !== null, 'user not registered')) {
       const market = await api.db.findOne('markets', { account: api.sender, symbol: symbol });
       if (api.assert(market !== null, 'market must exist')) {
-        await api.db.remove('markets', market);
-
         // decrease user's market count
         user.markets -= 1;
+        if (market.isEnabled) {
+          user.enabledMarkets -= 1;
+        }
         await api.db.update('users', user);
+
+        await api.db.remove('markets', market);
 
         api.emit('removeMarket', {
           account: api.sender,
@@ -604,6 +651,7 @@ actions.addMarket = async (payload) => {
 
               // increase user's market count
               user.markets += 1;
+              user.enabledMarkets += 1;
               await api.db.update('users', user);
 
               // do initial settings update
@@ -644,6 +692,7 @@ actions.register = async (payload) => {
         isOnCooldown: false,
         isEnabled: true,
         markets: 0,
+        enabledMarkets: 0,
         timeLimitBlocks: params.basicDurationBlocks,
         lastTickBlock: api.blockNumber,
         creationTimestamp,

@@ -19,7 +19,7 @@ const CHAIN_TYPE = "'${CHAIN_TYPE}$'";
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('users');
   if (tableExists === false) {
-    await api.db.createTable('users', ['account']);
+    await api.db.createTable('users', ['account', 'lastTickBlock']);
     await api.db.createTable('markets', ['account', 'symbol']);
     await api.db.createTable('params');
 
@@ -171,7 +171,7 @@ actions.tick = async () => {
       },
       params.basicMaxTicksPerBlock,
       0,
-      [{index: '_id', descending: false}],
+      [{index: 'lastTickBlock', descending: false}],
     );
     await tickUsers(params, pendingBasicTicks);
 
@@ -187,7 +187,7 @@ actions.tick = async () => {
       },
       params.premiumMaxTicksPerBlock,
       0,
-      [{index: '_id', descending: false}],
+      [{index: 'lastTickBlock', descending: false}],
     );
     await tickUsers(params, pendingPremiumTicks);
   }
@@ -241,14 +241,18 @@ const tickUsers = async (params, users) => {
 
     const markets = await api.db.find(
       'markets',
-      { account: user.account },
+      { account: user.account, isEnabled: true },
       user.markets,
       0,
       [{ index: 'account', descending: false }, { index: 'symbol', descending: false }],
     );
 
     if (!authorizedAction || !hasEnoughStakeForMarkets) {
-      // TODO: disable all markets here
+      for (let i = 0; i < markets.length; i += 1) {
+        const market = markets[i];
+        market.isEnabled = false;
+        await api.db.update('markets', market);
+      }
       user.enabledMarkets = 0;
       await api.db.update('users', user);
       continue;
@@ -256,7 +260,10 @@ const tickUsers = async (params, users) => {
 
     await api.db.update('users', user);
 
-    // TODO: tick markets here
+    for (let i = 0; i < markets.length; i += 1) {
+      const market = markets[i];
+      // TODO: call market maker contract here to tick each market
+    }
   }
 };
 
@@ -642,7 +649,7 @@ actions.addMarket = async (payload) => {
                 creationBlock: api.blockNumber,
               };
 
-              await api.db.insert('markets', newMarket);
+              const addedMarket = await api.db.insert('markets', newMarket);
 
               api.emit('addMarket', {
                 account: api.sender,
@@ -655,7 +662,7 @@ actions.addMarket = async (payload) => {
               await api.db.update('users', user);
 
               // do initial settings update
-              await updateMarketInternal(payload, newMarket, false, params);
+              await updateMarketInternal(payload, addedMarket, false, params);
             }
           }
         }

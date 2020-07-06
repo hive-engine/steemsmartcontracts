@@ -146,6 +146,16 @@ const getUsers = async (db) => {
   return users;
 };
 
+const getMarkets = async (db) => {
+  const markets = await db.find({
+    contract: 'botcontroller',
+    table: 'markets',
+    query: {},
+    indexes: [{index: '_id', descending: false}],
+  });
+  return markets;
+};
+
 const assertFields = (user, fields) => {
   const {
     account,
@@ -154,6 +164,8 @@ const assertFields = (user, fields) => {
     isEnabled,
     lastTickBlock,
     timeLimitBlocks,
+    markets,
+    enabledMarkets,
   } = fields;
 
   console.log(user);
@@ -164,6 +176,28 @@ const assertFields = (user, fields) => {
   assert.equal(user.isEnabled, isEnabled );
   assert.equal(user.lastTickBlock, lastTickBlock );
   assert.equal(user.timeLimitBlocks, timeLimitBlocks );
+
+  if(markets !== undefined) {
+    assert.equal(user.markets, markets );
+  }
+
+  if(enabledMarkets !== undefined) {
+    assert.equal(user.enabledMarkets, enabledMarkets );
+  }
+};
+
+const assertMarketFields = (market, fields) => {
+  const {
+    account,
+    symbol,
+    isEnabled,
+  } = fields;
+
+  assert.equal(market.account, account );
+  assert.equal(market.symbol, symbol );
+  assert.equal(market.isEnabled, isEnabled );
+
+  console.log(market);
 };
 
 // botcontroller
@@ -231,7 +265,9 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(startRefBlockNum, 'TXID1236', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1237', 'aggroed', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1238', 'beggars', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1239', 'beggars', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "beggars", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1239', 'beggars', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "beggars", "quantity": "1400", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1240', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1241', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "TESTNFT", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: startRefBlockNum,
@@ -270,6 +306,19 @@ describe('botcontroller', function() {
             transactions.push(new Transaction(startRefBlockNum, 'TXIDD000' + i.toString(), 'aggroed', 'botcontroller', 'turnOn', '{ "isSignedWithActiveKey": true }'));
             transactions.push(new Transaction(startRefBlockNum, 'TXIDD001' + i.toString(), 'beggars', 'botcontroller', 'upgrade', '{ "isSignedWithActiveKey": true }'));
             transactions.push(new Transaction(startRefBlockNum, 'TXIDD002' + i.toString(), 'beggars', 'botcontroller', 'turnOn', '{ "isSignedWithActiveKey": true }'));
+            break;
+          case 36:
+            // add a couple markets
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDE000' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDE001' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "isSignedWithActiveKey": true }'));
+            break;
+          case 39:
+            // unstake some tokens (should cause markets to be disabled as staking requirement no longer met)
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDF000' + i.toString(), 'beggars', 'tokens', 'unstake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+            break;
+          case 42:
+            // test that market can't be re-enabled if staking requirement not met
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDG000' + i.toString(), 'beggars', 'botcontroller', 'enableMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
           default:
             break;
         }
@@ -286,6 +335,7 @@ describe('botcontroller', function() {
 
         // verify account state updates OK after each tick
         let users = await getUsers(database1);
+        let markets = await getMarkets(database1);
         let blockInfo = await database1.getBlockInfo(numBlocks + 1);
         let transactionData = blockInfo.transactions;
         switch(numBlocks) {
@@ -335,6 +385,7 @@ describe('botcontroller', function() {
             console.log('ticking: ' + numBlocks);
             console.log(transactionData[1].logs);
             assert.equal(JSON.parse(transactionData[1].logs).errors[0], 'cooldown duration not expired');
+            break;
           case 25: // verify state isn't changing while accounts are turned off
             console.log('ticking: ' + numBlocks);
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: false, isEnabled: false, lastTickBlock: 9,  timeLimitBlocks: 2 });
@@ -352,6 +403,50 @@ describe('botcontroller', function() {
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimitBlocks: 0 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimitBlocks: 10 });
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimitBlocks: 10 });
+            break;
+          case 36: // beggars adds 2 markets
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimitBlocks: 0 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimitBlocks: 10 });
+            assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimitBlocks: 10, markets: 2, enabledMarkets: 2 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true });
+            break;
+          case 38: // beggars is premium so should tick faster than the other two, and markets should stay enabled
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimitBlocks: 0 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimitBlocks: 10 });
+            assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 39, timeLimitBlocks: 10, markets: 2, enabledMarkets: 2 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true });
+            break;
+          case 39: // beggars unstakes 100 tokens
+            console.log('ticking: ' + numBlocks);
+            console.log(transactionData[1].logs);
+            assert.equal(JSON.parse(transactionData[1].logs).events[0].event, 'unstakeStart');
+            break;
+          case 40: // aggroed ticks, nothing else changes
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimitBlocks: 0 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 41, timeLimitBlocks: 5 });
+            assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 39, timeLimitBlocks: 10, markets: 2, enabledMarkets: 2 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true });
+            break;
+          case 41: // beggars ticks, stays premium but markets disabled because staked tokens have gone down from 1400 to 1300
+            console.log('ticking: ' + numBlocks);
+            assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimitBlocks: 0 });
+            assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 41, timeLimitBlocks: 5 });
+            assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 42, timeLimitBlocks: 10, markets: 2, enabledMarkets: 0 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false });
+            break;
+          case 42: // beggars tries to re-enable market, but can't because he no longer meets the staking requirement
+            console.log('ticking: ' + numBlocks);
+            console.log(transactionData[1].logs);
+            assert.equal(JSON.parse(transactionData[1].logs).errors[0], `must stake more ${CONSTANTS.UTILITY_TOKEN_SYMBOL} to enable market`);
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false });
             break;
           default:
             break;

@@ -5,15 +5,15 @@
 /* eslint-disable no-continue */
 /* global actions, api */
 
-// this placeholder represents BEE tokens on Hive Engine, ENG on Steem Engine, and SSC on the testnet
-const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
+// BEE tokens on Hive Engine, ENG on Steem Engine, and SSC on the testnet
+const UTILITY_TOKEN_SYMBOL = "BEE";
 
 // either SWAP.HIVE or STEEMP
-const BASE_SYMBOL = "'${BASE_SYMBOL}$'";
+const BASE_SYMBOL = "SWAP.HIVE";
 const BASE_SYMBOL_PRECISION = 8;
 
 // either HIVE or STEEM
-const CHAIN_TYPE = "'${CHAIN_TYPE}$'";
+const CHAIN_TYPE = "HIVE";
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('users');

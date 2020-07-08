@@ -125,9 +125,6 @@ let mktContractPayload = {
 // prepare bot controller contract for deployment
 contractCode = fs.readFileSync('./contracts/botcontroller.js');
 contractCode = contractCode.toString();
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CHAIN_TYPE\}\$'/g, 'HIVE');
-contractCode = contractCode.replace(/'\$\{BASE_SYMBOL\}\$'/g, 'SWAP.HIVE');
 base64ContractCode = Base64.encode(contractCode);
 
 let bcContractPayload = {

@@ -98,6 +98,10 @@ class Block {
     virtualTransactions.push(new Transaction(0, '', 'null', 'tokens', 'checkPendingUndelegations', ''));
     virtualTransactions.push(new Transaction(0, '', 'null', 'nft', 'checkPendingUndelegations', ''));
 
+    if (this.refHiveBlockNumber >= 44443800) {
+      virtualTransactions.push(new Transaction(0, '', 'null', 'botcontroller', 'tick', ''));
+    }
+
     // TODO: cleanup
     // if (this.refHiveBlockNumber >= 37899120) {
     // virtualTransactions
@@ -129,6 +133,10 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'nft'
           && transaction.action === 'checkPendingUndelegations'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
+        } else if (transaction.contract === 'botcontroller'
+          && transaction.action === 'tick'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else {

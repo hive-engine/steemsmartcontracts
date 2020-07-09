@@ -142,7 +142,7 @@ describe('Database', function () {
         })
   });
 
-  it('should get the genesis block', (done) => {
+  it.skip('should get the genesis block', (done) => {
     new Promise(async (resolve) => {
 
       await loadPlugin(blockchain);

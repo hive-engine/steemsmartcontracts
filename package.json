@@ -1,12 +1,20 @@
 {
   "name": "steemsmartcontracts",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "",
   "main": "app.js",
   "scripts": {
     "start": "node --max-old-space-size=8192 app.js",
     "lint": "eslint .gitignore .",
-    "test": "./node_modules/mocha/bin/mocha  --recursive"
+    "test": "./node_modules/mocha/bin/mocha  --recursive",
+    "test0": "./node_modules/mocha/bin/mocha ./test/hivesmartcontracts.js",
+    "test1": "./node_modules/mocha/bin/mocha ./test/nft.js",
+    "test2": "./node_modules/mocha/bin/mocha ./test/tokens.js",
+    "test3": "./node_modules/mocha/bin/mocha ./test/nftmarket.js",
+    "test4": "./node_modules/mocha/bin/mocha ./test/smarttokens.js",
+    "test5": "./node_modules/mocha/bin/mocha ./test/botcontroller.js",
+    "test6": "./node_modules/mocha/bin/mocha ./test/crittermanager.js",
+    "test7": "./node_modules/mocha/bin/mocha ./test/market.js"
   },
   "engines": {
     "node": ">=13.7.0",

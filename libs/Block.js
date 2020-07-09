@@ -98,7 +98,7 @@ class Block {
     virtualTransactions.push(new Transaction(0, '', 'null', 'tokens', 'checkPendingUndelegations', ''));
     virtualTransactions.push(new Transaction(0, '', 'null', 'nft', 'checkPendingUndelegations', ''));
 
-    if (this.refHiveBlockNumber >= 44443800) {
+    if (this.refHiveBlockNumber >= 45251626) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'botcontroller', 'tick', ''));
     }
 

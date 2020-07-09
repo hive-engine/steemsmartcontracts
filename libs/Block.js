@@ -111,6 +111,9 @@ class Block {
       }
     }
 
+    if (this.refSteemBlockNumber >= 45205743) {
+      virtualTransactions.push(new Transaction(0, '', 'null', 'botcontroller', 'tick', ''));
+    }
 
     /*
     if (this.refSteemBlockNumber >= 38145385) {
@@ -143,6 +146,10 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'nft'
           && transaction.action === 'checkPendingUndelegations'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
+        } else if (transaction.contract === 'botcontroller'
+          && transaction.action === 'tick'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else {

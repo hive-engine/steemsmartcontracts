@@ -133,6 +133,17 @@ let bcContractPayload = {
   code: base64ContractCode,
 };
 
+// prepare market maker contract for deployment
+contractCode = fs.readFileSync('./contracts/marketmaker.js');
+contractCode = contractCode.toString();
+base64ContractCode = Base64.encode(contractCode);
+
+let mmContractPayload = {
+  name: 'marketmaker',
+  params: '',
+  code: base64ContractCode,
+};
+
 const getUsers = async (db) => {
   const users = await db.find({
     contract: 'botcontroller',
@@ -251,10 +262,12 @@ describe('botcontroller', function() {
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
 
-      let startRefBlockNum = 44443799;
+      let startRefBlockNum = 45251625;
       let transactions = [];
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1230A', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1230B', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1230C', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "5000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "5000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "beggars", "quantity": "5000", "isSignedWithActiveKey": true }`));

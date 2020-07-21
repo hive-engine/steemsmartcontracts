@@ -12,6 +12,11 @@ const ACCOUNT_BLACKLIST = {
   'poloniex': 1,
   'huobi-pro': 1,
   'binance-hot': 1,
+  'bitvavo': 1,
+  'blocktrades': 1,
+  'probitsteem': 1,
+  'probithive': 1,
+  'ionomy': 1,
 };
 
 const RESERVED_SYMBOLS = {
@@ -1265,15 +1270,17 @@ actions.transfer = async (payload) => {
 
 actions.transferToContract = async (payload) => {
   const {
-    to, symbol, quantity, isSignedWithActiveKey,
+    from, to, symbol, quantity, isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+  const finalFrom = (from === undefined || api.sender !== 'null') ? api.sender : from;
+
+  if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && api.assert(to && typeof to === 'string'
       && symbol && typeof symbol === 'string'
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const finalTo = to.trim().toLowerCase();
-    if (api.assert(finalTo !== api.sender, 'cannot transfer to self')) {
+    if (api.assert(finalTo !== finalFrom, 'cannot transfer to self')) {
       // a valid contract account is between 3 and 50 characters in length
       if (api.assert(finalTo.length >= 3 && finalTo.length <= 50, 'invalid to')) {
         const token = await api.db.findOne('tokens', { symbol });
@@ -1283,11 +1290,11 @@ actions.transferToContract = async (payload) => {
         if (api.assert(token !== null, 'symbol does not exist')
           && api.assert(countDecimals(quantity) <= token.precision, 'symbol precision mismatch')
           && api.assert(api.BigNumber(quantity).gt(0), 'must transfer positive quantity')) {
-          if (await subBalance(api.sender, token, quantity, 'balances')) {
+          if (await subBalance(finalFrom, token, quantity, 'balances')) {
             const res = await addBalance(finalTo, token, quantity, 'contractsBalances');
 
             if (res === false) {
-              await addBalance(api.sender, token, quantity, 'balances');
+              await addBalance(finalFrom, token, quantity, 'balances');
             } else {
               if (finalTo === 'null') {
                 token.circulatingSupply = calculateBalance(
@@ -1297,7 +1304,7 @@ actions.transferToContract = async (payload) => {
               }
 
               api.emit('transferToContract', {
-                from: api.sender, to: finalTo, symbol, quantity,
+                from: finalFrom, to: finalTo, symbol, quantity,
               });
             }
           }

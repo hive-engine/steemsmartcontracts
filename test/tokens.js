@@ -899,23 +899,23 @@ describe('Tokens smart contract', function () {
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
 
-      const smartContractCode = `
+      const testSmartContractCode = `
         actions.createSSC = function (payload) {
           // Initialize the smart contract via the create action
         }
       `;
 
-      const base64SmartContractCode = Base64.encode(smartContractCode);
+      const testBase64SmartContractCode = Base64.encode(testSmartContractCode);
 
-      const contractPayload = {
+      const testContractPayload = {
         name: 'testcontract',
         params: '',
-        code: base64SmartContractCode,
+        code: testBase64SmartContractCode,
       };
 
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(30896501, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(testContractPayload)));
 
       let block = {
         refHiveBlockNumber: 30896501,
@@ -932,6 +932,7 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678902, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN.TEST", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678902, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678902, 'TXID1237', 'satoshi', 'tokens', 'transferToContract', '{ "symbol": "TKN.TEST", "quantity": "7.99999999", "to": "testcontract", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, 'TXID1238', 'null', 'tokens', 'transferToContract', '{ "from": "satoshi", "symbol": "TKN.TEST", "quantity": "1", "to": "testcontract", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -943,7 +944,15 @@ describe('Tokens smart contract', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      let res = await database1.findOne({
+      let res = await database1.getBlockInfo(2);
+
+      const block2 = res;
+      const transactionsBlock2 = block2.transactions;
+
+      console.log(transactionsBlock2[3].logs);
+      console.log(transactionsBlock2[4].logs);
+
+      res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
           query: {
@@ -954,7 +963,7 @@ describe('Tokens smart contract', function () {
 
       const balancesatoshi = res;
 
-      assert.equal(balancesatoshi.balance, 92.00000001);
+      assert.equal(balancesatoshi.balance, 91.00000001);
 
       res = await database1.findOne({
           contract: 'tokens',
@@ -967,7 +976,7 @@ describe('Tokens smart contract', function () {
 
       const testcontract = res;
 
-      assert.equal(testcontract.balance, 7.99999999);
+      assert.equal(testcontract.balance, 8.99999999);
 
       resolve();
     })
@@ -997,7 +1006,7 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678901, 'TXID12311', 'satoshi', 'tokens', 'transferToContract', '{ "symbol": "TKN.TEST", "quantity": "7.999999999", "to": "testcontract", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12312', 'satoshi', 'tokens', 'transferToContract', '{ "symbol": "TKN.TEST", "quantity": "-1", "to": "testcontract", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12313', 'vitalik', 'tokens', 'transferToContract', '{ "symbol": "TKN.TEST", "quantity": "101", "to": "testcontract", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID12314', 'satoshi', 'tokens', 'transferToContract', '{ "symbol": "TKN.TEST", "quantity": "101", "to": "testcontract", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12314', 'null', 'tokens', 'transferToContract', '{ "from": "satoshi", "symbol": "TKN.TEST", "quantity": "101", "to": "testcontract", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12315', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "quantity": "200", "to": "satoshi", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, 'TXID12316', 'satoshi', 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "quantity": "101", "to": "deepcrypto8", "isSignedWithActiveKey": true }`));
 

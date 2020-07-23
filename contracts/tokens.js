@@ -1,8 +1,6 @@
 /* eslint-disable no-await-in-loop */
+/* eslint-disable quote-props */
 /* global actions, api */
-
-// eslint-disable-next-line no-template-curly-in-string
-const HIVE_PEGGED_SYMBOL = "'${CONSTANTS.HIVE_PEGGED_SYMBOL}$'";
 
 // transfers to these accounts are blocked
 const ACCOUNT_BLACKLIST = {
@@ -1322,8 +1320,7 @@ actions.transferFromContract = async (payload) => {
     } = payload;
     const types = ['user', 'contract'];
 
-    if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-      && api.assert(to && typeof to === 'string'
+    if (api.assert(to && typeof to === 'string'
         && from && typeof from === 'string'
         && symbol && typeof symbol === 'string'
         && type && (types.includes(type))

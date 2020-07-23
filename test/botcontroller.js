@@ -452,6 +452,17 @@ describe('botcontroller', function() {
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 39, timeLimitBlocks: 10, markets: 2, enabledMarkets: 2 });
             assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true });
             assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true });
+            // check market orders - beggars should have orders added by the bot
+            let buyOrders = await database1.find({
+              contract: 'market',
+              table: 'buyBook',
+              query: {
+                account: { $in: ['beggars'] }
+              },
+              indexes: [{index: '_id', descending: false}],
+            });
+            console.log(buyOrders);
+            console.log(blockInfo);
             break;
           case 39: // beggars unstakes 100 tokens
             console.log('ticking: ' + numBlocks);

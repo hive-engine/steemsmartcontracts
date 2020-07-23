@@ -1,4 +1,6 @@
 /* eslint-disable no-await-in-loop */
+/* eslint-disable max-len */
+/* eslint-disable object-curly-newline */
 /* global actions, api */
 const HIVE_PEGGED_SYMBOL = 'SWAP.HIVE';
 const HIVE_PEGGED_SYMBOL_PRESICION = 8;

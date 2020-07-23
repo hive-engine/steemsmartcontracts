@@ -5,21 +5,12 @@
 /* eslint-disable no-continue */
 /* global actions, api */
 
-// BEE tokens on Hive Engine, ENG on Steem Engine, and SSC on the testnet
-const UTILITY_TOKEN_SYMBOL = 'BEE';
-
-// either SWAP.HIVE or STEEMP
-const BASE_SYMBOL = 'SWAP.HIVE';
-const BASE_SYMBOL_PRECISION = 8;
-
-// either HIVE or STEEM
-const CHAIN_TYPE = 'HIVE';
-
 actions.createSSC = async () => {
 };
 
 const tickMarket = async (market) => {
-  api.debug(`ticking market for user: ${market.account}, symbol: ${market.symbol}`);
+  //api.debug(`ticking market for user: ${market.account}, symbol: ${market.symbol}`);
+  //await api.executeSmartContract('market', 'buy', { account: market.account, symbol: market.symbol, quantity: "5", price: "0.75" });
 };
 
 actions.tick = async (payload) => {
@@ -30,6 +21,6 @@ actions.tick = async (payload) => {
   } = payload;
 
   for (let i = 0; i < markets.length; i += 1) {
-    await tickMarket(markets[i]);  
+    await tickMarket(markets[i]);
   }
 };

@@ -6,14 +6,14 @@
 /* global actions, api */
 
 // BEE tokens on Hive Engine, ENG on Steem Engine, and SSC on the testnet
-const UTILITY_TOKEN_SYMBOL = "ENG";
+const UTILITY_TOKEN_SYMBOL = 'ENG';
 
 // either SWAP.HIVE or STEEMP
-const BASE_SYMBOL = "STEEMP";
+const BASE_SYMBOL = 'STEEMP';
 const BASE_SYMBOL_PRECISION = 8;
 
 // either HIVE or STEEM
-const CHAIN_TYPE = "STEEM";
+const CHAIN_TYPE = 'STEEM';
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('users');
@@ -148,6 +148,7 @@ const burnFee = async (amount, isSignedWithActiveKey) => {
 // ----- END UTILITY FUNCTIONS -----
 
 const tickUsers = async (params, users) => {
+  const marketList = [];
   for (let i = 0; i < users.length; i += 1) {
     const user = users[i];
     let userBalance = null;
@@ -213,10 +214,11 @@ const tickUsers = async (params, users) => {
 
     await api.db.update('users', user);
 
-    // TODO: call market maker contract here to tick each market
-    // for (let k = 0; k < markets.length; k += 1) {
-    //   const market = markets[k];
-    // }
+    markets.forEach(m => marketList.push(m));
+  }
+
+  if (marketList.length > 0) {
+    await api.executeSmartContract('marketmaker', 'tick', { markets: marketList });
   }
 };
 

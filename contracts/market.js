@@ -1,4 +1,6 @@
 /* eslint-disable no-await-in-loop */
+/* eslint-disable max-len */
+/* eslint-disable object-curly-newline */
 /* global actions, api */
 const STEEM_PEGGED_SYMBOL = 'STEEMP';
 const STEEM_PEGGED_SYMBOL_PRESICION = 8;
@@ -239,11 +241,11 @@ actions.createSSC = async () => {
 };
 
 actions.cancel = async (payload) => {
-  const { type, id, isSignedWithActiveKey } = payload;
-
+  const { account, type, id, isSignedWithActiveKey } = payload;
+  const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
   const types = ['buy', 'sell'];
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+  if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && api.assert(type && types.includes(type)
       && id, 'invalid params')) {
     const table = type === 'buy' ? 'buyBook' : 'sellBook';
@@ -255,7 +257,7 @@ actions.cancel = async (payload) => {
     }
 
     if (api.assert(order !== null, 'order does not exist or invalid params')
-      && order.account === api.sender) {
+      && order.account === finalAccount) {
       let quantity;
       let symbol;
 
@@ -270,7 +272,7 @@ actions.cancel = async (payload) => {
       }
 
       // unlock tokens
-      await api.transferTokens(api.sender, symbol, quantity, 'user');
+      await api.transferTokens(finalAccount, symbol, quantity, 'user');
 
       await api.db.remove(table, order);
 
@@ -689,6 +691,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
 
 actions.buy = async (payload) => {
   const {
+    account,
     symbol,
     quantity,
     price,
@@ -696,8 +699,10 @@ actions.buy = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
+  const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
+
   // buy (quantity) of (symbol) at (price)(STEEM_PEGGED_SYMBOL) per (symbol)
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+  if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && api.assert(price && typeof price === 'string' && !api.BigNumber(price).isNaN()
       && symbol && typeof symbol === 'string' && symbol !== STEEM_PEGGED_SYMBOL
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN()
@@ -711,7 +716,7 @@ actions.buy = async (payload) => {
       && api.BigNumber(price).gt(0)
       && countDecimals(price) <= STEEM_PEGGED_SYMBOL_PRESICION
       && countDecimals(quantity) <= token.precision, 'invalid params')) {
-      // initiate a transfer from api.sender to contract balance
+      // initiate a transfer from sender to contract balance
 
       const nbTokensToLock = api.BigNumber(price)
         .multipliedBy(quantity)
@@ -719,10 +724,10 @@ actions.buy = async (payload) => {
 
       if (api.assert(api.BigNumber(nbTokensToLock).gte('0.00000001'), 'order cannot be placed as it cannot be filled')) {
         // lock STEEM_PEGGED_SYMBOL tokens
-        const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: STEEM_PEGGED_SYMBOL, quantity: nbTokensToLock, to: CONTRACT_NAME });
+        const res = await api.executeSmartContract('tokens', 'transferToContract', { from: finalAccount, symbol: STEEM_PEGGED_SYMBOL, quantity: nbTokensToLock, to: CONTRACT_NAME });
 
         if (res.errors === undefined
-          && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === CONTRACT_NAME && el.data.quantity === nbTokensToLock && el.data.symbol === STEEM_PEGGED_SYMBOL) !== undefined) {
+          && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === finalAccount && el.data.to === CONTRACT_NAME && el.data.quantity === nbTokensToLock && el.data.symbol === STEEM_PEGGED_SYMBOL) !== undefined) {
           const timestampSec = api.BigNumber(new Date(`${api.steemBlockTimestamp}.000Z`).getTime())
             .dividedBy(1000)
             .toNumber();
@@ -732,7 +737,7 @@ actions.buy = async (payload) => {
 
           order.txId = api.transactionId;
           order.timestamp = timestampSec;
-          order.account = api.sender;
+          order.account = finalAccount;
           order.symbol = symbol;
           order.quantity = api.BigNumber(quantity).toFixed(token.precision);
           order.price = api.BigNumber(price).toFixed(STEEM_PEGGED_SYMBOL_PRESICION);
@@ -753,14 +758,18 @@ actions.buy = async (payload) => {
 
 actions.sell = async (payload) => {
   const {
+    account,
     symbol,
     quantity,
     price,
     expiration,
     isSignedWithActiveKey,
   } = payload;
+
+  const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
+
   // sell (quantity) of (symbol) at (price)(STEEM_PEGGED_SYMBOL) per (symbol)
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+  if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && api.assert(price && typeof price === 'string' && !api.BigNumber(price).isNaN()
       && symbol && typeof symbol === 'string' && symbol !== STEEM_PEGGED_SYMBOL
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN()
@@ -778,12 +787,12 @@ actions.sell = async (payload) => {
         .toFixed(STEEM_PEGGED_SYMBOL_PRESICION);
 
       if (api.assert(api.BigNumber(nbTokensToFillOrder).gte('0.00000001'), 'order cannot be placed as it cannot be filled')) {
-        // initiate a transfer from api.sender to contract balance
+        // initiate a transfer from sender to contract balance
         // lock symbol tokens
-        const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: CONTRACT_NAME });
+        const res = await api.executeSmartContract('tokens', 'transferToContract', { from: finalAccount, symbol, quantity, to: CONTRACT_NAME });
 
         if (res.errors === undefined
-          && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === CONTRACT_NAME && el.data.quantity === quantity && el.data.symbol === symbol) !== undefined) {
+          && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === finalAccount && el.data.to === CONTRACT_NAME && el.data.quantity === quantity && el.data.symbol === symbol) !== undefined) {
           const timestampSec = api.BigNumber(new Date(`${api.steemBlockTimestamp}.000Z`).getTime())
             .dividedBy(1000)
             .toNumber();
@@ -793,7 +802,7 @@ actions.sell = async (payload) => {
 
           order.txId = api.transactionId;
           order.timestamp = timestampSec;
-          order.account = api.sender;
+          order.account = finalAccount;
           order.symbol = symbol;
           order.quantity = api.BigNumber(quantity).toFixed(token.precision);
           order.price = api.BigNumber(price).toFixed(STEEM_PEGGED_SYMBOL_PRESICION);
@@ -813,12 +822,15 @@ actions.sell = async (payload) => {
 
 actions.marketBuy = async (payload) => {
   const {
+    account,
     symbol,
     quantity,
     isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+  const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
+
+  if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && symbol && typeof symbol === 'string' && symbol !== STEEM_PEGGED_SYMBOL
     && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN() && api.BigNumber(quantity).gt(0)) {
     // get the token params
@@ -827,12 +839,12 @@ actions.marketBuy = async (payload) => {
     // perform a few verifications
     if (api.assert(token
       && countDecimals(quantity) <= STEEM_PEGGED_SYMBOL_PRESICION, 'invalid params')) {
-      // initiate a transfer from api.sender to contract balance
+      // initiate a transfer from sender to contract balance
       // lock STEEM_PEGGED_SYMBOL tokens
-      const result = await api.executeSmartContract('tokens', 'transferToContract', { symbol: STEEM_PEGGED_SYMBOL, quantity, to: CONTRACT_NAME });
+      const result = await api.executeSmartContract('tokens', 'transferToContract', { from: finalAccount, symbol: STEEM_PEGGED_SYMBOL, quantity, to: CONTRACT_NAME });
 
       if (result.errors === undefined
-        && result.events && result.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === CONTRACT_NAME && el.data.quantity === quantity && el.data.symbol === STEEM_PEGGED_SYMBOL) !== undefined) {
+        && result.events && result.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === finalAccount && el.data.to === CONTRACT_NAME && el.data.quantity === quantity && el.data.symbol === STEEM_PEGGED_SYMBOL) !== undefined) {
         let steempRemaining = quantity;
         let offset = 0;
         let volumeTraded = 0;
@@ -863,12 +875,12 @@ actions.marketBuy = async (payload) => {
               if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
                 && api.BigNumber(steempRemaining).gt(0), 'the order cannot be filled')) {
                 // transfer the tokens to the buyer
-                let res = await api.transferTokens(api.sender, symbol, qtyTokensToSend, 'user');
+                let res = await api.transferTokens(finalAccount, symbol, qtyTokensToSend, 'user');
 
                 if (res.errors) {
                   api.debug(res.errors);
                   api.debug(`TXID: ${api.transactionId}`);
-                  api.debug(api.sender);
+                  api.debug(finalAccount);
                   api.debug(symbol);
                   api.debug(qtyTokensToSend);
                 }
@@ -905,7 +917,7 @@ actions.marketBuy = async (payload) => {
                 }
 
                 // add the trade to the history
-                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, qtyTokensToSend, sellOrder.price, steempRemaining, api.transactionId, sellOrder.txId);
+                await updateTradesHistory('buy', finalAccount, sellOrder.account, symbol, qtyTokensToSend, sellOrder.price, steempRemaining, api.transactionId, sellOrder.txId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(steempRemaining);
@@ -926,12 +938,12 @@ actions.marketBuy = async (payload) => {
               if (api.assert(api.BigNumber(qtySteempToSend).gt(0)
                 && api.BigNumber(steempRemaining).gt(0), 'the order cannot be filled')) {
                 // transfer the tokens to the buyer
-                let res = await api.transferTokens(api.sender, symbol, sellOrder.quantity, 'user');
+                let res = await api.transferTokens(finalAccount, symbol, sellOrder.quantity, 'user');
 
                 if (res.errors) {
                   api.debug(res.errors);
                   api.debug(`TXID: ${api.transactionId}`);
-                  api.debug(api.sender);
+                  api.debug(finalAccount);
                   api.debug(symbol);
                   api.debug(sellOrder.quantity);
                 }
@@ -956,7 +968,7 @@ actions.marketBuy = async (payload) => {
                   .toFixed(STEEM_PEGGED_SYMBOL_PRESICION);
 
                 // add the trade to the history
-                await updateTradesHistory('buy', api.sender, sellOrder.account, symbol, sellOrder.quantity, sellOrder.price, qtySteempToSend, api.transactionId, sellOrder.txId);
+                await updateTradesHistory('buy', finalAccount, sellOrder.account, symbol, sellOrder.quantity, sellOrder.price, qtySteempToSend, api.transactionId, sellOrder.txId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(qtySteempToSend);
@@ -982,7 +994,7 @@ actions.marketBuy = async (payload) => {
 
         // update the buy order if partially filled
         if (api.BigNumber(steempRemaining).gt(0)) {
-          await api.transferTokens(api.sender, STEEM_PEGGED_SYMBOL, steempRemaining, 'user');
+          await api.transferTokens(finalAccount, STEEM_PEGGED_SYMBOL, steempRemaining, 'user');
         }
         if (api.BigNumber(volumeTraded).gt(0)) {
           await updateVolumeMetric(symbol, volumeTraded);
@@ -996,12 +1008,15 @@ actions.marketBuy = async (payload) => {
 
 actions.marketSell = async (payload) => {
   const {
+    account,
     symbol,
     quantity,
     isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+  const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
+
+  if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && symbol && typeof symbol === 'string' && symbol !== STEEM_PEGGED_SYMBOL
     && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN() && api.BigNumber(quantity).gt(0)) {
     // get the token params
@@ -1010,12 +1025,12 @@ actions.marketSell = async (payload) => {
     // perform a few verifications
     if (api.assert(token
       && countDecimals(quantity) <= token.precision, 'invalid params')) {
-      // initiate a transfer from api.sender to contract balance
+      // initiate a transfer from sender to contract balance
       // lock symbol tokens
-      const result = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: CONTRACT_NAME });
+      const result = await api.executeSmartContract('tokens', 'transferToContract', { from: finalAccount, symbol, quantity, to: CONTRACT_NAME });
 
       if (result.errors === undefined
-        && result.events && result.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === CONTRACT_NAME && el.data.quantity === quantity && el.data.symbol === symbol) !== undefined) {
+        && result.events && result.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === finalAccount && el.data.to === CONTRACT_NAME && el.data.quantity === quantity && el.data.symbol === symbol) !== undefined) {
         let tokensRemaining = quantity;
         let offset = 0;
         let volumeTraded = 0;
@@ -1062,12 +1077,12 @@ actions.marketSell = async (payload) => {
                 }
 
                 // transfer the tokens to the seller
-                res = await api.transferTokens(api.sender, STEEM_PEGGED_SYMBOL, qtyTokensToSend, 'user');
+                res = await api.transferTokens(finalAccount, STEEM_PEGGED_SYMBOL, qtyTokensToSend, 'user');
 
                 if (res.errors) {
                   api.debug(res.errors);
                   api.debug(`TXID: ${api.transactionId}`);
-                  api.debug(api.sender);
+                  api.debug(finalAccount);
                   api.debug(STEEM_PEGGED_SYMBOL);
                   api.debug(qtyTokensToSend);
                 }
@@ -1098,7 +1113,7 @@ actions.marketSell = async (payload) => {
                 }
 
                 // add the trade to the history
-                await updateTradesHistory('sell', buyOrder.account, api.sender, symbol, tokensRemaining, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
+                await updateTradesHistory('sell', buyOrder.account, finalAccount, symbol, tokensRemaining, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
@@ -1130,12 +1145,12 @@ actions.marketSell = async (payload) => {
                 }
 
                 // transfer the tokens to the seller
-                res = await api.transferTokens(api.sender, STEEM_PEGGED_SYMBOL, qtyTokensToSend, 'user');
+                res = await api.transferTokens(finalAccount, STEEM_PEGGED_SYMBOL, qtyTokensToSend, 'user');
 
                 if (res.errors) {
                   api.debug(res.errors);
                   api.debug(`TXID: ${api.transactionId}`);
-                  api.debug(api.sender);
+                  api.debug(finalAccount);
                   api.debug(STEEM_PEGGED_SYMBOL);
                   api.debug(qtyTokensToSend);
                 }
@@ -1157,7 +1172,7 @@ actions.marketSell = async (payload) => {
                   .toFixed(token.precision);
 
                 // add the trade to the history
-                await updateTradesHistory('sell', buyOrder.account, api.sender, symbol, buyOrder.quantity, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
+                await updateTradesHistory('sell', buyOrder.account, finalAccount, symbol, buyOrder.quantity, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
 
                 // update the volume
                 volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
@@ -1183,7 +1198,7 @@ actions.marketSell = async (payload) => {
 
         // send back the remaining tokens
         if (api.BigNumber(tokensRemaining).gt(0)) {
-          await api.transferTokens(api.sender, symbol, tokensRemaining, 'user');
+          await api.transferTokens(finalAccount, symbol, tokensRemaining, 'user');
         }
 
         if (api.BigNumber(volumeTraded).gt(0)) {

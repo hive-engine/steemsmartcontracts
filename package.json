@@ -6,7 +6,15 @@
   "scripts": {
     "start": "node --max-old-space-size=8192 app.js",
     "lint": "eslint .gitignore .",
-    "test": "./node_modules/mocha/bin/mocha  --recursive"
+    "test": "./node_modules/mocha/bin/mocha  --recursive",
+    "test0": "./node_modules/mocha/bin/mocha ./test/steemsmartcontracts.js",
+    "test1": "./node_modules/mocha/bin/mocha ./test/nft.js",
+    "test2": "./node_modules/mocha/bin/mocha ./test/tokens.js",
+    "test3": "./node_modules/mocha/bin/mocha ./test/nftmarket.js",
+    "test4": "./node_modules/mocha/bin/mocha ./test/smarttokens.js",
+    "test5": "./node_modules/mocha/bin/mocha ./test/botcontroller.js",
+    "test6": "./node_modules/mocha/bin/mocha ./test/crittermanager.js",
+    "test7": "./node_modules/mocha/bin/mocha ./test/market.js"
   },
   "keywords": [],
   "author": "Harpagon210 <harpagon210@gmail.com>",

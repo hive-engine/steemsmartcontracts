@@ -1316,7 +1316,7 @@ actions.transferFromContract = async (payload) => {
   // this action can only be called by the 'null' account which only the core code can use
   if (api.assert(api.sender === 'null', 'not authorized')) {
     const {
-      from, to, symbol, quantity, type, isSignedWithActiveKey,
+      from, to, symbol, quantity, type,
     } = payload;
     const types = ['user', 'contract'];
 

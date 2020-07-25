@@ -35,6 +35,8 @@ actions.createSSC = async () => {
     params.basicMaxTicksPerBlock = 20;
     params.premiumMaxTicksPerBlock = 30;
     await api.db.insert('params', params);
+  } else {
+    await upgradeDataSchema();
   }
 };
 
@@ -96,6 +98,47 @@ actions.updateParams = async (payload) => {
 
 // ----- START UTILITY FUNCTIONS -----
 
+const getCurrentTimestamp = () => {
+  const blockTimestamp = (CHAIN_TYPE === 'HIVE') ? api.hiveBlockTimestamp : api.steemBlockTimestamp;
+  return new Date(`${blockTimestamp}.000Z`).getTime();
+};
+
+const upgradeDataSchema = async () => {
+  const params = await api.db.findOne('params', {});
+
+  let usersToCheck = await api.db.find(
+    'users',
+    {
+      timeLimitBlocks: {
+        $exists: true,
+      },
+    },
+  );
+
+  let nbUsers = usersToCheck.length;
+  while (nbUsers > 0) {
+    for (let index = 0; index < nbUsers; index += 1) {
+      const user = usersToCheck[index];
+      user.lastTickTimestamp = getCurrentTimestamp();
+      user.lastTickBlock = api.blockNumber;
+      user.timeLimit = params.basicDurationBlocks * 3 * 1000;
+      delete user.timeLimitBlocks;
+      await api.db.update('users', user, { timeLimitBlocks: '' });
+    }
+
+    usersToCheck = await api.db.find(
+      'users',
+      {
+        timeLimitBlocks: {
+          $exists: true,
+        },
+      },
+    );
+
+    nbUsers = usersToCheck.length;
+  }
+};
+
 // check that token transfers succeeded
 const isTokenTransferVerified = (result, from, to, symbol, quantity, eventStr) => {
   if (result.errors === undefined
@@ -107,8 +150,6 @@ const isTokenTransferVerified = (result, from, to, symbol, quantity, eventStr) =
 };
 
 const countDecimals = value => api.BigNumber(value).dp();
-
-const blockTimestamp = (CHAIN_TYPE === 'HIVE') ? api.hiveBlockTimestamp : api.steemBlockTimestamp;
 
 const verifyUtilityTokenStake = async (amount, account) => {
   if (api.BigNumber(amount).lte(0)) {
@@ -147,7 +188,7 @@ const burnFee = async (amount, isSignedWithActiveKey) => {
 
 // ----- END UTILITY FUNCTIONS -----
 
-const tickUsers = async (params, users) => {
+const tickUsers = async (params, users, currentTimestamp) => {
   const marketList = [];
   for (let i = 0; i < users.length; i += 1) {
     const user = users[i];
@@ -155,10 +196,10 @@ const tickUsers = async (params, users) => {
 
     // update duration and see if we need to go into cooldown
     if (!user.isPremium) {
-      const tickInterval = api.blockNumber - user.lastTickBlock;
-      user.timeLimitBlocks -= tickInterval;
-      if (user.timeLimitBlocks <= 0) {
-        user.timeLimitBlocks = 0;
+      const tickInterval = currentTimestamp - user.lastTickTimestamp;
+      user.timeLimit -= tickInterval;
+      if (user.timeLimit <= 0) {
+        user.timeLimit = 0;
         user.isOnCooldown = true;
         user.isEnabled = false;
       }
@@ -172,6 +213,7 @@ const tickUsers = async (params, users) => {
     }
 
     user.lastTickBlock = api.blockNumber;
+    user.lastTickTimestamp = currentTimestamp;
 
     if (!user.isEnabled || user.enabledMarkets < 1) {
       await api.db.update('users', user);
@@ -226,8 +268,9 @@ actions.tick = async () => {
   if (api.assert(api.sender === 'null', 'not authorized')) {
     // get contract params
     const params = await api.db.findOne('params', {});
-    const cutoffBasicBlock = api.blockNumber - params.basicMinTickIntervalBlocks;
-    const cutoffPremiumBlock = api.blockNumber - params.premiumMinTickIntervalBlocks;
+    const currentTimestamp = getCurrentTimestamp();
+    const cutoffBasic = currentTimestamp - (params.basicMinTickIntervalBlocks * 3 * 1000);
+    const cutoffPremium = currentTimestamp - (params.premiumMinTickIntervalBlocks * 3 * 1000);
 
     // get some basic accounts that are ready to be ticked
     const pendingBasicTicks = await api.db.find(
@@ -235,15 +278,15 @@ actions.tick = async () => {
       {
         isEnabled: true,
         isPremium: false,
-        lastTickBlock: {
-          $lte: cutoffBasicBlock,
+        lastTickTimestamp: {
+          $lte: cutoffBasic,
         },
       },
       params.basicMaxTicksPerBlock,
       0,
       [{ index: 'lastTickBlock', descending: false }],
     );
-    await tickUsers(params, pendingBasicTicks);
+    await tickUsers(params, pendingBasicTicks, currentTimestamp);
 
     // get some premium accounts that are ready to be ticked
     const pendingPremiumTicks = await api.db.find(
@@ -251,15 +294,15 @@ actions.tick = async () => {
       {
         isEnabled: true,
         isPremium: true,
-        lastTickBlock: {
-          $lte: cutoffPremiumBlock,
+        lastTickTimestamp: {
+          $lte: cutoffPremium,
         },
       },
       params.premiumMaxTicksPerBlock,
       0,
       [{ index: 'lastTickBlock', descending: false }],
     );
-    await tickUsers(params, pendingPremiumTicks);
+    await tickUsers(params, pendingPremiumTicks, currentTimestamp);
   }
 };
 
@@ -292,10 +335,11 @@ actions.upgrade = async (payload) => {
         user.isPremiumFeePaid = true;
         user.isPremium = true;
         if (user.isOnCooldown) {
-          user.timeLimitBlocks = params.basicDurationBlocks;
+          user.timeLimit = params.basicDurationBlocks * 3 * 1000;
         }
         user.isOnCooldown = false;
         user.lastTickBlock = api.blockNumber;
+        user.lastTickTimestamp = getCurrentTimestamp();
 
         await api.db.update('users', user);
 
@@ -319,18 +363,20 @@ actions.turnOff = async (payload) => {
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user !== null, 'user not registered')) {
       if (api.assert(user.isEnabled, 'account already turned off')) {
+        const currentTimestamp = getCurrentTimestamp();
         // update duration and see if we need to go into cooldown
         if (!user.isPremium) {
-          const tickInterval = api.blockNumber - user.lastTickBlock;
-          user.timeLimitBlocks -= tickInterval;
-          if (user.timeLimitBlocks <= 0) {
-            user.timeLimitBlocks = 0;
+          const tickInterval = currentTimestamp - user.lastTickTimestamp;
+          user.timeLimit -= tickInterval;
+          if (user.timeLimit <= 0) {
+            user.timeLimit = 0;
             user.isOnCooldown = true;
           }
         }
 
         user.isEnabled = false;
         user.lastTickBlock = api.blockNumber;
+        user.lastTickTimestamp = currentTimestamp;
 
         await api.db.update('users', user);
 
@@ -354,16 +400,17 @@ actions.turnOn = async (payload) => {
     // check if this user is already registered
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user !== null, 'user not registered')) {
-      const currentTickBlock = api.blockNumber;
-      const tickInterval = currentTickBlock - user.lastTickBlock;
+      const currentTimestamp = getCurrentTimestamp();
+      const tickInterval = currentTimestamp - user.lastTickTimestamp;
       if (api.assert(!user.isEnabled, 'account already turned on')
-        && api.assert(user.isPremium || !user.isOnCooldown || (user.isOnCooldown && tickInterval >= params.basicCooldownBlocks), 'cooldown duration not expired')) {
+        && api.assert(user.isPremium || !user.isOnCooldown || (user.isOnCooldown && tickInterval >= (params.basicCooldownBlocks * 3 * 1000)), 'cooldown duration not expired')) {
         user.isEnabled = true;
         if (user.isOnCooldown) {
-          user.timeLimitBlocks = params.basicDurationBlocks;
+          user.timeLimit = params.basicDurationBlocks * 3 * 1000;
         }
         user.isOnCooldown = false;
-        user.lastTickBlock = currentTickBlock;
+        user.lastTickBlock = api.blockNumber;
+        user.lastTickTimestamp = currentTimestamp;
 
         await api.db.update('users', user);
 
@@ -626,9 +673,6 @@ actions.addMarket = async (payload) => {
             }
             const hasEnoughStake = await verifyUtilityTokenStake(requiredStake, api.sender);
             if (api.assert(hasEnoughStake, `must stake more ${UTILITY_TOKEN_SYMBOL} to add a market`)) {
-              const blockDate = new Date(`${blockTimestamp}.000Z`);
-              const creationTimestamp = blockDate.getTime();
-
               const newMarket = {
                 account: api.sender,
                 symbol,
@@ -643,7 +687,7 @@ actions.addMarket = async (payload) => {
                 priceIncrement: '0.00001',
                 minSpread: '0.00000001',
                 isEnabled: true,
-                creationTimestamp,
+                creationTimestamp: getCurrentTimestamp(),
                 creationBlock: api.blockNumber,
               };
 
@@ -687,8 +731,7 @@ actions.register = async (payload) => {
         return false;
       }
 
-      const blockDate = new Date(`${blockTimestamp}.000Z`);
-      const creationTimestamp = blockDate.getTime();
+      const creationTimestamp = getCurrentTimestamp();
 
       const newUser = {
         account: api.sender,
@@ -698,7 +741,8 @@ actions.register = async (payload) => {
         isEnabled: true,
         markets: 0,
         enabledMarkets: 0,
-        timeLimitBlocks: params.basicDurationBlocks,
+        timeLimit: params.basicDurationBlocks * 3 * 1000,
+        lastTickTimestamp: creationTimestamp,
         lastTickBlock: api.blockNumber,
         creationTimestamp,
         creationBlock: api.blockNumber,

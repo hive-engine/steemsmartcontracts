@@ -9,8 +9,8 @@ actions.createSSC = async () => {
 };
 
 const tickMarket = async (market) => {
-  //api.debug(`ticking market for user: ${market.account}, symbol: ${market.symbol}`);
-  //await api.executeSmartContract('market', 'buy', { account: market.account, symbol: market.symbol, quantity: "5", price: "0.75" });
+  api.debug(`ticking market for user: ${market.account}, symbol: ${market.symbol}`);
+  // await api.executeSmartContract('market', 'buy', { account: market.account, symbol: market.symbol, quantity: "5", price: "0.75" });
 };
 
 actions.tick = async (payload) => {

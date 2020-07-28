@@ -15,31 +15,6 @@ const BASE_SYMBOL_PRECISION = 8;
 // either HIVE or STEEM
 const CHAIN_TYPE = 'HIVE';
 
-actions.createSSC = async () => {
-  const tableExists = await api.db.tableExists('users');
-  if (tableExists === false) {
-    await api.db.createTable('users', ['account', 'lastTickBlock']);
-    await api.db.createTable('markets', ['account', 'symbol']);
-    await api.db.createTable('params');
-
-    const params = {};
-    params.basicFee = '100';
-    params.basicSettingsFee = '1';
-    params.premiumFee = '100';
-    params.premiumBaseStake = '1000';
-    params.stakePerMarket = '200';
-    params.basicDurationBlocks = 403200; // 14 days
-    params.basicCooldownBlocks = 403200; // 14 days
-    params.basicMinTickIntervalBlocks = 200; // 10 minutes
-    params.premiumMinTickIntervalBlocks = 100; // 5 minutes
-    params.basicMaxTicksPerBlock = 20;
-    params.premiumMaxTicksPerBlock = 30;
-    await api.db.insert('params', params);
-  } else {
-    await upgradeDataSchema();
-  }
-};
-
 actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
@@ -187,6 +162,31 @@ const burnFee = async (amount, isSignedWithActiveKey) => {
 };
 
 // ----- END UTILITY FUNCTIONS -----
+
+actions.createSSC = async () => {
+  const tableExists = await api.db.tableExists('users');
+  if (tableExists === false) {
+    await api.db.createTable('users', ['account', 'lastTickBlock']);
+    await api.db.createTable('markets', ['account', 'symbol']);
+    await api.db.createTable('params');
+
+    const params = {};
+    params.basicFee = '100';
+    params.basicSettingsFee = '1';
+    params.premiumFee = '100';
+    params.premiumBaseStake = '1000';
+    params.stakePerMarket = '200';
+    params.basicDurationBlocks = 403200; // 14 days
+    params.basicCooldownBlocks = 403200; // 14 days
+    params.basicMinTickIntervalBlocks = 200; // 10 minutes
+    params.premiumMinTickIntervalBlocks = 100; // 5 minutes
+    params.basicMaxTicksPerBlock = 20;
+    params.premiumMaxTicksPerBlock = 30;
+    await api.db.insert('params', params);
+  } else {
+    await upgradeDataSchema();
+  }
+};
 
 const tickUsers = async (params, users, currentTimestamp) => {
   const marketList = [];

@@ -300,12 +300,14 @@ describe('botcontroller', function() {
 
       // setup sell order book with several orders
       transactions.push(new Transaction(startRefBlockNum, 'TXID1256', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "10", "price": "0.784", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1257', 'beggars', 'market', 'sell', '{ "symbol": "TKN", "quantity": "15", "price": "0.790", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1258', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.794", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1259', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "30", "price": "0.804", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1260', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "40", "price": "0.814", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1261', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "50", "price": "0.824", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1262', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "60", "price": "0.834", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1257', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.784", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1258', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.784", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1259', 'beggars', 'market', 'sell', '{ "symbol": "TKN", "quantity": "15", "price": "0.784", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1260', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.794", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1261', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "30", "price": "0.804", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1262', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "40", "price": "0.814", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1263', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "50", "price": "0.824", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1264', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "60", "price": "0.834", "isSignedWithActiveKey": true }'));
 
       let blockTimestamp = new Date('2018-06-01T00:00:00').getTime();
       let block = {

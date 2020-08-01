@@ -138,6 +138,40 @@ const tickMarket = async (market) => {
     new_top_sell_price = minSellPrice;
   }
 
+  api.debug('new_top_buy_price: ' + new_top_buy_price);
+  api.debug('new_top_sell_price: ' + new_top_sell_price);
+
+  // make sure bid won't cross the ask
+  if (new_top_buy_price.gte(new_top_sell_price)) {
+    return;
+  }
+  // make sure spread isn't too small
+  const spread = new_top_sell_price.minus(new_top_buy_price.gte);
+  if (spread.lt(minSpread)) {
+    return;
+  }
+
+  // decide if we should place new orders, and cancel old ones
+  let shouldReplaceBuyOrder = false;
+  if (my_buy_orders.length > 0
+    && ((bb.myTopPrice.lt(bb.topPrice) && bb.topPrice.lt(maxBidPrice))
+        || bb.myTopPrice.gt(maxBidPrice)
+        || (bb.numOrdersAtMyPrice > 1 && bb.isTopMine)
+        || (bb.numOrdersAtMyPrice > 1 && !bb.isTopMine && bb.myTopPrice.lt(new_top_buy_price)))) {
+    // TODO: cancel old orders here
+    shouldReplaceBuyOrder = true;
+  }
+
+  let shouldReplaceSellOrder = false;
+  if (my_sell_orders.length > 0
+    && ((sb.myTopPrice.gt(sb.topPrice) && sb.topPrice.gt(minSellPrice))
+        || sb.myTopPrice.lt(minSellPrice)
+        || (sb.numOrdersAtMyPrice > 1 && sb.isTopMine)
+        || (sb.numOrdersAtMyPrice > 1 && !sb.isTopMine && sb.myTopPrice.gt(new_top_sell_price)))) {
+    // TODO: cancel old orders here
+    shouldReplaceSellOrder = true;
+  }
+
   // await api.executeSmartContract('market', 'buy', { account: market.account, symbol: market.symbol, quantity: "5", price: "0.75" });
 };
 

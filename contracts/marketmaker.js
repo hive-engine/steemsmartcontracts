@@ -7,6 +7,8 @@
 
 // either SWAP.HIVE or STEEMP
 const BASE_SYMBOL = 'SWAP.HIVE';
+const BASE_SYMBOL_PRECISION = 8;
+const DEBUG_MODE = true;
 
 actions.createSSC = async () => {
 };
@@ -15,13 +17,25 @@ const getOrderBook = async (table, symbol, descending) => {
   const orders = await api.db.findInTable(
     'market',
     table,
-    { symbol, },
+    { symbol },
     0,
     0,
-    [{ index: 'symbol', descending: false },
-     { index: 'priceDec', descending }],
+    [{ index: 'symbol', descending: false }, { index: 'priceDec', descending }],
   );
   return orders;
+};
+
+const cancelOrders = async (orders, type) => {
+  for (let k = 0; k < orders.length; k += 1) {
+    const order = orders[k];
+    await api.executeSmartContract('market', 'cancel', { account: order.account, type, id: order.txId });
+  }
+};
+
+// baseAmount and price should be of type BigNumber
+const getClosestAmount = (baseCurrency, price, precision) => {
+  const amount = baseCurrency.dividedBy(price);
+  return amount.toFixed(precision);
 };
 
 const countBalanceInBuyOrders = orders => orders.reduce((t, v) => t.plus(api.BigNumber(v.tokensLocked)), api.BigNumber(0));
@@ -30,12 +44,13 @@ const countBalanceInSellOrders = orders => orders.reduce((t, v) => t.plus(api.Bi
 const getOrderData = (orders, myOrders, account) => {
   const data = {};
   data.topOrder = orders.length > 0 ? orders[0] : null;
+  // eslint-disable-next-line no-unneeded-ternary
   data.isTopMine = (data.topOrder && data.topOrder.account === account) ? true : false;
   data.topPrice = data.topOrder ? api.BigNumber(data.topOrder.price) : api.BigNumber(0);
   data.myTopPrice = myOrders.length > 0 ? api.BigNumber(myOrders[0].price) : api.BigNumber(0);
   data.numOrdersAtMyPrice = 0;
   if (data.myTopPrice.gt(0)) {
-    data.numOrdersAtMyPrice = orders.reduce((t, v) => api.BigNumber(v.price).eq(data.myTopPrice) ? (t + 1) : t, 0);
+    data.numOrdersAtMyPrice = orders.reduce((t, v) => (api.BigNumber(v.price).eq(data.myTopPrice) ? (t + 1) : t), 0);
     if (data.myTopPrice.eq(data.topPrice)) {
       data.isTopMine = true;
     }
@@ -48,7 +63,9 @@ const tickMarket = async (market) => {
   if (!market.isEnabled) {
     return;
   }
-  api.debug(`ticking market for user: ${market.account}, symbol: ${market.symbol}`);
+  if (DEBUG_MODE) {
+    api.debug(`ticking market for user: ${market.account}, symbol: ${market.symbol}`);
+  }
 
   // convert market config into big numbers we can work with
   const maxBidPrice = api.BigNumber(market.maxBidPrice);
@@ -61,8 +78,8 @@ const tickMarket = async (market) => {
   const minSpread = api.BigNumber(market.minSpread);
 
   // get account balances
-  let baseBalance = api.BigNumber(0)
-  let tokenBalance = api.BigNumber(0)
+  let baseBalance = api.BigNumber(0);
+  let tokenBalance = api.BigNumber(0);
   const balances = await api.db.findInTable(
     'tokens',
     'balances',
@@ -77,7 +94,7 @@ const tickMarket = async (market) => {
     [{ index: 'account', descending: false }],
   );
   for (let j = 0; j < balances.length; j += 1) {
-    let balance = balances[j];
+    const balance = balances[j];
     if (balance.symbol === BASE_SYMBOL) {
       baseBalance = api.BigNumber(balance.balance);
     } else if (balance.symbol === market.symbol) {
@@ -95,23 +112,27 @@ const tickMarket = async (market) => {
   const is_buy_book_empty = buy_orders.length == 0 || buy_orders.length == my_buy_orders.length;
   const is_sell_book_empty = sell_orders.length == 0 || sell_orders.length == my_sell_orders.length;
   if (is_buy_book_empty && is_sell_book_empty) {
-    api.debug('order book for ' + market.symbol + ' is empty, nothing to do');
+    if (DEBUG_MODE) {
+      api.debug('order book for ' + market.symbol + ' is empty, nothing to do');
+    }
     return;
   }
 
   baseBalance = baseBalance.plus(countBalanceInBuyOrders(my_buy_orders));
   tokenBalance = tokenBalance.plus(countBalanceInSellOrders(my_sell_orders));
 
-  api.debug('base balance: ' + baseBalance + ' ' + BASE_SYMBOL);
-  api.debug('token balance: ' + tokenBalance + ' ' + market.symbol);
-  api.debug('buy_orders:');
-  api.debug(buy_orders);
-  api.debug('sell_orders:');
-  api.debug(sell_orders);
-  api.debug('my buy orders:');
-  api.debug(my_buy_orders);
-  api.debug('my sell orders:');
-  api.debug(my_sell_orders);
+  if (DEBUG_MODE) {
+    api.debug('base balance: ' + baseBalance + ' ' + BASE_SYMBOL);
+    api.debug('token balance: ' + tokenBalance + ' ' + market.symbol);
+    api.debug('buy_orders:');
+    api.debug(buy_orders);
+    api.debug('sell_orders:');
+    api.debug(sell_orders);
+    api.debug('my buy orders:');
+    api.debug(my_buy_orders);
+    api.debug('my sell orders:');
+    api.debug(my_sell_orders);
+  }
 
   if (baseBalance.lt(maxBaseToSpend)) {
     maxBaseToSpend = baseBalance;
@@ -124,10 +145,12 @@ const tickMarket = async (market) => {
   const bb = getOrderData(buy_orders, my_buy_orders, market.account);
   const sb = getOrderData(sell_orders, my_sell_orders, market.account);
 
-  api.debug('bb');
-  api.debug(bb);
-  api.debug('sb');
-  api.debug(sb);
+  if (DEBUG_MODE) {
+    api.debug('bb');
+    api.debug(bb);
+    api.debug('sb');
+    api.debug(sb);
+  }
 
   let new_top_buy_price = bb.topPrice.plus(priceIncrement);
   if (new_top_buy_price.gt(maxBidPrice)) {
@@ -138,8 +161,10 @@ const tickMarket = async (market) => {
     new_top_sell_price = minSellPrice;
   }
 
-  api.debug('new_top_buy_price: ' + new_top_buy_price);
-  api.debug('new_top_sell_price: ' + new_top_sell_price);
+  if (DEBUG_MODE) {
+    api.debug('new_top_buy_price: ' + new_top_buy_price);
+    api.debug('new_top_sell_price: ' + new_top_sell_price);
+  }
 
   // make sure bid won't cross the ask
   if (new_top_buy_price.gte(new_top_sell_price)) {
@@ -158,7 +183,7 @@ const tickMarket = async (market) => {
         || bb.myTopPrice.gt(maxBidPrice)
         || (bb.numOrdersAtMyPrice > 1 && bb.isTopMine)
         || (bb.numOrdersAtMyPrice > 1 && !bb.isTopMine && bb.myTopPrice.lt(new_top_buy_price)))) {
-    // TODO: cancel old orders here
+    await cancelOrders(my_buy_orders, 'buy');
     shouldReplaceBuyOrder = true;
   }
 
@@ -168,11 +193,18 @@ const tickMarket = async (market) => {
         || sb.myTopPrice.lt(minSellPrice)
         || (sb.numOrdersAtMyPrice > 1 && sb.isTopMine)
         || (sb.numOrdersAtMyPrice > 1 && !sb.isTopMine && sb.myTopPrice.gt(new_top_sell_price)))) {
-    // TODO: cancel old orders here
+    await cancelOrders(my_sell_orders, 'sell');
     shouldReplaceSellOrder = true;
   }
 
-  // await api.executeSmartContract('market', 'buy', { account: market.account, symbol: market.symbol, quantity: "5", price: "0.75" });
+  // place new orders
+  if ((my_buy_orders.length === 0 || shouldReplaceBuyOrder) && maxBaseToSpend.gte(minBaseToSpend)) {
+    const tokens_to_buy = getClosestAmount(maxBaseToSpend, new_top_buy_price, market.precision);
+    await api.executeSmartContract('market', 'buy', { account: market.account, symbol: market.symbol, quantity: tokens_to_buy, price: new_top_buy_price.toFixed(BASE_SYMBOL_PRECISION) });
+  }
+  if ((my_sell_orders.length === 0 || shouldReplaceSellOrder) && maxTokensToSell.gte(minTokensToSell)) {
+    await api.executeSmartContract('market', 'sell', { account: market.account, symbol: market.symbol, quantity: maxTokensToSell.toFixed(market.precision), price: new_top_sell_price.toFixed(BASE_SYMBOL_PRECISION) });
+  }
 };
 
 actions.tick = async (payload) => {

@@ -8,7 +8,7 @@
 // either SWAP.HIVE or STEEMP
 const BASE_SYMBOL = 'SWAP.HIVE';
 const BASE_SYMBOL_PRECISION = 8;
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 actions.createSSC = async () => {
 };

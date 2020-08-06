@@ -471,6 +471,15 @@ describe('botcontroller', function() {
               indexes: [{index: '_id', descending: false}],
             });
             console.log(buyOrders);
+            let sellOrders = await database1.find({
+              contract: 'market',
+              table: 'sellBook',
+              query: {
+                account: { $in: ['beggars'] }
+              },
+              indexes: [{index: '_id', descending: false}],
+            });
+            console.log(sellOrders);
             console.log(blockInfo);
             break;
           case 39: // beggars unstakes 100 tokens

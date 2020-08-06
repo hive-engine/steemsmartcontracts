@@ -86,7 +86,7 @@ const tickMarket = async (market) => {
     {
       account: market.account,
       symbol: {
-        $in: [BASE_SYMBOL, market.symbol]
+        $in: [BASE_SYMBOL, market.symbol],
       },
     },
     2,
@@ -103,35 +103,35 @@ const tickMarket = async (market) => {
   }
 
   // get orders
-  const buy_orders = await getOrderBook('buyBook', market.symbol, true);
-  const sell_orders = await getOrderBook('sellBook', market.symbol, false);
-  const my_buy_orders = buy_orders.filter(o => o.account === market.account);
-  const my_sell_orders = sell_orders.filter(o => o.account === market.account);
+  const buyOrders = await getOrderBook('buyBook', market.symbol, true);
+  const sellOrders = await getOrderBook('sellBook', market.symbol, false);
+  const myBuyOrders = buyOrders.filter(o => o.account === market.account);
+  const mySellOrders = sellOrders.filter(o => o.account === market.account);
 
   // if empty market, nothing for us to do
-  const is_buy_book_empty = buy_orders.length == 0 || buy_orders.length == my_buy_orders.length;
-  const is_sell_book_empty = sell_orders.length == 0 || sell_orders.length == my_sell_orders.length;
-  if (is_buy_book_empty && is_sell_book_empty) {
+  const isBuyBookEmpty = buyOrders.length === 0 || buyOrders.length === myBuyOrders.length;
+  const isSellBookEmpty = sellOrders.length === 0 || sellOrders.length === mySellOrders.length;
+  if (isBuyBookEmpty && isSellBookEmpty) {
     if (DEBUG_MODE) {
-      api.debug('order book for ' + market.symbol + ' is empty, nothing to do');
+      api.debug(`order book for ${market.symbol} is empty, nothing to do`);
     }
     return;
   }
 
-  baseBalance = baseBalance.plus(countBalanceInBuyOrders(my_buy_orders));
-  tokenBalance = tokenBalance.plus(countBalanceInSellOrders(my_sell_orders));
+  baseBalance = baseBalance.plus(countBalanceInBuyOrders(myBuyOrders));
+  tokenBalance = tokenBalance.plus(countBalanceInSellOrders(mySellOrders));
 
   if (DEBUG_MODE) {
-    api.debug('base balance: ' + baseBalance + ' ' + BASE_SYMBOL);
-    api.debug('token balance: ' + tokenBalance + ' ' + market.symbol);
-    api.debug('buy_orders:');
-    api.debug(buy_orders);
-    api.debug('sell_orders:');
-    api.debug(sell_orders);
+    api.debug(`base balance: ${baseBalance} ${BASE_SYMBOL}`);
+    api.debug(`token balance: ${tokenBalance} ${market.symbol}`);
+    api.debug('buyOrders:');
+    api.debug(buyOrders);
+    api.debug('sellOrders:');
+    api.debug(sellOrders);
     api.debug('my buy orders:');
-    api.debug(my_buy_orders);
+    api.debug(myBuyOrders);
     api.debug('my sell orders:');
-    api.debug(my_sell_orders);
+    api.debug(mySellOrders);
   }
 
   if (baseBalance.lt(maxBaseToSpend)) {
@@ -142,8 +142,8 @@ const tickMarket = async (market) => {
   }
 
   // initialize order data
-  const bb = getOrderData(buy_orders, my_buy_orders, market.account);
-  const sb = getOrderData(sell_orders, my_sell_orders, market.account);
+  const bb = getOrderData(buyOrders, myBuyOrders, market.account);
+  const sb = getOrderData(sellOrders, mySellOrders, market.account);
 
   if (DEBUG_MODE) {
     api.debug('bb');
@@ -152,58 +152,70 @@ const tickMarket = async (market) => {
     api.debug(sb);
   }
 
-  let new_top_buy_price = bb.topPrice.plus(priceIncrement);
-  if (new_top_buy_price.gt(maxBidPrice)) {
-    new_top_buy_price = maxBidPrice;
+  let newTopBuyPrice = bb.topPrice.plus(priceIncrement);
+  if (newTopBuyPrice.gt(maxBidPrice)) {
+    newTopBuyPrice = maxBidPrice;
   }
-  let new_top_sell_price = sb.topPrice.minus(priceIncrement);
-  if (new_top_sell_price.lt(minSellPrice)) {
-    new_top_sell_price = minSellPrice;
+  let newTopSellPrice = sb.topPrice.minus(priceIncrement);
+  if (newTopSellPrice.lt(minSellPrice)) {
+    newTopSellPrice = minSellPrice;
   }
 
   if (DEBUG_MODE) {
-    api.debug('new_top_buy_price: ' + new_top_buy_price);
-    api.debug('new_top_sell_price: ' + new_top_sell_price);
+    api.debug(`newTopBuyPrice: ${newTopBuyPrice}`);
+    api.debug(`newTopSellPrice: ${newTopSellPrice}`);
   }
 
-  // make sure bid won't cross the ask
-  if (new_top_buy_price.gte(new_top_sell_price)) {
-    return;
-  }
-  // make sure spread isn't too small
-  const spread = new_top_sell_price.minus(new_top_buy_price.gte);
-  if (spread.lt(minSpread)) {
-    return;
+  if (sellOrders.length > 0) {
+    // make sure bid won't cross the ask
+    if (newTopBuyPrice.gte(newTopSellPrice)) {
+      return;
+    }
+    // make sure spread isn't too small
+    const spread = newTopSellPrice.minus(newTopBuyPrice);
+    if (spread.lt(minSpread)) {
+      return;
+    }
   }
 
   // decide if we should place new orders, and cancel old ones
   let shouldReplaceBuyOrder = false;
-  if (my_buy_orders.length > 0
+  if (myBuyOrders.length > 0
     && ((bb.myTopPrice.lt(bb.topPrice) && bb.topPrice.lt(maxBidPrice))
         || bb.myTopPrice.gt(maxBidPrice)
         || (bb.numOrdersAtMyPrice > 1 && bb.isTopMine)
-        || (bb.numOrdersAtMyPrice > 1 && !bb.isTopMine && bb.myTopPrice.lt(new_top_buy_price)))) {
-    await cancelOrders(my_buy_orders, 'buy');
+        || (bb.numOrdersAtMyPrice > 1 && !bb.isTopMine && bb.myTopPrice.lt(newTopBuyPrice)))) {
+    await cancelOrders(myBuyOrders, 'buy');
     shouldReplaceBuyOrder = true;
   }
 
   let shouldReplaceSellOrder = false;
-  if (my_sell_orders.length > 0
+  if (mySellOrders.length > 0
     && ((sb.myTopPrice.gt(sb.topPrice) && sb.topPrice.gt(minSellPrice))
         || sb.myTopPrice.lt(minSellPrice)
         || (sb.numOrdersAtMyPrice > 1 && sb.isTopMine)
-        || (sb.numOrdersAtMyPrice > 1 && !sb.isTopMine && sb.myTopPrice.gt(new_top_sell_price)))) {
-    await cancelOrders(my_sell_orders, 'sell');
+        || (sb.numOrdersAtMyPrice > 1 && !sb.isTopMine && sb.myTopPrice.gt(newTopSellPrice)))) {
+    await cancelOrders(mySellOrders, 'sell');
     shouldReplaceSellOrder = true;
   }
 
   // place new orders
-  if ((my_buy_orders.length === 0 || shouldReplaceBuyOrder) && maxBaseToSpend.gte(minBaseToSpend)) {
-    const tokens_to_buy = getClosestAmount(maxBaseToSpend, new_top_buy_price, market.precision);
-    await api.executeSmartContract('market', 'buy', { account: market.account, symbol: market.symbol, quantity: tokens_to_buy, price: new_top_buy_price.toFixed(BASE_SYMBOL_PRECISION) });
+  if ((myBuyOrders.length === 0 || shouldReplaceBuyOrder) && maxBaseToSpend.gte(minBaseToSpend)) {
+    const tokensToBuy = getClosestAmount(maxBaseToSpend, newTopBuyPrice, market.precision);
+    await api.executeSmartContract('market', 'buy', {
+      account: market.account,
+      symbol: market.symbol,
+      quantity: tokensToBuy,
+      price: newTopBuyPrice.toFixed(BASE_SYMBOL_PRECISION),
+    });
   }
-  if ((my_sell_orders.length === 0 || shouldReplaceSellOrder) && maxTokensToSell.gte(minTokensToSell)) {
-    await api.executeSmartContract('market', 'sell', { account: market.account, symbol: market.symbol, quantity: maxTokensToSell.toFixed(market.precision), price: new_top_sell_price.toFixed(BASE_SYMBOL_PRECISION) });
+  if ((mySellOrders.length === 0 || shouldReplaceSellOrder) && maxTokensToSell.gte(minTokensToSell) && !isSellBookEmpty) {
+    await api.executeSmartContract('market', 'sell', {
+      account: market.account,
+      symbol: market.symbol,
+      quantity: maxTokensToSell.toFixed(market.precision),
+      price: newTopSellPrice.toFixed(BASE_SYMBOL_PRECISION),
+    });
   }
 };
 

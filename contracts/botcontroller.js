@@ -240,7 +240,7 @@ const tickUsers = async (params, users, currentTimestamp) => {
       { account: user.account, isEnabled: true },
       user.markets,
       0,
-      [{ index: 'account', descending: false }, { index: 'symbol', descending: false }],
+      [{ index: 'symbol', descending: false }, { index: '_id', descending: false }],
     );
 
     if (!authorizedAction || !hasEnoughStakeForMarkets) {
@@ -284,7 +284,7 @@ actions.tick = async () => {
       },
       params.basicMaxTicksPerBlock,
       0,
-      [{ index: 'lastTickBlock', descending: false }],
+      [{ index: 'lastTickBlock', descending: false }, { index: '_id', descending: false }],
     );
     await tickUsers(params, pendingBasicTicks, currentTimestamp);
 
@@ -300,7 +300,7 @@ actions.tick = async () => {
       },
       params.premiumMaxTicksPerBlock,
       0,
-      [{ index: 'lastTickBlock', descending: false }],
+      [{ index: 'lastTickBlock', descending: false }, { index: '_id', descending: false }],
     );
     await tickUsers(params, pendingPremiumTicks, currentTimestamp);
   }

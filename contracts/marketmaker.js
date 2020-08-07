@@ -20,7 +20,7 @@ const getOrderBook = async (table, symbol, descending) => {
     { symbol },
     0,
     0,
-    [{ index: 'symbol', descending: false }, { index: 'priceDec', descending }],
+    [{ index: 'priceDec', descending }, { index: '_id', descending: false }],
   );
   return orders;
 };
@@ -91,7 +91,7 @@ const tickMarket = async (market) => {
     },
     2,
     0,
-    [{ index: 'account', descending: false }],
+    [{ index: '_id', descending: false }],
   );
   for (let j = 0; j < balances.length; j += 1) {
     const balance = balances[j];

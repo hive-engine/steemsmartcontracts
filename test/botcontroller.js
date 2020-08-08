@@ -835,7 +835,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "200", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "maxBidPrice": "15.12345678", "minSellPrice": "20.87654321", "maxBaseToSpend": "666", "maxTokensToSell": "50", "minTokensToSell": "5", "minSpread": "0.01" }'));
-      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011" }'));
+      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011", "maxDistFromNext": "0.55" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -969,6 +969,7 @@ describe('botcontroller', function() {
       assert.equal(market.minTokensToSell, '5');
       assert.equal(market.priceIncrement, '0.011');
       assert.equal(market.minSpread, '0.01');
+      assert.equal(market.maxDistFromNext, '0.55');
       assert.equal(market.isEnabled, true);
       assert.equal(market.creationTimestamp, 1527811200000);
       assert.equal(market.creationBlock, 1);

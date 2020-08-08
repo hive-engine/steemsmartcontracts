@@ -78,7 +78,7 @@ const getCurrentTimestamp = () => {
   return new Date(`${blockTimestamp}.000Z`).getTime();
 };
 
-const upgradeDataSchema = async () => {
+const upgradeUserSchema = async () => {
   const params = await api.db.findOne('params', {});
 
   let usersToCheck = await api.db.find(
@@ -111,6 +111,39 @@ const upgradeDataSchema = async () => {
     );
 
     nbUsers = usersToCheck.length;
+  }
+};
+
+const upgradeMarketSchema = async () => {
+  const params = await api.db.findOne('params', {});
+
+  let mktsToCheck = await api.db.find(
+    'markets',
+    {
+      maxDistFromNext: {
+        $exists: false,
+      },
+    },
+  );
+
+  let nbMkts = mktsToCheck.length;
+  while (nbMkts > 0) {
+    for (let index = 0; index < nbMkts; index += 1) {
+      const market = mktsToCheck[index];
+      market.maxDistFromNext = '0.0001';
+      await api.db.update('markets', market);
+    }
+
+    mktsToCheck = await api.db.find(
+      'markets',
+      {
+        maxDistFromNext: {
+          $exists: false,
+        },
+      },
+    );
+
+    nbMkts = mktsToCheck.length;
   }
 };
 
@@ -184,7 +217,8 @@ actions.createSSC = async () => {
     params.premiumMaxTicksPerBlock = 30;
     await api.db.insert('params', params);
   } else {
-    await upgradeDataSchema();
+    await upgradeUserSchema();
+    await upgradeMarketSchema();
   }
 };
 
@@ -537,10 +571,11 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     minTokensToSell,
     priceIncrement,
     minSpread,
+    maxDistFromNext,
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined) {
+  if (maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined && maxDistFromNext === undefined) {
     return false;
   }
 
@@ -551,7 +586,8 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     && api.assert(maxTokensToSell === undefined || (maxTokensToSell && typeof maxTokensToSell === 'string' && !api.BigNumber(maxTokensToSell).isNaN() && api.BigNumber(maxTokensToSell).gt(0) && countDecimals(maxTokensToSell) <= market.precision), 'invalid maxTokensToSell')
     && api.assert(minTokensToSell === undefined || (minTokensToSell && typeof minTokensToSell === 'string' && !api.BigNumber(minTokensToSell).isNaN() && api.BigNumber(minTokensToSell).gt(0) && countDecimals(minTokensToSell) <= market.precision), 'invalid minTokensToSell')
     && api.assert(priceIncrement === undefined || (priceIncrement && typeof priceIncrement === 'string' && !api.BigNumber(priceIncrement).isNaN() && api.BigNumber(priceIncrement).gt(0) && countDecimals(priceIncrement) <= BASE_SYMBOL_PRECISION), 'invalid priceIncrement')
-    && api.assert(minSpread === undefined || (minSpread && typeof minSpread === 'string' && !api.BigNumber(minSpread).isNaN() && api.BigNumber(minSpread).gt(0) && countDecimals(minSpread) <= BASE_SYMBOL_PRECISION), 'invalid minSpread')) {
+    && api.assert(minSpread === undefined || (minSpread && typeof minSpread === 'string' && !api.BigNumber(minSpread).isNaN() && api.BigNumber(minSpread).gt(0) && countDecimals(minSpread) <= BASE_SYMBOL_PRECISION), 'invalid minSpread')
+    && api.assert(maxDistFromNext === undefined || (maxDistFromNext && typeof maxDistFromNext === 'string' && !api.BigNumber(maxDistFromNext).isNaN() && api.BigNumber(maxDistFromNext).gt(0) && countDecimals(maxDistFromNext) <= BASE_SYMBOL_PRECISION), 'invalid maxDistFromNext')) {
     if (shouldPayFee) {
       // burn the settings change fee
       if (!(await burnFee(params.basicSettingsFee, true))) {
@@ -604,6 +640,11 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
       update.oldMinSpread = market.minSpread;
       market.minSpread = minSpread;
       update.newMinSpread = minSpread;
+    }
+    if (maxDistFromNext) {
+      update.oldMaxDistFromNext = market.maxDistFromNext;
+      market.maxDistFromNext = maxDistFromNext;
+      update.newMaxDistFromNext = maxDistFromNext;
     }
 
     await api.db.update('markets', market);
@@ -686,6 +727,7 @@ actions.addMarket = async (payload) => {
                 minTokensToSell: '1',
                 priceIncrement: '0.00001',
                 minSpread: '0.00000001',
+                maxDistFromNext: '0.0001',
                 isEnabled: true,
                 creationTimestamp: getCurrentTimestamp(),
                 creationBlock: api.blockNumber,

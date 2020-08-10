@@ -115,8 +115,6 @@ const upgradeUserSchema = async () => {
 };
 
 const upgradeMarketSchema = async () => {
-  const params = await api.db.findOne('params', {});
-
   let mktsToCheck = await api.db.find(
     'markets',
     {
@@ -294,7 +292,7 @@ const tickUsers = async (params, users, currentTimestamp) => {
   }
 
   if (marketList.length > 0) {
-    await api.executeSmartContract('marketmaker', 'tick', { markets: marketList });
+    await api.executeSmartContract('marketmaker', 'tick', { markets: marketList, txIdBase: `${api.blockNumber}-${api.transactionId}` });
   }
 };
 

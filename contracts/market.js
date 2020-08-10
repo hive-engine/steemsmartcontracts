@@ -258,6 +258,8 @@ actions.cancel = async (payload) => {
     // get order
     if (typeof id === 'string' && id.length < 50) {
       order = await api.db.findOne(table, { txId: id });
+    } else if (typeof id === 'number' && Number.isInteger(id) && id > 0) {
+      order = await api.db.findOne(table, { _id: id });
     }
 
     if (api.assert(order !== null, 'order does not exist or invalid params')
@@ -338,7 +340,7 @@ const findMatchingSellOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${buyOrder.txId}`);
             api.debug(account);
             api.debug(symbol);
             api.debug(buyOrder.quantity);
@@ -349,7 +351,7 @@ const findMatchingSellOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${buyOrder.txId}`);
             api.debug(sellOrder.account);
             api.debug(HIVE_PEGGED_SYMBOL);
             api.debug(qtyTokensToSend);
@@ -413,7 +415,7 @@ const findMatchingSellOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${buyOrder.txId}`);
             api.debug(account);
             api.debug(symbol);
             api.debug(sellOrder.quantity);
@@ -424,7 +426,7 @@ const findMatchingSellOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${buyOrder.txId}`);
             api.debug(sellOrder.account);
             api.debug(HIVE_PEGGED_SYMBOL);
             api.debug(qtyTokensToSend);
@@ -543,7 +545,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${sellOrder.txId}`);
             api.debug(buyOrder.account);
             api.debug(symbol);
             api.debug(sellOrder.quantity);
@@ -554,7 +556,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${sellOrder.txId}`);
             api.debug(account);
             api.debug(HIVE_PEGGED_SYMBOL);
             api.debug(qtyTokensToSend);
@@ -614,7 +616,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${sellOrder.txId}`);
             api.debug(buyOrder.account);
             api.debug(symbol);
             api.debug(buyOrder.quantity);
@@ -625,7 +627,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
 
           if (res.errors) {
             api.debug(res.errors);
-            api.debug(`TXID: ${api.transactionId}`);
+            api.debug(`TXID: ${sellOrder.txId}`);
             api.debug(account);
             api.debug(HIVE_PEGGED_SYMBOL);
             api.debug(qtyTokensToSend);
@@ -704,6 +706,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision) => {
 actions.buy = async (payload) => {
   const {
     account,
+    txId,
     symbol,
     quantity,
     price,
@@ -712,12 +715,14 @@ actions.buy = async (payload) => {
   } = payload;
 
   const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
+  const finalTxId = (txId === undefined || api.sender !== 'null') ? api.transactionId : txId;
 
   // buy (quantity) of (symbol) at (price)(HIVE_PEGGED_SYMBOL) per (symbol)
   if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && api.assert(price && typeof price === 'string' && !api.BigNumber(price).isNaN()
       && symbol && typeof symbol === 'string' && symbol !== HIVE_PEGGED_SYMBOL
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN()
+      && finalTxId && typeof finalTxId === 'string' && finalTxId.length > 0
       && (expiration === undefined || (expiration && Number.isInteger(expiration) && expiration > 0)), 'invalid params')
   ) {
     // get the token params
@@ -747,7 +752,7 @@ actions.buy = async (payload) => {
           // order
           const order = {};
 
-          order.txId = api.transactionId;
+          order.txId = finalTxId;
           order.timestamp = timestampSec;
           order.account = finalAccount;
           order.symbol = symbol;
@@ -771,6 +776,7 @@ actions.buy = async (payload) => {
 actions.sell = async (payload) => {
   const {
     account,
+    txId,
     symbol,
     quantity,
     price,
@@ -779,12 +785,14 @@ actions.sell = async (payload) => {
   } = payload;
 
   const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
+  const finalTxId = (txId === undefined || api.sender !== 'null') ? api.transactionId : txId;
 
   // sell (quantity) of (symbol) at (price)(HIVE_PEGGED_SYMBOL) per (symbol)
   if (api.assert(isSignedWithActiveKey === true || api.sender === 'null', 'you must use a custom_json signed with your active key')
     && api.assert(price && typeof price === 'string' && !api.BigNumber(price).isNaN()
       && symbol && typeof symbol === 'string' && symbol !== HIVE_PEGGED_SYMBOL
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN()
+      && finalTxId && typeof finalTxId === 'string' && finalTxId.length > 0
       && (expiration === undefined || (expiration && Number.isInteger(expiration) && expiration > 0)), 'invalid params')) {
     // get the token params
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
@@ -812,7 +820,7 @@ actions.sell = async (payload) => {
           // order
           const order = {};
 
-          order.txId = api.transactionId;
+          order.txId = finalTxId;
           order.timestamp = timestampSec;
           order.account = finalAccount;
           order.symbol = symbol;

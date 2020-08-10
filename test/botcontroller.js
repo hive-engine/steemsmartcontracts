@@ -267,6 +267,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(startRefBlockNum, 'TXID1230A', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1230B', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1230C', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1230D', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(bcContractPayload)));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(mmContractPayload)));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "5000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "aggroed", "quantity": "5000", "isSignedWithActiveKey": true }`));
@@ -533,7 +534,8 @@ describe('botcontroller', function() {
 
       let transactions = [];
       transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(bcContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "basicMinTickIntervalBlocks": 200, "premiumMinTickIntervalBlocks": 250, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(bcContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "1", "basicSettingsFee": "2", "premiumFee": "3", "premiumBaseStake": "999", "stakePerMarket": "50", "basicDurationBlocks": 100, "basicCooldownBlocks": 150, "basicMinTickIntervalBlocks": 200, "premiumMinTickIntervalBlocks": 250, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
 
       let block = {
         refHiveBlockNumber: 38145386,

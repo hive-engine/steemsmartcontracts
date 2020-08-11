@@ -58,7 +58,7 @@ const getOrderData = (orders, myOrders, account) => {
   return data;
 };
 
-const tickMarket = async (market) => {
+const tickMarket = async (market, txIdPrefix) => {
   // sanity check
   if (!market.isEnabled) {
     return;
@@ -200,22 +200,33 @@ const tickMarket = async (market) => {
   }
 
   // place new orders
+  let orderCount = 0;
   if ((myBuyOrders.length === 0 || shouldReplaceBuyOrder) && maxBaseToSpend.gte(minBaseToSpend)) {
     const tokensToBuy = getClosestAmount(maxBaseToSpend, newTopBuyPrice, market.precision);
+    if (DEBUG_MODE) {
+      api.debug(`placing buy order txId: ${txIdPrefix}-${orderCount}`);
+    }
     await api.executeSmartContract('market', 'buy', {
       account: market.account,
+      txId: `${txIdPrefix}-${orderCount}`,
       symbol: market.symbol,
       quantity: tokensToBuy,
       price: newTopBuyPrice.toFixed(BASE_SYMBOL_PRECISION),
     });
+    orderCount += 1;
   }
   if ((mySellOrders.length === 0 || shouldReplaceSellOrder) && maxTokensToSell.gte(minTokensToSell) && !isSellBookEmpty) {
+    if (DEBUG_MODE) {
+      api.debug(`placing sell order txId: ${txIdPrefix}-${orderCount}`);
+    }
     await api.executeSmartContract('market', 'sell', {
       account: market.account,
+      txId: `${txIdPrefix}-${orderCount}`,
       symbol: market.symbol,
       quantity: maxTokensToSell.toFixed(market.precision),
       price: newTopSellPrice.toFixed(BASE_SYMBOL_PRECISION),
     });
+    orderCount += 1;
   }
 };
 
@@ -224,9 +235,10 @@ actions.tick = async (payload) => {
 
   const {
     markets,
+    txIdBase,
   } = payload;
 
   for (let i = 0; i < markets.length; i += 1) {
-    await tickMarket(markets[i]);
+    await tickMarket(markets[i], `${txIdBase}-${i}`);
   }
 };

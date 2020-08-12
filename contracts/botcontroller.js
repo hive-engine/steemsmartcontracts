@@ -220,7 +220,7 @@ actions.createSSC = async () => {
   }
 };
 
-const tickUsers = async (params, users, currentTimestamp) => {
+const tickUsers = async (params, users, currentTimestamp, txIdPrefix) => {
   const marketList = [];
   for (let i = 0; i < users.length; i += 1) {
     const user = users[i];
@@ -292,7 +292,7 @@ const tickUsers = async (params, users, currentTimestamp) => {
   }
 
   if (marketList.length > 0) {
-    await api.executeSmartContract('marketmaker', 'tick', { markets: marketList, txIdBase: `${api.blockNumber}-${api.transactionId}` });
+    await api.executeSmartContract('marketmaker', 'tick', { markets: marketList, txIdBase: `${txIdPrefix}-${api.blockNumber}-${api.transactionId}` });
   }
 };
 
@@ -318,7 +318,7 @@ actions.tick = async () => {
       0,
       [{ index: 'lastTickBlock', descending: false }, { index: '_id', descending: false }],
     );
-    await tickUsers(params, pendingBasicTicks, currentTimestamp);
+    await tickUsers(params, pendingBasicTicks, currentTimestamp, 'MM-B');
 
     // get some premium accounts that are ready to be ticked
     const pendingPremiumTicks = await api.db.find(
@@ -334,7 +334,7 @@ actions.tick = async () => {
       0,
       [{ index: 'lastTickBlock', descending: false }, { index: '_id', descending: false }],
     );
-    await tickUsers(params, pendingPremiumTicks, currentTimestamp);
+    await tickUsers(params, pendingPremiumTicks, currentTimestamp, 'MM-P');
   }
 };
 

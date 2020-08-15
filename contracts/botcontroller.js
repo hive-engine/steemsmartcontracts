@@ -118,7 +118,7 @@ const upgradeMarketSchema = async () => {
   let mktsToCheck = await api.db.find(
     'markets',
     {
-      maxDistFromNext: {
+      ignoreOrderQtyLt: {
         $exists: false,
       },
     },
@@ -128,14 +128,14 @@ const upgradeMarketSchema = async () => {
   while (nbMkts > 0) {
     for (let index = 0; index < nbMkts; index += 1) {
       const market = mktsToCheck[index];
-      market.maxDistFromNext = '0.0001';
+      market.ignoreOrderQtyLt = '50';
       await api.db.update('markets', market);
     }
 
     mktsToCheck = await api.db.find(
       'markets',
       {
-        maxDistFromNext: {
+        ignoreOrderQtyLt: {
           $exists: false,
         },
       },
@@ -570,10 +570,11 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     priceIncrement,
     minSpread,
     maxDistFromNext,
+    ignoreOrderQtyLt,
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined && maxDistFromNext === undefined) {
+  if (maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined && maxDistFromNext === undefined && ignoreOrderQtyLt === undefined) {
     return false;
   }
 
@@ -585,7 +586,8 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     && api.assert(minTokensToSell === undefined || (minTokensToSell && typeof minTokensToSell === 'string' && !api.BigNumber(minTokensToSell).isNaN() && api.BigNumber(minTokensToSell).gt(0) && countDecimals(minTokensToSell) <= market.precision), 'invalid minTokensToSell')
     && api.assert(priceIncrement === undefined || (priceIncrement && typeof priceIncrement === 'string' && !api.BigNumber(priceIncrement).isNaN() && api.BigNumber(priceIncrement).gt(0) && countDecimals(priceIncrement) <= BASE_SYMBOL_PRECISION), 'invalid priceIncrement')
     && api.assert(minSpread === undefined || (minSpread && typeof minSpread === 'string' && !api.BigNumber(minSpread).isNaN() && api.BigNumber(minSpread).gt(0) && countDecimals(minSpread) <= BASE_SYMBOL_PRECISION), 'invalid minSpread')
-    && api.assert(maxDistFromNext === undefined || (maxDistFromNext && typeof maxDistFromNext === 'string' && !api.BigNumber(maxDistFromNext).isNaN() && api.BigNumber(maxDistFromNext).gt(0) && countDecimals(maxDistFromNext) <= BASE_SYMBOL_PRECISION), 'invalid maxDistFromNext')) {
+    && api.assert(maxDistFromNext === undefined || (maxDistFromNext && typeof maxDistFromNext === 'string' && !api.BigNumber(maxDistFromNext).isNaN() && api.BigNumber(maxDistFromNext).gt(0) && countDecimals(maxDistFromNext) <= BASE_SYMBOL_PRECISION), 'invalid maxDistFromNext')
+    && api.assert(ignoreOrderQtyLt === undefined || (ignoreOrderQtyLt && typeof ignoreOrderQtyLt === 'string' && !api.BigNumber(ignoreOrderQtyLt).isNaN() && api.BigNumber(ignoreOrderQtyLt).gt(0) && countDecimals(ignoreOrderQtyLt) <= market.precision), 'invalid ignoreOrderQtyLt')) {
     if (shouldPayFee) {
       // burn the settings change fee
       if (!(await burnFee(params.basicSettingsFee, true))) {
@@ -643,6 +645,11 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
       update.oldMaxDistFromNext = market.maxDistFromNext;
       market.maxDistFromNext = maxDistFromNext;
       update.newMaxDistFromNext = maxDistFromNext;
+    }
+    if (ignoreOrderQtyLt) {
+      update.oldIgnoreOrderQtyLt = market.ignoreOrderQtyLt;
+      market.ignoreOrderQtyLt = ignoreOrderQtyLt;
+      update.newIgnoreOrderQtyLt = ignoreOrderQtyLt;
     }
 
     await api.db.update('markets', market);
@@ -726,6 +733,7 @@ actions.addMarket = async (payload) => {
                 priceIncrement: '0.00001',
                 minSpread: '0.00000001',
                 maxDistFromNext: '0.0001',
+                ignoreOrderQtyLt: '50',
                 isEnabled: true,
                 creationTimestamp: getCurrentTimestamp(),
                 creationBlock: api.blockNumber,

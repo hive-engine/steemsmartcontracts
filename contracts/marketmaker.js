@@ -47,6 +47,18 @@ const getOrderData = (orders, myOrders, account) => {
   // eslint-disable-next-line no-unneeded-ternary
   data.isTopMine = (data.topOrder && data.topOrder.account === account) ? true : false;
   data.topPrice = data.topOrder ? api.BigNumber(data.topOrder.price) : api.BigNumber(0);
+
+  let counter = 1;
+  data.nextTopPrice = api.BigNumber(0);
+  while (counter < orders.length) {
+    let nextTopPrice = api.BigNumber(orders[counter].price);
+    if (!nextTopPrice.eq(data.topPrice)) {
+      data.nextTopPrice = nextTopPrice;
+      break;
+    }
+    counter += 1;
+  }
+
   data.myTopPrice = myOrders.length > 0 ? api.BigNumber(myOrders[0].price) : api.BigNumber(0);
   data.numOrdersAtMyPrice = 0;
   if (data.myTopPrice.gt(0)) {
@@ -74,8 +86,9 @@ const tickMarket = async (market, txIdPrefix) => {
   const minBaseToSpend = api.BigNumber(market.minBaseToSpend);
   let maxTokensToSell = api.BigNumber(market.maxTokensToSell);
   const minTokensToSell = api.BigNumber(market.minTokensToSell);
-  const priceIncrement = api.BigNumber(market.priceIncrement);
+  let priceIncrement = api.BigNumber(market.priceIncrement);
   const minSpread = api.BigNumber(market.minSpread);
+  const maxDistFromNext = api.BigNumber(market.maxDistFromNext);
 
   // get account balances
   let baseBalance = api.BigNumber(0);
@@ -140,6 +153,9 @@ const tickMarket = async (market, txIdPrefix) => {
   if (tokenBalance.lt(maxTokensToSell)) {
     maxTokensToSell = tokenBalance;
   }
+  if (priceIncrement.gt(maxDistFromNext)) {
+    priceIncrement = maxDistFromNext;
+  }
 
   // initialize order data
   const bb = getOrderData(buyOrders, myBuyOrders, market.account);
@@ -152,11 +168,20 @@ const tickMarket = async (market, txIdPrefix) => {
     api.debug(sb);
   }
 
+  const isMaxBuyDistExceeded = bb.topPrice.gt(bb.nextTopPrice.plus(maxDistFromNext)) || isBuyBookEmpty;
   let newTopBuyPrice = bb.topPrice.plus(priceIncrement);
+  if (!isBuyBookEmpty && isMaxBuyDistExceeded) {
+    newTopBuyPrice = bb.nextTopPrice.plus(priceIncrement);
+  }
   if (newTopBuyPrice.gt(maxBidPrice)) {
     newTopBuyPrice = maxBidPrice;
   }
+
+  const isMaxSellDistExceeded = sb.topPrice.lt(sb.nextTopPrice.minus(maxDistFromNext)) || isSellBookEmpty;
   let newTopSellPrice = sb.topPrice.minus(priceIncrement);
+  if (!isSellBookEmpty && isMaxSellDistExceeded) {
+    newTopSellPrice = sb.nextTopPrice.minus(priceIncrement);
+  }
   if (newTopSellPrice.lt(minSellPrice)) {
     newTopSellPrice = minSellPrice;
   }
@@ -183,20 +208,31 @@ const tickMarket = async (market, txIdPrefix) => {
   if (myBuyOrders.length > 0
     && ((bb.myTopPrice.lt(bb.topPrice) && bb.topPrice.lt(maxBidPrice))
         || bb.myTopPrice.gt(maxBidPrice)
+        || (bb.isTopMine && isMaxBuyDistExceeded)
         || (bb.numOrdersAtMyPrice > 1 && bb.isTopMine)
         || (bb.numOrdersAtMyPrice > 1 && !bb.isTopMine && bb.myTopPrice.lt(newTopBuyPrice)))) {
     await cancelOrders(myBuyOrders, 'buy');
-    shouldReplaceBuyOrder = true;
+    if (!(bb.isTopMine && isMaxBuyDistExceeded && !isBuyBookEmpty)) {
+      shouldReplaceBuyOrder = true;
+    }
   }
 
   let shouldReplaceSellOrder = false;
   if (mySellOrders.length > 0
     && ((sb.myTopPrice.gt(sb.topPrice) && sb.topPrice.gt(minSellPrice))
         || sb.myTopPrice.lt(minSellPrice)
+        || (sb.isTopMine && isMaxSellDistExceeded)
         || (sb.numOrdersAtMyPrice > 1 && sb.isTopMine)
         || (sb.numOrdersAtMyPrice > 1 && !sb.isTopMine && sb.myTopPrice.gt(newTopSellPrice)))) {
     await cancelOrders(mySellOrders, 'sell');
-    shouldReplaceSellOrder = true;
+    if (!(sb.isTopMine && isMaxSellDistExceeded && !isSellBookEmpty)) {
+      shouldReplaceSellOrder = true;
+    }
+  }
+
+  if (DEBUG_MODE) {
+    api.debug(`shouldReplaceBuyOrder: ${shouldReplaceBuyOrder}`);
+    api.debug(`shouldReplaceSellOrder: ${shouldReplaceSellOrder}`);
   }
 
   // place new orders
@@ -215,7 +251,7 @@ const tickMarket = async (market, txIdPrefix) => {
     });
     orderCount += 1;
   }
-  if ((mySellOrders.length === 0 || shouldReplaceSellOrder) && maxTokensToSell.gte(minTokensToSell) && !isSellBookEmpty) {
+  if ((mySellOrders.length === 0 || shouldReplaceSellOrder) && maxTokensToSell.gte(minTokensToSell) && sellOrders.length > 0) {
     if (DEBUG_MODE) {
       api.debug(`placing sell order txId: ${txIdPrefix}-${orderCount}`);
     }

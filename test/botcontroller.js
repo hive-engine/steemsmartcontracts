@@ -291,7 +291,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(startRefBlockNum, 'TXID1247', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "nakamoto", "quantity": "500", "isSignedWithActiveKey": true }'));
 
       transactions.push(new Transaction(startRefBlockNum, 'TXID1248', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.734", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1249', 'beggars', 'market', 'buy', '{ "symbol": "TKN", "quantity": "12", "price": "0.720", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1249', 'beggars', 'market', 'buy', '{ "symbol": "TKN", "quantity": "12", "price": "0.73395", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1250', 'beggars', 'market', 'buy', '{ "symbol": "TKN", "quantity": "15", "price": "0.710", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1251', 'nakamoto', 'market', 'buy', '{ "symbol": "TKN", "quantity": "20", "price": "0.634", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1252', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "30", "price": "0.534", "isSignedWithActiveKey": true }'));
@@ -304,7 +304,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(startRefBlockNum, 'TXID1257', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.784", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1258', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.784", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1259', 'beggars', 'market', 'sell', '{ "symbol": "TKN", "quantity": "15", "price": "0.784", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1260', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.794", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1260', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.78405", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1261', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "30", "price": "0.804", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1262', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "40", "price": "0.814", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1263', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "50", "price": "0.824", "isSignedWithActiveKey": true }'));

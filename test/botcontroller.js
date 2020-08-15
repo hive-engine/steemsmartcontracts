@@ -290,7 +290,10 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(startRefBlockNum, 'TXID1246', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "vitalik", "quantity": "500", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1247', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "nakamoto", "quantity": "500", "isSignedWithActiveKey": true }'));
 
-      transactions.push(new Transaction(startRefBlockNum, 'TXID1248', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.734", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1247A', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "1", "price": "0.735", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1247B', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "3", "price": "0.73410", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1247C', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "5", "price": "0.73403", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1248', 'vitalik', 'market', 'buy', '{ "symbol": "TKN", "quantity": "10", "price": "0.73400", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1249', 'beggars', 'market', 'buy', '{ "symbol": "TKN", "quantity": "12", "price": "0.73395", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1250', 'beggars', 'market', 'buy', '{ "symbol": "TKN", "quantity": "15", "price": "0.710", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1251', 'nakamoto', 'market', 'buy', '{ "symbol": "TKN", "quantity": "20", "price": "0.634", "isSignedWithActiveKey": true }'));
@@ -300,6 +303,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(startRefBlockNum, 'TXID1255', 'nakamoto', 'market', 'buy', '{ "symbol": "TKN", "quantity": "60", "price": "0.234", "isSignedWithActiveKey": true }'));
 
       // setup sell order book with several orders
+      transactions.push(new Transaction(startRefBlockNum, 'TXID1255A', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "5", "price": "0.78395", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1256', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "10", "price": "0.784", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1257', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.784", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(startRefBlockNum, 'TXID1258', 'satoshi', 'market', 'sell', '{ "symbol": "TKN", "quantity": "20", "price": "0.784", "isSignedWithActiveKey": true }'));
@@ -351,8 +355,8 @@ describe('botcontroller', function() {
             break;
           case 36:
             // add a couple markets
-            transactions.push(new Transaction(startRefBlockNum, 'TXIDE000' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
-            transactions.push(new Transaction(startRefBlockNum, 'TXIDE001' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "isSignedWithActiveKey": true }'));
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDE000' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "ignoreOrderQtyLt": "5", "isSignedWithActiveKey": true }'));
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDE001' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "ignoreOrderQtyLt": "5", "isSignedWithActiveKey": true }'));
             break;
           case 39:
             // unstake some tokens (should cause markets to be disabled as staking requirement no longer met)
@@ -837,7 +841,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "200", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "maxBidPrice": "15.12345678", "minSellPrice": "20.87654321", "maxBaseToSpend": "666", "maxTokensToSell": "50", "minTokensToSell": "5", "minSpread": "0.01" }'));
-      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011", "maxDistFromNext": "0.55" }'));
+      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011", "maxDistFromNext": "0.55", "ignoreOrderQtyLt": "666.6" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -972,6 +976,7 @@ describe('botcontroller', function() {
       assert.equal(market.priceIncrement, '0.011');
       assert.equal(market.minSpread, '0.01');
       assert.equal(market.maxDistFromNext, '0.55');
+      assert.equal(market.ignoreOrderQtyLt, '666.6');
       assert.equal(market.isEnabled, true);
       assert.equal(market.creationTimestamp, 1527811200000);
       assert.equal(market.creationBlock, 1);

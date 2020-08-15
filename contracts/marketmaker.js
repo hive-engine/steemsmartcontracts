@@ -41,18 +41,26 @@ const getClosestAmount = (baseCurrency, price, precision) => {
 const countBalanceInBuyOrders = orders => orders.reduce((t, v) => t.plus(api.BigNumber(v.tokensLocked)), api.BigNumber(0));
 const countBalanceInSellOrders = orders => orders.reduce((t, v) => t.plus(api.BigNumber(v.quantity)), api.BigNumber(0));
 
-const getOrderData = (orders, myOrders, account) => {
+const getOrderData = (orders, myOrders, account, qtyLimit) => {
   const data = {};
-  data.topOrder = orders.length > 0 ? orders[0] : null;
+  let counter = 0;
+  data.topOrder = null;
+  while (counter < orders.length) {
+    if (qtyLimit.lt(orders[counter].quantity)) {
+      data.topOrder = orders[counter];
+      break;
+    }
+    counter += 1;
+  }
   // eslint-disable-next-line no-unneeded-ternary
   data.isTopMine = (data.topOrder && data.topOrder.account === account) ? true : false;
   data.topPrice = data.topOrder ? api.BigNumber(data.topOrder.price) : api.BigNumber(0);
 
-  let counter = 1;
+  counter += 1;
   data.nextTopPrice = api.BigNumber(0);
   while (counter < orders.length) {
-    let nextTopPrice = api.BigNumber(orders[counter].price);
-    if (!nextTopPrice.eq(data.topPrice)) {
+    const nextTopPrice = api.BigNumber(orders[counter].price);
+    if (!nextTopPrice.eq(data.topPrice) && qtyLimit.lt(orders[counter].quantity)) {
       data.nextTopPrice = nextTopPrice;
       break;
     }
@@ -89,6 +97,7 @@ const tickMarket = async (market, txIdPrefix) => {
   let priceIncrement = api.BigNumber(market.priceIncrement);
   const minSpread = api.BigNumber(market.minSpread);
   const maxDistFromNext = api.BigNumber(market.maxDistFromNext);
+  const ignoreOrderQtyLt = api.BigNumber(market.ignoreOrderQtyLt);
 
   // get account balances
   let baseBalance = api.BigNumber(0);
@@ -158,8 +167,8 @@ const tickMarket = async (market, txIdPrefix) => {
   }
 
   // initialize order data
-  const bb = getOrderData(buyOrders, myBuyOrders, market.account);
-  const sb = getOrderData(sellOrders, mySellOrders, market.account);
+  const bb = getOrderData(buyOrders, myBuyOrders, market.account, ignoreOrderQtyLt);
+  const sb = getOrderData(sellOrders, mySellOrders, market.account, ignoreOrderQtyLt);
 
   if (DEBUG_MODE) {
     api.debug('bb');

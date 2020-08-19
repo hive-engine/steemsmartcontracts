@@ -279,6 +279,10 @@ const tickUsers = async (params, users, currentTimestamp, txIdPrefix) => {
       for (let j = 0; j < markets.length; j += 1) {
         const market = markets[j];
         market.isEnabled = false;
+        // only premium accounts can use other order strategies
+        if (!user.isPremium) {
+          market.strategy = 1;
+        }
         await api.db.update('markets', market);
       }
       user.enabledMarkets = 0;
@@ -288,7 +292,13 @@ const tickUsers = async (params, users, currentTimestamp, txIdPrefix) => {
 
     await api.db.update('users', user);
 
-    markets.forEach(m => marketList.push(m));
+    markets.forEach(m => {
+      // only premium accounts can use other order strategies
+      if (!user.isPremium) {
+        m.strategy = 1;
+      }
+      marketList.push(m)
+    });
   }
 
   if (marketList.length > 0) {
@@ -510,6 +520,10 @@ actions.enableMarket = async (payload) => {
             const hasEnoughStake = await verifyUtilityTokenStake(requiredStake, api.sender);
             if (api.assert(hasEnoughStake, `must stake more ${UTILITY_TOKEN_SYMBOL} to enable market`)) {
               market.isEnabled = true;
+              // only premium accounts can use other order strategies
+              if (!user.isPremium) {
+                market.strategy = 1;
+              }
               await api.db.update('markets', market);
 
               user.enabledMarkets += 1;
@@ -561,6 +575,7 @@ actions.removeMarket = async (payload) => {
 /* eslint-disable no-param-reassign */
 const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
   const {
+    strategy,
     maxBidPrice,
     minSellPrice,
     maxBaseToSpend,
@@ -574,7 +589,7 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined && maxDistFromNext === undefined && ignoreOrderQtyLt === undefined) {
+  if (strategy === undefined && maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined && maxDistFromNext === undefined && ignoreOrderQtyLt === undefined) {
     return false;
   }
 
@@ -601,6 +616,11 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     };
 
     // all checks have passed, now we can update stuff
+    if (strategy !== undefined && strategy > 0) {
+      update.oldStrategy = market.strategy;
+      market.strategy = strategy;
+      update.newStrategy = strategy;
+    }
     if (maxBidPrice) {
       update.oldMaxBidPrice = market.maxBidPrice;
       market.maxBidPrice = maxBidPrice;
@@ -665,27 +685,31 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
 actions.updateMarket = async (payload) => {
   const {
     symbol,
+    strategy,
     isSignedWithActiveKey,
   } = payload;
+  const stratTypes = [1, 2, 3];
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(symbol && typeof symbol === 'string' && symbol !== BASE_SYMBOL, 'invalid params')) {
     // check if this user is already registered
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user !== null, 'user not registered')) {
-      // if user is not premium, a settings change fee must be paid
-      const params = await api.db.findOne('params', {});
-      let authorizedAction = false;
-      if (user.isPremium) {
-        authorizedAction = true;
-      } else {
-        authorizedAction = await verifyUtilityTokenBalance(params.basicSettingsFee, api.sender);
-      }
-      if (api.assert(authorizedAction, 'you must have enough tokens to cover the settings change fee')) {
-        const market = await api.db.findOne('markets', { account: api.sender, symbol });
-        if (api.assert(market !== null, 'market must exist')) {
-          const resultCode = await updateMarketInternal(payload, market, !user.isPremium, params);
-          return resultCode;
+      if (api.assert(strategy === undefined || (typeof strategy === 'number' && Number.isInteger(strategy) && stratTypes.includes(strategy) && user.isPremium), 'invalid params or user not premium')) {
+        // if user is not premium, a settings change fee must be paid
+        const params = await api.db.findOne('params', {});
+        let authorizedAction = false;
+        if (user.isPremium) {
+          authorizedAction = true;
+        } else {
+          authorizedAction = await verifyUtilityTokenBalance(params.basicSettingsFee, api.sender);
+        }
+        if (api.assert(authorizedAction, 'you must have enough tokens to cover the settings change fee')) {
+          const market = await api.db.findOne('markets', { account: api.sender, symbol });
+          if (api.assert(market !== null, 'market must exist')) {
+            const resultCode = await updateMarketInternal(payload, market, !user.isPremium, params);
+            return resultCode;
+          }
         }
       }
     }
@@ -696,63 +720,67 @@ actions.updateMarket = async (payload) => {
 actions.addMarket = async (payload) => {
   const {
     symbol,
+    strategy,
     isSignedWithActiveKey,
   } = payload;
+  const stratTypes = [1, 2, 3];
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(symbol && typeof symbol === 'string' && symbol !== BASE_SYMBOL, 'invalid params')) {
     // check if this user is already registered
     const user = await api.db.findOne('users', { account: api.sender });
     if (api.assert(user !== null, 'user not registered')) {
-      const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
-      if (api.assert(token !== null, 'symbol must exist')) {
-        const market = await api.db.findOne('markets', { account: api.sender, symbol });
-        if (api.assert(market === null, 'market already added')) {
-          // check to see if user is able to add another market
-          const authorizedAddition = (user.isPremium || (user.markets === 0));
-          if (api.assert(authorizedAddition, 'not allowed to add another market')) {
-            // finally, user must have enough tokens staked
-            const params = await api.db.findOne('params', {});
-            let requiredStake = api.BigNumber(params.stakePerMarket).multipliedBy(user.markets + 1);
-            if (user.isPremium) {
-              requiredStake = requiredStake.plus(params.premiumBaseStake);
-            }
-            const hasEnoughStake = await verifyUtilityTokenStake(requiredStake, api.sender);
-            if (api.assert(hasEnoughStake, `must stake more ${UTILITY_TOKEN_SYMBOL} to add a market`)) {
-              const newMarket = {
-                account: api.sender,
-                symbol,
-                precision: token.precision,
-                strategy: 1,
-                maxBidPrice: '1000',
-                minSellPrice: '0.00000001',
-                maxBaseToSpend: '100',
-                minBaseToSpend: '1',
-                maxTokensToSell: '100',
-                minTokensToSell: '1',
-                priceIncrement: '0.00001',
-                minSpread: '0.00000001',
-                maxDistFromNext: '0.0001',
-                ignoreOrderQtyLt: '50',
-                isEnabled: true,
-                creationTimestamp: getCurrentTimestamp(),
-                creationBlock: api.blockNumber,
-              };
+      if (api.assert(strategy === undefined || (typeof strategy === 'number' && Number.isInteger(strategy) && stratTypes.includes(strategy) && user.isPremium), 'invalid params or user not premium')) {
+        const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
+        if (api.assert(token !== null, 'symbol must exist')) {
+          const market = await api.db.findOne('markets', { account: api.sender, symbol });
+          if (api.assert(market === null, 'market already added')) {
+            // check to see if user is able to add another market
+            const authorizedAddition = (user.isPremium || (user.markets === 0));
+            if (api.assert(authorizedAddition, 'not allowed to add another market')) {
+              // finally, user must have enough tokens staked
+              const params = await api.db.findOne('params', {});
+              let requiredStake = api.BigNumber(params.stakePerMarket).multipliedBy(user.markets + 1);
+              if (user.isPremium) {
+                requiredStake = requiredStake.plus(params.premiumBaseStake);
+              }
+              const hasEnoughStake = await verifyUtilityTokenStake(requiredStake, api.sender);
+              if (api.assert(hasEnoughStake, `must stake more ${UTILITY_TOKEN_SYMBOL} to add a market`)) {
+                const newMarket = {
+                  account: api.sender,
+                  symbol,
+                  precision: token.precision,
+                  strategy: 1,
+                  maxBidPrice: '1000',
+                  minSellPrice: '0.00000001',
+                  maxBaseToSpend: '100',
+                  minBaseToSpend: '1',
+                  maxTokensToSell: '100',
+                  minTokensToSell: '1',
+                  priceIncrement: '0.00001',
+                  minSpread: '0.00000001',
+                  maxDistFromNext: '0.0001',
+                  ignoreOrderQtyLt: '50',
+                  isEnabled: true,
+                  creationTimestamp: getCurrentTimestamp(),
+                  creationBlock: api.blockNumber,
+                };
 
-              const addedMarket = await api.db.insert('markets', newMarket);
+                const addedMarket = await api.db.insert('markets', newMarket);
 
-              api.emit('addMarket', {
-                account: api.sender,
-                symbol,
-              });
+                api.emit('addMarket', {
+                  account: api.sender,
+                  symbol,
+                });
 
-              // increase user's market count
-              user.markets += 1;
-              user.enabledMarkets += 1;
-              await api.db.update('users', user);
+                // increase user's market count
+                user.markets += 1;
+                user.enabledMarkets += 1;
+                await api.db.update('users', user);
 
-              // do initial settings update
-              await updateMarketInternal(payload, addedMarket, false, params);
+                // do initial settings update
+                await updateMarketInternal(payload, addedMarket, false, params);
+              }
             }
           }
         }

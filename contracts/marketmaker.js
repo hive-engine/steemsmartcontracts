@@ -41,16 +41,44 @@ const getClosestAmount = (baseCurrency, price, precision) => {
 const countBalanceInBuyOrders = orders => orders.reduce((t, v) => t.plus(api.BigNumber(v.tokensLocked)), api.BigNumber(0));
 const countBalanceInSellOrders = orders => orders.reduce((t, v) => t.plus(api.BigNumber(v.quantity)), api.BigNumber(0));
 
-const getOrderData = (orders, myOrders, account, qtyLimit) => {
+const getOrderData = (orders, myOrders, account, qtyLimit, strategy, wallQty) => {
   const data = {};
   let counter = 0;
   data.topOrder = null;
-  while (counter < orders.length) {
-    if (qtyLimit.lt(orders[counter].quantity)) {
-      data.topOrder = orders[counter];
-      break;
+  if (strategy === 1) {
+    // basic top-of-the-book strategy
+    while (counter < orders.length) {
+      if (qtyLimit.lt(orders[counter].quantity)) {
+        data.topOrder = orders[counter];
+        break;
+      }
+      counter += 1;
     }
-    counter += 1;
+  } else {
+    // wall nestling
+    let qtyCount = api.BigNumber(0);
+    while (counter < orders.length) {
+      const orderQty = orders[counter].quantity;
+      if (qtyLimit.lt(orderQty)) {
+        qtyCount = qtyCount.plus(orderQty);
+        if (qtyCount.gte(wallQty)) {
+          data.topOrder = orders[counter];
+          break;
+        }
+      }
+      counter += 1;
+    }
+    // fall back on strategy 1 if order book doesn't have enough depth
+    if (!data.topOrder) {
+      counter = 0;
+      while (counter < orders.length) {
+        if (qtyLimit.lt(orders[counter].quantity)) {
+          data.topOrder = orders[counter];
+          break;
+        }
+        counter += 1;
+      }
+    }
   }
   // eslint-disable-next-line no-unneeded-ternary
   data.isTopMine = (data.topOrder && data.topOrder.account === account) ? true : false;
@@ -98,6 +126,8 @@ const tickMarket = async (market, txIdPrefix) => {
   const minSpread = api.BigNumber(market.minSpread);
   const maxDistFromNext = api.BigNumber(market.maxDistFromNext);
   const ignoreOrderQtyLt = api.BigNumber(market.ignoreOrderQtyLt);
+  const placeAtBidWall = api.BigNumber(market.placeAtBidWall);
+  const placeAtSellWall = api.BigNumber(market.placeAtSellWall);
 
   // get account balances
   let baseBalance = api.BigNumber(0);
@@ -167,8 +197,8 @@ const tickMarket = async (market, txIdPrefix) => {
   }
 
   // initialize order data
-  const bb = getOrderData(buyOrders, myBuyOrders, market.account, ignoreOrderQtyLt);
-  const sb = getOrderData(sellOrders, mySellOrders, market.account, ignoreOrderQtyLt);
+  const bb = getOrderData(buyOrders, myBuyOrders, market.account, ignoreOrderQtyLt, market.strategy, placeAtBidWall);
+  const sb = getOrderData(sellOrders, mySellOrders, market.account, ignoreOrderQtyLt, market.strategy, placeAtSellWall);
 
   if (DEBUG_MODE) {
     api.debug('bb');

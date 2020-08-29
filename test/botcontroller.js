@@ -199,11 +199,13 @@ const assertMarketFields = (market, fields) => {
     account,
     symbol,
     isEnabled,
+    strategy,
   } = fields;
 
   assert.equal(market.account, account );
   assert.equal(market.symbol, symbol );
   assert.equal(market.isEnabled, isEnabled );
+  assert.equal(market.strategy, strategy );
 
   console.log(market);
 };
@@ -355,16 +357,17 @@ describe('botcontroller', function() {
             break;
           case 36:
             // add a couple markets
-            transactions.push(new Transaction(startRefBlockNum, 'TXIDE000' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "ignoreOrderQtyLt": "5", "isSignedWithActiveKey": true }'));
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDE000' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "ignoreOrderQtyLt": "5", "strategy": 2, "placeAtBidWall": "20", "placeAtSellWall": "20", "isSignedWithActiveKey": true }'));
             transactions.push(new Transaction(startRefBlockNum, 'TXIDE001' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "ignoreOrderQtyLt": "5", "isSignedWithActiveKey": true }'));
             break;
           case 39:
-            // unstake some tokens (should cause markets to be disabled as staking requirement no longer met)
-            transactions.push(new Transaction(startRefBlockNum, 'TXIDF000' + i.toString(), 'beggars', 'tokens', 'unstake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+            // unstake some tokens (should cause markets to be disabled as premium is lost)
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDF000' + i.toString(), 'beggars', 'tokens', 'unstake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "1000", "isSignedWithActiveKey": true }`));
             break;
           case 42:
-            // test that market can't be re-enabled if staking requirement not met
+            // test that market can't be re-enabled because now beggars has too many markets
             transactions.push(new Transaction(startRefBlockNum, 'TXIDG000' + i.toString(), 'beggars', 'botcontroller', 'enableMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
+            break;
           default:
             break;
         }
@@ -456,16 +459,16 @@ describe('botcontroller', function() {
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimit: 10 * 3 * 1000 });
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 2 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true });
-            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 2 });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true, strategy: 1 });
             break;
           case 38: // beggars is premium so should tick faster than the other two, and markets should stay enabled
             console.log('ticking: ' + numBlocks);
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimit: 10 * 3 * 1000 });
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 39, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 2 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true });
-            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 2 });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true, strategy: 1 });
             // check market orders - beggars should have orders added by the bot
             let buyOrders = await database1.find({
               contract: 'market',
@@ -487,7 +490,7 @@ describe('botcontroller', function() {
             console.log(sellOrders);
             console.log(blockInfo);
             break;
-          case 39: // beggars unstakes 100 tokens
+          case 39: // beggars unstakes 1000 tokens
             console.log('ticking: ' + numBlocks);
             console.log(transactionData[1].logs);
             assert.equal(JSON.parse(transactionData[1].logs).events[0].event, 'unstakeStart');
@@ -497,23 +500,23 @@ describe('botcontroller', function() {
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 41, timeLimit: 5 * 3 * 1000 });
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 39, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 2 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true });
-            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 2 });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true, strategy: 1 });
             break;
-          case 41: // beggars ticks, stays premium but markets disabled because staked tokens have gone down from 1400 to 1300
+          case 41: // beggars ticks, loses premium and markets are disabled
             console.log('ticking: ' + numBlocks);
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 41, timeLimit: 5 * 3 * 1000 });
-            assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 42, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 0 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false });
-            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false });
+            assertFields(users[2], { account: 'beggars',      isPremium: false,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 42, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 0 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false, strategy: 1 });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false, strategy: 1 });
             break;
-          case 42: // beggars tries to re-enable market, but can't because he no longer meets the staking requirement
-            console.log('ticking: ' + numBlocks);
+          case 42: // beggars tries to re-enable market, but can't because he is no longer premium
+            console.log('ticking: ' + numBlocks);i
             console.log(transactionData[1].logs);
-            assert.equal(JSON.parse(transactionData[1].logs).errors[0], `must stake more ${CONSTANTS.UTILITY_TOKEN_SYMBOL} to enable market`);
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false });
-            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false });
+            assert.equal(JSON.parse(transactionData[1].logs).errors[0], 'user has too many markets; premium upgrade required');
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false, strategy: 1 });
+            assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false, strategy: 1 });
             break;
           default:
             break;
@@ -714,7 +717,7 @@ describe('botcontroller', function() {
       // add a couple markets
       transactions = [];
       transactions.push(new Transaction(38145387, 'TXID1240', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "strategy": 2, "placeAtBidWall": "5000", "placeAtSellWall": "6000.5", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -744,6 +747,9 @@ describe('botcontroller', function() {
       assert.equal(markets.length, 2 );
       assert.equal(markets[0].symbol, 'TKN' );
       assert.equal(markets[1].symbol, 'TESTNFT' );
+      assert.equal(markets[1].strategy, 2 );
+      assert.equal(markets[1].placeAtBidWall, '5000' );
+      assert.equal(markets[1].placeAtSellWall, '6000.5' );
 
       // verify failure conditions
       transactions = [];
@@ -840,8 +846,9 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'botcontroller', 'updateParams', '{ "basicFee": "100", "basicSettingsFee": "1", "premiumFee": "100", "premiumBaseStake": "1000", "stakePerMarket": "200", "basicDurationBlocks": 100, "basicCooldownBlocks": 100, "basicMaxTicksPerBlock": 5, "premiumMaxTicksPerBlock": 10 }'));
       transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'tokens', 'stake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "200", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1238', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "maxBidPrice": "15.12345678", "minSellPrice": "20.87654321", "maxBaseToSpend": "666", "maxTokensToSell": "50", "minTokensToSell": "5", "minSpread": "0.01" }'));
-      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011", "maxDistFromNext": "0.55", "ignoreOrderQtyLt": "666.6" }'));
+      transactions.push(new Transaction(38145386, 'TXID1238A', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "maxBidPrice": "15.12345678", "minSellPrice": "20.87654321", "maxBaseToSpend": "666", "maxTokensToSell": "50", "minTokensToSell": "5", "minSpread": "0.01", "strategy": 3 }'));
+      transactions.push(new Transaction(38145386, 'TXID1238B', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "maxBidPrice": "15.12345678", "minSellPrice": "20.87654321", "maxBaseToSpend": "666", "maxTokensToSell": "50", "minTokensToSell": "5", "minSpread": "0.01" }'));
+      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011", "maxDistFromNext": "0.55", "ignoreOrderQtyLt": "666.6", "placeAtBidWall": "9999.99" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -858,6 +865,9 @@ describe('botcontroller', function() {
 
       console.log(transactionsBlock1[8].logs);
       console.log(transactionsBlock1[9].logs);
+      console.log(transactionsBlock1[10].logs);
+
+      assert.equal(JSON.parse(transactionsBlock1[8].logs).errors[0], 'invalid params or user not premium');
 
       // verify registration fee has been burned
       const balances = await database1.find({
@@ -893,6 +903,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(38145387, 'TXID1248', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145387, 'TXID1249', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145387, 'TXID1250', 'cryptomancer', 'botcontroller', 'removeMarket', '{ "symbol": "INVALID", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250A', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "strategy": 2 }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -918,6 +929,7 @@ describe('botcontroller', function() {
       console.log(transactionsBlock2[8].logs);
       console.log(transactionsBlock2[9].logs);
       console.log(transactionsBlock2[10].logs);
+      console.log(transactionsBlock2[11].logs);
 
       assert.equal(JSON.parse(transactionsBlock2[0].logs).errors[0], 'user already registered');
       assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'you must use a custom_json signed with your active key');
@@ -930,6 +942,7 @@ describe('botcontroller', function() {
       assert.equal(JSON.parse(transactionsBlock2[8].logs).errors[0], 'market already added');
       assert.equal(JSON.parse(transactionsBlock2[9].logs).errors[0], 'not allowed to add another market');
       assert.equal(JSON.parse(transactionsBlock2[10].logs).errors[0], 'market must exist');
+      assert.equal(JSON.parse(transactionsBlock2[11].logs).errors[0], 'invalid params or user not premium');
 
       // check if the user was registered OK and no additional markets
       // were added from above failures
@@ -977,6 +990,8 @@ describe('botcontroller', function() {
       assert.equal(market.minSpread, '0.01');
       assert.equal(market.maxDistFromNext, '0.55');
       assert.equal(market.ignoreOrderQtyLt, '666.6');
+      assert.equal(market.placeAtBidWall, '9999.99');
+      assert.equal(market.placeAtSellWall, '10000');
       assert.equal(market.isEnabled, true);
       assert.equal(market.creationTimestamp, 1527811200000);
       assert.equal(market.creationBlock, 1);

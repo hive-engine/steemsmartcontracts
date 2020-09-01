@@ -6,7 +6,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const SHA256 = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
-const dsteem = require('dsteem');
+const dhive = require('@hiveio/dhive');
 const axios = require('axios');
 const { Queue } = require('../libs/Queue');
 const { IPC } = require('../libs/IPC');
@@ -39,8 +39,6 @@ const hiveClient = {
   account: null,
   signingKey: null,
   sidechainId: null,
-  hiveAddressPrefix: null,
-  hiveChainId: null,
   client: null,
   nodes: new Queue(),
   getHiveNode() {
@@ -57,10 +55,7 @@ const hiveClient = {
     };
 
     if (this.client === null) {
-      this.client = new dsteem.Client(this.getHiveNode(), {
-        addressPrefix: this.hiveAddressPrefix,
-        chainId: this.hiveChainId,
-      });
+      this.client = new dhive.Client(this.getHiveNode());
     }
 
     try {
@@ -126,7 +121,7 @@ const findOne = async (contract, table, query) => {
 
 const checkSignature = (payload, signature, publicKey, isPayloadSHA256 = false) => {
   try {
-    const sig = dsteem.Signature.fromString(signature);
+    const sig = dhive.Signature.fromString(signature);
     let payloadHash;
 
     if (isPayloadSHA256 === true) {
@@ -139,7 +134,7 @@ const checkSignature = (payload, signature, publicKey, isPayloadSHA256 = false) 
 
     const buffer = Buffer.from(payloadHash, 'hex');
 
-    return dsteem.PublicKey.fromString(publicKey).verify(buffer, sig);
+    return dhive.PublicKey.fromString(publicKey).verify(buffer, sig);
   } catch (error) {
     console.log(error); // eslint-disable-line no-console
     return false;
@@ -438,8 +433,6 @@ const init = async (conf, callback) => {
     streamNodes,
     chainId,
     witnessEnabled,
-    hiveAddressPrefix,
-    hiveChainId,
     databaseURL,
     databaseName,
   } = conf;
@@ -455,13 +448,11 @@ const init = async (conf, callback) => {
     streamNodes.forEach(node => hiveClient.nodes.push(node));
     hiveClient.account = process.env.ACCOUNT;
     hiveClient.sidechainId = chainId;
-    hiveClient.hiveAddressPrefix = hiveAddressPrefix;
-    hiveClient.hiveChainId = hiveChainId;
 
     WITNESS_ACCOUNT = process.env.ACCOUNT || null;
     hiveClient.witnessAccount = WITNESS_ACCOUNT;
     SIGNING_KEY = process.env.ACTIVE_SIGNING_KEY
-      ? dsteem.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY)
+      ? dhive.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY)
       : null;
     hiveClient.signingKey = SIGNING_KEY;
 

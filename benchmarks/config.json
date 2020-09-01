@@ -12,8 +12,6 @@
         "https://anyx.io",
         "https://api.hivekings.com"
     ],
-    "hiveAddressPrefix": "STM",
-    "hiveChainId": "0000000000000000000000000000000000000000000000000000000000000000",
     "startHiveBlock": 38287457,
     "genesisHiveBlock": 29862600,
     "witnessEnabled": false

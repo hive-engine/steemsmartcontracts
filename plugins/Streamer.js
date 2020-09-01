@@ -1,4 +1,4 @@
-const dsteem = require('dsteem');
+const dhive = require('@hiveio/dhive');
 const { Queue } = require('../libs/Queue');
 const { Transaction } = require('../libs/Transaction');
 const { IPC } = require('../libs/IPC');
@@ -344,11 +344,8 @@ const streamBlocks = async (reject) => {
   }
 };
 
-const initHiveClient = (node, hiveAddressPrefix, hiveChainId) => {
-  client = new dsteem.Client(node, {
-    addressPrefix: hiveAddressPrefix,
-    chainId: hiveChainId,
-  });
+const initHiveClient = (node) => {
+  client = new dhive.Client(node);
 };
 
 const startStreaming = (conf) => {
@@ -356,13 +353,11 @@ const startStreaming = (conf) => {
     streamNodes,
     chainId,
     startHiveBlock,
-    hiveAddressPrefix,
-    hiveChainId,
   } = conf;
   currentHiveBlock = startHiveBlock;
   chainIdentifier = chainId;
   const node = streamNodes[0];
-  initHiveClient(node, hiveAddressPrefix, hiveChainId);
+  initHiveClient(node);
 
   return new Promise((resolve, reject) => { // eslint-disable-line no-unused-vars
     console.log('Starting Hive streaming at ', node); // eslint-disable-line no-console

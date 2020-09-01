@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop */
 const SHA256 = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
-const dsteem = require('dsteem');
+const dhive = require('@hiveio/dhive');
 const io = require('socket.io');
 const ioclient = require('socket.io-client');
 const http = require('http');
@@ -37,8 +37,6 @@ const steemClient = {
   account: null,
   signingKey: null,
   sidechainId: null,
-  steemAddressPrefix: null,
-  steemChainId: null,
   client: null,
   nodes: new Queue(),
   getSteemNode() {
@@ -55,10 +53,7 @@ const steemClient = {
     };
 
     if (this.client === null) {
-      this.client = new dsteem.Client(this.getSteemNode(), {
-        addressPrefix: this.steemAddressPrefix,
-        chainId: this.steemChainId,
-      });
+      this.client = new dhive.Client(this.getSteemNode());
     }
 
     try {
@@ -84,7 +79,7 @@ const steemClient = {
 };
 
 if (process.env.ACTIVE_SIGNING_KEY && process.env.ACCOUNT) {
-  steemClient.signingKey = dsteem.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY);
+  steemClient.signingKey = dhive.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY);
   // eslint-disable-next-line prefer-destructuring
   steemClient.account = process.env.ACCOUNT;
 }
@@ -160,7 +155,7 @@ const disconnectHandler = async (id, reason) => {
 
 const checkSignature = (payload, signature, publicKey, isPayloadSHA256 = false) => {
   try {
-    const sig = dsteem.Signature.fromString(signature);
+    const sig = dhive.Signature.fromString(signature);
     let payloadHash;
 
     if (isPayloadSHA256 === true) {
@@ -173,7 +168,7 @@ const checkSignature = (payload, signature, publicKey, isPayloadSHA256 = false) 
 
     const buffer = Buffer.from(payloadHash, 'hex');
 
-    return dsteem.PublicKey.fromString(publicKey).verify(buffer, sig);
+    return dhive.PublicKey.fromString(publicKey).verify(buffer, sig);
   } catch (error) {
     console.log(error);
     return false;
@@ -611,8 +606,6 @@ const init = async (conf, callback) => {
     streamNodes,
     chainId,
     witnessEnabled,
-    steemAddressPrefix,
-    steemChainId,
     databaseURL,
     databaseName,
   } = conf;
@@ -628,12 +621,10 @@ const init = async (conf, callback) => {
 
     streamNodes.forEach(node => steemClient.nodes.push(node));
     steemClient.sidechainId = chainId;
-    steemClient.steemAddressPrefix = steemAddressPrefix;
-    steemClient.steemChainId = steemChainId;
 
     this.witnessAccount = process.env.ACCOUNT || null;
     this.signingKey = process.env.ACTIVE_SIGNING_KEY
-      ? dsteem.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY)
+      ? dhive.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY)
       : null;
 
     // enable the web socket server

@@ -3,7 +3,7 @@ const { fork } = require('child_process');
 const assert = require('assert');
 const fs = require('fs-extra');
 const { MongoClient } = require('mongodb');
-const dsteem = require('dsteem');
+const dhive = require('@hiveio/dhive');
 const SHA256 = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
 
@@ -14,7 +14,7 @@ const { Transaction } = require('../libs/Transaction');
 const { CONSTANTS } = require('../libs/Constants');
 
 //process.env.ACCOUNT = 'witness20';
-//process.env.ACTIVE_SIGNING_KEY = dsteem.PrivateKey.fromLogin(process.env.ACCOUNT, 'testnet', 'active').toString();
+//process.env.ACTIVE_SIGNING_KEY = dhive.PrivateKey.fromLogin(process.env.ACCOUNT, 'testnet', 'active').toString();
 
 const conf = {
   chainId: "test-chain-id",
@@ -1142,7 +1142,7 @@ describe.skip('witnesses', function () {
       for (let index = 0; index < 100; index++) {
         txId++;
         const witnessAccount = `witness${index}`;
-        const wif = dsteem.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
+        const wif = dhive.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
         transactions.push(new Transaction(37899128, `TXID${txId}`, witnessAccount, 'witnesses', 'register', `{ "IP": "123.123.123.${txId}", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "${wif.createPublic('TST').toString()}", "enabled": true, "isSignedWithActiveKey": true }`));
       }
 
@@ -1273,7 +1273,7 @@ describe.skip('witnesses', function () {
       for (let index = 0; index < 100; index++) {
         txId++;
         const witnessAccount = `witness${index}`;
-        const wif = dsteem.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
+        const wif = dhive.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
         transactions.push(new Transaction(37899120, `TXID${txId}`, witnessAccount, 'witnesses', 'register', `{ "IP": "123.123.123.${txId}", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "${wif.createPublic().toString()}", "enabled": true, "isSignedWithActiveKey": true }`));
       }
 
@@ -1357,7 +1357,7 @@ describe.skip('witnesses', function () {
 
       const signatures = [];
       schedules.forEach(schedule => {
-        const wif = dsteem.PrivateKey.fromLogin(schedule.witness, 'testnet', 'active');
+        const wif = dhive.PrivateKey.fromLogin(schedule.witness, 'testnet', 'active');
         const sig = signPayload(wif, calculatedRoundHash, true)
         signatures.push([schedule.witness, sig])
       });
@@ -1392,7 +1392,7 @@ describe.skip('witnesses', function () {
         const queryRes = await database1.getBlockInfo(blockNum);
 
         const blockFromNode = queryRes;
-        const wif = dsteem.PrivateKey.fromLogin(blockFromNode.witness, 'testnet', 'active');
+        const wif = dhive.PrivateKey.fromLogin(blockFromNode.witness, 'testnet', 'active');
         assert.equal(blockFromNode.round, 1);
         assert.equal(blockFromNode.witness, schedules[schedules.length - 1].witness);
         assert.equal(blockFromNode.roundHash, calculatedRoundHash);
@@ -1428,7 +1428,7 @@ describe.skip('witnesses', function () {
       for (let index = 0; index < 100; index++) {
         txId++;
         const witnessAccount = `witness${index}`;
-        const wif = dsteem.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
+        const wif = dhive.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
         transactions.push(new Transaction(37899120, `TXID${txId}`, witnessAccount, 'witnesses', 'register', `{ "IP": "123.123.123.${txId}", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "${wif.createPublic().toString()}", "enabled": true, "isSignedWithActiveKey": true }`));
       }
 
@@ -1512,7 +1512,7 @@ describe.skip('witnesses', function () {
 
       const signatures = [];
       schedules.forEach(schedule => {
-        const wif = dsteem.PrivateKey.fromLogin(schedule.witness, 'testnet', 'active');
+        const wif = dhive.PrivateKey.fromLogin(schedule.witness, 'testnet', 'active');
         const sig = signPayload(wif, calculatedRoundHash, true)
         signatures.push([schedule.witness, sig])
       });
@@ -1639,7 +1639,7 @@ describe.skip('witnesses', function () {
       for (let index = 0; index < 100; index++) {
         txId++;
         const witnessAccount = `witness${index}`;
-        const wif = dsteem.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
+        const wif = dhive.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
         transactions.push(new Transaction(37899120, `TXID${txId}`, witnessAccount, 'witnesses', 'register', `{ "IP": "123.123.123.${txId}", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "${wif.createPublic('TST').toString()}", "enabled": true, "isSignedWithActiveKey": true }`));
       }
 

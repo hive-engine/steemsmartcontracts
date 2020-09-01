@@ -1,6 +1,6 @@
 {
   "name": "steemsmartcontracts",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -24,6 +24,7 @@
   "author": "Harpagon210 <harpagon210@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "@hiveio/dhive": "^0.14.1",
     "axios": "^0.19.1",
     "bignumber.js": "^8.0.2",
     "body-parser": "^1.18.3",
@@ -32,7 +33,6 @@
     "cors": "^2.8.5",
     "crypto-js": "^3.1.9-1",
     "dotenv": "^6.2.0",
-    "dsteem": "^0.10.1",
     "express": "^4.16.4",
     "fs-extra": "^6.0.1",
     "jayson": "^2.1.1",

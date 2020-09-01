@@ -1,7 +1,7 @@
 const fs = require('fs');
 const readLastLines = require('read-last-lines');
 const LineByLineReader = require('line-by-line');
-const dsteem = require('dsteem');
+const dhive = require('@hiveio/dhive');
 const { IPC } = require('../libs/IPC');
 const BC_PLUGIN_NAME = require('./Blockchain.constants').PLUGIN_NAME;
 const BC_PLUGIN_ACTIONS = require('./Blockchain.constants').PLUGIN_ACTIONS;
@@ -107,7 +107,7 @@ function init(payload) {
   const { blocksLogFilePath, streamNodes } = payload;
   filePath = blocksLogFilePath;
   hiveNode = streamNodes[0]; // eslint-disable-line
-  hiveClient = new dsteem.Client(hiveNode);
+  hiveClient = new dhive.Client(hiveNode);
 }
 
 ipc.onReceiveMessage((message) => {

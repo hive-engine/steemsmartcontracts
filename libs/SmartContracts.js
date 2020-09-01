@@ -2,7 +2,7 @@
 
 const SHA256FN = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
-const dsteem = require('dsteem');
+const dhive = require('@hiveio/dhive');
 const { Base64 } = require('js-base64');
 const { VM, VMScript } = require('vm2');
 const BigNumber = require('bignumber.js');
@@ -166,13 +166,13 @@ class SmartContracts {
               || typeof signature !== 'string'
               || typeof publicKey !== 'string') return false;
               try {
-                const sig = dsteem.Signature.fromString(signature);
+                const sig = dhive.Signature.fromString(signature);
                 const finalPayload = typeof payloadToCheck === 'string' ? payloadToCheck : JSON.stringify(payloadToCheck);
                 const payloadHash = isPayloadSHA256 === true
                   ? finalPayload
                   : SHA256FN(finalPayload).toString(enchex);
                 const buffer = Buffer.from(payloadHash, 'hex');
-                return dsteem.PublicKey.fromString(publicKey).verify(buffer, sig);
+                return dhive.PublicKey.fromString(publicKey).verify(buffer, sig);
               } catch (error) {
                 return false;
               }
@@ -350,13 +350,13 @@ class SmartContracts {
             || typeof signature !== 'string'
             || typeof publicKey !== 'string') return false;
             try {
-              const sig = dsteem.Signature.fromString(signature);
+              const sig = dhive.Signature.fromString(signature);
               const finalPayload = typeof payloadToCheck === 'string' ? payloadToCheck : JSON.stringify(payloadToCheck);
               const payloadHash = isPayloadSHA256 === true
                 ? finalPayload
                 : SHA256FN(finalPayload).toString(enchex);
               const buffer = Buffer.from(payloadHash, 'hex');
-              return dsteem.PublicKey.fromString(publicKey).verify(buffer, sig);
+              return dhive.PublicKey.fromString(publicKey).verify(buffer, sig);
             } catch (error) {
               return false;
             }

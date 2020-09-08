@@ -118,7 +118,7 @@ const upgradeMarketSchema = async () => {
   let mktsToCheck = await api.db.find(
     'markets',
     {
-      placeAtBidWall: {
+      stairBaseQty: {
         $exists: false,
       },
     },
@@ -128,15 +128,17 @@ const upgradeMarketSchema = async () => {
   while (nbMkts > 0) {
     for (let index = 0; index < nbMkts; index += 1) {
       const market = mktsToCheck[index];
-      market.placeAtBidWall = '10000';
-      market.placeAtSellWall = '10000';
+      market.stairBaseQty = '100';
+      market.stairTokenQty = '100';
+      market.stairBidRange = '0.001';
+      market.stairAskRange = '0.001';
       await api.db.update('markets', market);
     }
 
     mktsToCheck = await api.db.find(
       'markets',
       {
-        placeAtBidWall: {
+        stairBaseQty: {
           $exists: false,
         },
       },
@@ -590,10 +592,14 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     ignoreOrderQtyLt,
     placeAtBidWall,
     placeAtSellWall,
+    stairBaseQty,
+    stairTokenQty,
+    stairBidRange,
+    stairAskRange,
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (strategy === undefined && maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined && maxDistFromNext === undefined && ignoreOrderQtyLt === undefined && placeAtBidWall === undefined && placeAtSellWall === undefined) {
+  if (strategy === undefined && maxBidPrice === undefined && minSellPrice === undefined && maxBaseToSpend === undefined && minBaseToSpend === undefined && maxTokensToSell === undefined && minTokensToSell === undefined && priceIncrement === undefined && minSpread === undefined && maxDistFromNext === undefined && ignoreOrderQtyLt === undefined && placeAtBidWall === undefined && placeAtSellWall === undefined && stairBaseQty === undefined && stairTokenQty === undefined && stairBidRange === undefined && stairAskRange === undefined) {
     return false;
   }
 
@@ -608,7 +614,11 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
     && api.assert(maxDistFromNext === undefined || (maxDistFromNext && typeof maxDistFromNext === 'string' && !api.BigNumber(maxDistFromNext).isNaN() && api.BigNumber(maxDistFromNext).gt(0) && countDecimals(maxDistFromNext) <= BASE_SYMBOL_PRECISION), 'invalid maxDistFromNext')
     && api.assert(ignoreOrderQtyLt === undefined || (ignoreOrderQtyLt && typeof ignoreOrderQtyLt === 'string' && !api.BigNumber(ignoreOrderQtyLt).isNaN() && api.BigNumber(ignoreOrderQtyLt).gt(0) && countDecimals(ignoreOrderQtyLt) <= market.precision), 'invalid ignoreOrderQtyLt')
     && api.assert(placeAtBidWall === undefined || (placeAtBidWall && typeof placeAtBidWall === 'string' && !api.BigNumber(placeAtBidWall).isNaN() && api.BigNumber(placeAtBidWall).gt(0) && countDecimals(placeAtBidWall) <= market.precision), 'invalid placeAtBidWall')
-    && api.assert(placeAtSellWall === undefined || (placeAtSellWall && typeof placeAtSellWall === 'string' && !api.BigNumber(placeAtSellWall).isNaN() && api.BigNumber(placeAtSellWall).gt(0) && countDecimals(placeAtSellWall) <= market.precision), 'invalid placeAtSellWall')) {
+    && api.assert(placeAtSellWall === undefined || (placeAtSellWall && typeof placeAtSellWall === 'string' && !api.BigNumber(placeAtSellWall).isNaN() && api.BigNumber(placeAtSellWall).gt(0) && countDecimals(placeAtSellWall) <= market.precision), 'invalid placeAtSellWall')
+    && api.assert(stairBaseQty === undefined || (stairBaseQty && typeof stairBaseQty === 'string' && !api.BigNumber(stairBaseQty).isNaN() && api.BigNumber(stairBaseQty).gt(0) && countDecimals(stairBaseQty) <= BASE_SYMBOL_PRECISION), 'invalid stairBaseQty')
+    && api.assert(stairTokenQty === undefined || (stairTokenQty && typeof stairTokenQty === 'string' && !api.BigNumber(stairTokenQty).isNaN() && api.BigNumber(stairTokenQty).gt(0) && countDecimals(stairTokenQty) <= market.precision), 'invalid stairTokenQty')
+    && api.assert(stairBidRange === undefined || (stairBidRange && typeof stairBidRange === 'string' && !api.BigNumber(stairBidRange).isNaN() && api.BigNumber(stairBidRange).gt(0) && countDecimals(stairBidRange) <= BASE_SYMBOL_PRECISION), 'invalid stairBidRange')
+    && api.assert(stairAskRange === undefined || (stairAskRange && typeof stairAskRange === 'string' && !api.BigNumber(stairAskRange).isNaN() && api.BigNumber(stairAskRange).gt(0) && countDecimals(stairAskRange) <= BASE_SYMBOL_PRECISION), 'invalid stairAskRange')) {
     if (shouldPayFee) {
       // burn the settings change fee
       if (!(await burnFee(params.basicSettingsFee, true))) {
@@ -686,6 +696,26 @@ const updateMarketInternal = async (payload, market, shouldPayFee, params) => {
       update.oldPlaceAtSellWall = market.placeAtSellWall;
       market.placeAtSellWall = placeAtSellWall;
       update.newPlaceAtSellWall = placeAtSellWall;
+    }
+    if (stairBaseQty) {
+      update.oldStairBaseQty = market.stairBaseQty;
+      market.stairBaseQty = stairBaseQty;
+      update.newStairBaseQty = stairBaseQty;
+    }
+    if (stairTokenQty) {
+      update.oldStairTokenQty = market.stairTokenQty;
+      market.stairTokenQty = stairTokenQty;
+      update.newStairTokenQty = stairTokenQty;
+    }
+    if (stairBidRange) {
+      update.oldStairBidRange = market.stairBidRange;
+      market.stairBidRange = stairBidRange;
+      update.newStairBidRange = stairBidRange;
+    }
+    if (stairAskRange) {
+      update.oldStairAskRange = market.stairAskRange;
+      market.stairAskRange = stairAskRange;
+      update.newStairAskRange = stairAskRange;
     }
 
     await api.db.update('markets', market);
@@ -779,6 +809,10 @@ actions.addMarket = async (payload) => {
                   ignoreOrderQtyLt: '50',
                   placeAtBidWall: '10000',
                   placeAtSellWall: '10000',
+                  stairBaseQty: '100',
+                  stairTokenQty: '100',
+                  stairBidRange: '0.001',
+                  stairAskRange: '0.001',
                   isEnabled: true,
                   creationTimestamp: getCurrentTimestamp(),
                   creationBlock: api.blockNumber,

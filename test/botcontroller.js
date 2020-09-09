@@ -717,7 +717,7 @@ describe('botcontroller', function() {
       // add a couple markets
       transactions = [];
       transactions.push(new Transaction(38145387, 'TXID1240', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "strategy": 2, "placeAtBidWall": "5000", "placeAtSellWall": "6000.5", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "strategy": 3, "placeAtBidWall": "5000", "placeAtSellWall": "6000.5", "stairBaseQty": "123", "stairTokenQty": "456", "stairBidRange": "0.1", "stairAskRange": "0.2", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -747,9 +747,13 @@ describe('botcontroller', function() {
       assert.equal(markets.length, 2 );
       assert.equal(markets[0].symbol, 'TKN' );
       assert.equal(markets[1].symbol, 'TESTNFT' );
-      assert.equal(markets[1].strategy, 2 );
+      assert.equal(markets[1].strategy, 3 );
       assert.equal(markets[1].placeAtBidWall, '5000' );
       assert.equal(markets[1].placeAtSellWall, '6000.5' );
+      assert.equal(markets[1].stairBaseQty, '123' );
+      assert.equal(markets[1].stairTokenQty, '456' );
+      assert.equal(markets[1].stairBidRange, '0.1' );
+      assert.equal(markets[1].stairAskRange, '0.2' );
 
       // verify failure conditions
       transactions = [];
@@ -848,7 +852,7 @@ describe('botcontroller', function() {
       transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'botcontroller', 'register', '{ "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238A', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "maxBidPrice": "15.12345678", "minSellPrice": "20.87654321", "maxBaseToSpend": "666", "maxTokensToSell": "50", "minTokensToSell": "5", "minSpread": "0.01", "strategy": 3 }'));
       transactions.push(new Transaction(38145386, 'TXID1238B', 'cryptomancer', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "maxBidPrice": "15.12345678", "minSellPrice": "20.87654321", "maxBaseToSpend": "666", "maxTokensToSell": "50", "minTokensToSell": "5", "minSpread": "0.01" }'));
-      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011", "maxDistFromNext": "0.55", "ignoreOrderQtyLt": "666.6", "placeAtBidWall": "9999.99" }'));
+      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'botcontroller', 'updateMarket', '{ "symbol": "TKN", "isSignedWithActiveKey": true, "minBaseToSpend": "111", "priceIncrement": "0.011", "maxDistFromNext": "0.55", "ignoreOrderQtyLt": "666.6", "placeAtBidWall": "9999.99", "stairBidRange": "0.1234" }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -992,6 +996,10 @@ describe('botcontroller', function() {
       assert.equal(market.ignoreOrderQtyLt, '666.6');
       assert.equal(market.placeAtBidWall, '9999.99');
       assert.equal(market.placeAtSellWall, '10000');
+      assert.equal(market.stairBaseQty, '100');
+      assert.equal(market.stairTokenQty, '100');
+      assert.equal(market.stairBidRange, '0.1234');
+      assert.equal(market.stairAskRange, '0.001');
       assert.equal(market.isEnabled, true);
       assert.equal(market.creationTimestamp, 1527811200000);
       assert.equal(market.creationBlock, 1);

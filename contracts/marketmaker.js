@@ -8,7 +8,7 @@
 // either SWAP.HIVE or STEEMP
 const BASE_SYMBOL = 'SWAP.HIVE';
 const BASE_SYMBOL_PRECISION = 8;
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 actions.createSSC = async () => {
 };
@@ -45,7 +45,7 @@ const getOrderData = (orders, myOrders, account, qtyLimit, strategy, wallQty) =>
   const data = {};
   let counter = 0;
   data.topOrder = null;
-  if (strategy === 1) {
+  if (strategy === 1 || strategy === 3) {
     // basic top-of-the-book strategy
     while (counter < orders.length) {
       if (qtyLimit.lt(orders[counter].quantity)) {
@@ -106,6 +106,30 @@ const getOrderData = (orders, myOrders, account, qtyLimit, strategy, wallQty) =>
   return data;
 };
 
+const doStairStepping = async (bb, sb, maxDistFromNext, isBuyBookEmpty, isSellBookEmpty, txIdPrefix) => {
+  if (DEBUG_MODE) {
+    api.debug('executing stair stepping strategy');
+  }
+
+  // first determine price thresholds for calculating where we will start placing orders
+  const isMaxBuyDistExceeded = bb.topPrice.gt(bb.nextTopPrice.plus(maxDistFromNext)) || isBuyBookEmpty;
+  let bbTopPrice = bb.topPrice;
+  if (!isBuyBookEmpty && isMaxBuyDistExceeded) {
+    bbTopPrice = bb.nextTopPrice;
+  }
+
+  const isMaxSellDistExceeded = sb.topPrice.lt(sb.nextTopPrice.minus(maxDistFromNext)) || isSellBookEmpty;
+  let sbTopPrice = sb.topPrice;
+  if (!isSellBookEmpty && isMaxSellDistExceeded) {
+    sbTopPrice = sb.nextTopPrice;
+  }
+
+  if (DEBUG_MODE) {
+    api.debug(`bbTopPrice: ${bbTopPrice}`);
+    api.debug(`sbTopPrice: ${sbTopPrice}`);
+  }
+};
+
 const tickMarket = async (market, txIdPrefix) => {
   // sanity check
   if (!market.isEnabled) {
@@ -128,6 +152,10 @@ const tickMarket = async (market, txIdPrefix) => {
   const ignoreOrderQtyLt = api.BigNumber(market.ignoreOrderQtyLt);
   const placeAtBidWall = api.BigNumber(market.placeAtBidWall);
   const placeAtSellWall = api.BigNumber(market.placeAtSellWall);
+  let stairBaseQty = api.BigNumber(market.stairBaseQty);
+  let stairTokenQty = api.BigNumber(market.stairTokenQty);
+  const stairBidRange = api.BigNumber(market.stairBidRange);
+  const stairAskRange = api.BigNumber(market.stairAskRange);
 
   // get account balances
   let baseBalance = api.BigNumber(0);
@@ -186,14 +214,30 @@ const tickMarket = async (market, txIdPrefix) => {
     api.debug(mySellOrders);
   }
 
-  if (baseBalance.lt(maxBaseToSpend)) {
-    maxBaseToSpend = baseBalance;
+  if (market.strategy === 3) {
+    if (DEBUG_MODE) {
+      api.debug('checking limits for stair stepping strategy');
+    }
+    if (baseBalance.lt(stairBaseQty)) {
+      stairBaseQty = baseBalance;
+    }
+    if (tokenBalance.lt(stairTokenQty)) {
+      stairTokenQty = tokenBalance;
+    }
   }
-  if (tokenBalance.lt(maxTokensToSell)) {
-    maxTokensToSell = tokenBalance;
-  }
-  if (priceIncrement.gt(maxDistFromNext)) {
-    priceIncrement = maxDistFromNext;
+  else {
+    if (DEBUG_MODE) {
+      api.debug('checking limits for single order strategy');
+    }
+    if (baseBalance.lt(maxBaseToSpend)) {
+      maxBaseToSpend = baseBalance;
+    }
+    if (tokenBalance.lt(maxTokensToSell)) {
+      maxTokensToSell = tokenBalance;
+    }
+    if (priceIncrement.gt(maxDistFromNext)) {
+      priceIncrement = maxDistFromNext;
+    }
   }
 
   // initialize order data
@@ -205,6 +249,11 @@ const tickMarket = async (market, txIdPrefix) => {
     api.debug(bb);
     api.debug('sb');
     api.debug(sb);
+  }
+
+  if (market.strategy === 3) {
+    doStairStepping(bb, sb, maxDistFromNext, isBuyBookEmpty, isSellBookEmpty, txIdPrefix);
+    return;
   }
 
   const isMaxBuyDistExceeded = bb.topPrice.gt(bb.nextTopPrice.plus(maxDistFromNext)) || isBuyBookEmpty;

@@ -202,12 +202,12 @@ const assertMarketFields = (market, fields) => {
     strategy,
   } = fields;
 
+  console.log(market);
+
   assert.equal(market.account, account );
   assert.equal(market.symbol, symbol );
   assert.equal(market.isEnabled, isEnabled );
   assert.equal(market.strategy, strategy );
-
-  console.log(market);
 };
 
 // botcontroller
@@ -357,7 +357,7 @@ describe('botcontroller', function() {
             break;
           case 36:
             // add a couple markets
-            transactions.push(new Transaction(startRefBlockNum, 'TXIDE000' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "ignoreOrderQtyLt": "5", "strategy": 2, "placeAtBidWall": "50", "placeAtSellWall": "100", "isSignedWithActiveKey": true }'));
+            transactions.push(new Transaction(startRefBlockNum, 'TXIDE000' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TKN", "ignoreOrderQtyLt": "5", "strategy": 3, "placeAtBidWall": "50", "placeAtSellWall": "100", "stairBaseQty": "300", "stairTokenQty": "300", "stairBidRange": "0.1", "stairAskRange": "0.1", "isSignedWithActiveKey": true }'));
             transactions.push(new Transaction(startRefBlockNum, 'TXIDE001' + i.toString(), 'beggars', 'botcontroller', 'addMarket', '{ "symbol": "TESTNFT", "ignoreOrderQtyLt": "5", "isSignedWithActiveKey": true }'));
             break;
           case 39:
@@ -459,7 +459,7 @@ describe('botcontroller', function() {
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimit: 10 * 3 * 1000 });
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 2 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 2 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 3 });
             assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true, strategy: 1 });
             break;
           case 38: // beggars is premium so should tick faster than the other two, and markets should stay enabled
@@ -467,7 +467,7 @@ describe('botcontroller', function() {
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 36, timeLimit: 10 * 3 * 1000 });
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 39, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 2 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 2 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 3 });
             assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true, strategy: 1 });
             // check market orders - beggars should have orders added by the bot
             let buyOrders = await database1.find({
@@ -500,7 +500,7 @@ describe('botcontroller', function() {
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 41, timeLimit: 5 * 3 * 1000 });
             assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 39, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 2 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 2 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 3 });
             assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true, strategy: 1 });
             break;
           case 41: // beggars ticks, loses premium and markets are disabled

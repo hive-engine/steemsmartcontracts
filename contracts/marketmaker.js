@@ -9,19 +9,41 @@
 const BASE_SYMBOL = 'SWAP.HIVE';
 const BASE_SYMBOL_PRECISION = 8;
 const DEBUG_MODE = true;
+const ORDER_BATCH_SIZE = 1000;
+const SS_PARTITION_LIMIT = 50;
 
 actions.createSSC = async () => {
 };
 
 const getOrderBook = async (table, symbol, descending) => {
-  const orders = await api.db.findInTable(
+  let orders = [];
+  let offset = 0;
+
+  let orderBatch = await api.db.findInTable(
     'market',
     table,
     { symbol },
-    0,
+    ORDER_BATCH_SIZE,
     0,
     [{ index: 'priceDec', descending }, { index: '_id', descending: false }],
   );
+
+  while (orderBatch.length > 0) {
+    orders = orders.concat(orderBatch);
+    if (orderBatch.length < ORDER_BATCH_SIZE) {
+      break;
+    }
+    offset += ORDER_BATCH_SIZE;
+    orderBatch = await api.db.findInTable(
+      'market',
+      table,
+      { symbol },
+      ORDER_BATCH_SIZE,
+      offset,
+      [{ index: 'priceDec', descending }, { index: '_id', descending: false }],
+    );
+  }
+
   return orders;
 };
 

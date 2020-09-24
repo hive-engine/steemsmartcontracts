@@ -114,7 +114,7 @@ function setupContractPayload(file) {
 const contractPayload = setupContractPayload('./contracts/tokens.js');
 const oldContractPayload = setupContractPayload('./test/contracts/tokens_20200923.js');
 
-async function assertUserBalanceAndStake(account, symbol, balance, stake) {
+async function assertUserBalances({ account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn }) {
   let res = await database1.findOne({
       contract: 'tokens',
       table: 'balances',
@@ -128,18 +128,52 @@ async function assertUserBalanceAndStake(account, symbol, balance, stake) {
 
   assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
   assert.equal(res.stake, stake, `${account} has ${symbol} stake ${res.stake}, expected ${stake}`);
+  if (pendingUnstake)
+    assert.equal(res.pendingUnstake, pendingUnstake, `${account} has ${symbol} pendingUnstake ${res.pendingUnstake}, expected ${pendingUnstake}`);
+  if (delegationsIn)
+    assert.equal(res.delegationsIn, delegationsIn, `${account} has ${symbol} delegationsIn ${res.delegationsIn}, expected ${delegationsIn}`);
+  if (delegationsOut)
+    assert.equal(res.delegationsOut, delegationsOut, `${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
 }
 
 async function assertTotalStaked(amount, symbol='TKN') {
-    let res = await database1.findOne({
-        contract: 'tokens',
-        table: 'tokens',
-        query: {
-            symbol,
-        },
-    });
+  let res = await database1.findOne({
+    contract: 'tokens',
+    table: 'tokens',
+    query: {
+      symbol,
+    },
+  });
 
-    assert.equal(res.totalStaked, amount, `${symbol} has ${res.totalStaked} staked, expected ${amount}`);
+  assert.equal(res.totalStaked, amount, `${symbol} has ${res.totalStaked} staked, expected ${amount}`);
+}
+
+async function assertPendingUnstake({ account, symbol, quantity, nextTransactionTimestamp, txID }) {
+  let unstake = await database1.findOne({
+    contract: 'tokens',
+    table: 'pendingUnstakes',
+    query: {
+      account,
+      symbol,
+    }
+  });
+  assert.equal(unstake.symbol, symbol);
+  assert.equal(unstake.account, account);
+  assert.equal(unstake.quantity, quantity);
+  assert.equal(unstake.nextTransactionTimestamp, nextTransactionTimestamp);
+  assert.equal(unstake.txID, txID);
+}
+
+async function assertNoPendingUnstake(account, symbol) {
+  let unstake = await database1.findOne({
+    contract: 'tokens',
+    table: 'pendingUnstakes',
+    query: {
+      account,
+      symbol,
+    }
+  });
+  assert(!unstake);
 }
 
 async function assertParams(key, value) {
@@ -186,7 +220,7 @@ describe('smart tokens', function () {
         done()
       })
   });
-  
+
   after((done) => {
     new Promise(async (resolve) => {
       await client.close();
@@ -220,7 +254,7 @@ describe('smart tokens', function () {
 
   it('should enable delegation', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -260,7 +294,7 @@ describe('smart tokens', function () {
       assert.equal(token.unstakingCooldown, 7);
       assert.equal(token.delegationEnabled, true);
       assert.equal(token.undelegationCooldown, 7);
-      
+
       resolve();
     })
       .then(() => {
@@ -272,7 +306,7 @@ describe('smart tokens', function () {
 
   it('should not enable delegation', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -324,7 +358,7 @@ describe('smart tokens', function () {
 
   it('should delegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -350,30 +384,21 @@ describe('smart tokens', function () {
 
       await assertNoErrorInLastBlock();
 
-      let res = await database1.find({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: {
-              $in: ['satoshi', 'vitalik']
-            },
-            symbol: 'TKN'
-          }
-        });
-
-      let balances = res;
-
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].balance, "99.99999999");
-      assert.equal(balances[0].stake, "0.00000000");
-      assert.equal(balances[0].delegationsOut, "0.00000001");
-
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].balance, "0");
-      assert.equal(balances[1].stake, "0");
-      assert.equal(balances[1].delegationsIn, "0.00000001");
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "99.99999999",
+          stake: "0.00000000",
+          delegationsOut: "0.00000001",
+      });
+      await assertUserBalances({
+          account: 'vitalik',
+          symbol: 'TKN',
+          balance: "0",
+          stake: "0",
+          delegationsIn: "0.00000001",
+      });
+      await assertTotalStaked('0.00000001');
 
       res = await database1.find({
           contract: 'tokens',
@@ -406,38 +431,28 @@ describe('smart tokens', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-      
-      res = await database1.find({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: {
-              $in: ['satoshi', 'vitalik', 'ned']
-            },
-            symbol: 'TKN'
-          }
-        });
 
-      balances = res;
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].balance, "99.99999996");
-      assert.equal(balances[0].stake, "0.00000000");
-      assert.equal(balances[0].delegationsOut, "0.00000004");
-
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].balance, "0");
-      assert.equal(balances[1].stake, "0");
-      assert.equal(balances[1].delegationsIn, "0.00000003");
-
-      assert.equal(balances[2].symbol, 'TKN');
-      assert.equal(balances[2].account, 'ned');
-      assert.equal(balances[2].balance, "100");
-      assert.equal(balances[2].stake, "0");
-      assert.equal(balances[2].delegationsIn, "0.00000001");
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "99.99999996",
+          stake: "0.00000000",
+          delegationsOut: "0.00000004",
+      });
+      await assertUserBalances({
+          account: 'vitalik',
+          symbol: 'TKN',
+          balance: "0",
+          stake: "0",
+          delegationsIn: "0.00000003",
+      });
+      await assertUserBalances({
+          account: 'ned',
+          symbol: 'TKN',
+          balance: "100",
+          stake: "0",
+          delegationsIn: "0.00000001",
+      });
 
       res = await database1.find({
           contract: 'tokens',
@@ -471,7 +486,7 @@ describe('smart tokens', function () {
 
   it('should not delegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -500,7 +515,7 @@ describe('smart tokens', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-     
+
       let res = await database1.getLatestBlockInfo();
       let txs = res.transactions;
 
@@ -542,7 +557,7 @@ describe('smart tokens', function () {
 
   it('should undelegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -601,6 +616,8 @@ describe('smart tokens', function () {
       assert.equal(balances[2].balance, "0");
       assert.equal(balances[2].stake, "0");
       assert.equal(balances[2].delegationsIn, "0.00000001");
+
+      await assertTotalStaked('0.00000003');
 
       res = await database1.find({
           contract: 'tokens',
@@ -669,6 +686,8 @@ describe('smart tokens', function () {
       assert.equal(balances[1].stake, "0");
       assert.equal(balances[1].delegationsIn, "0.00000001");
 
+      await assertTotalStaked('0.00000003');
+
       res = await database1.find({
           contract: 'tokens',
           table: 'delegations',
@@ -720,7 +739,7 @@ describe('smart tokens', function () {
 
   it('should not undelegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -747,7 +766,7 @@ describe('smart tokens', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "ned", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "satoshi", "isSignedWithActiveKey": true }'));
-      
+
       let block = {
         refHiveBlockNumber: 12345678901,
         refHiveBlockId: 'ABCD1',
@@ -785,7 +804,7 @@ describe('smart tokens', function () {
 
   it('should process the pending undelegations', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -892,7 +911,7 @@ describe('smart tokens', function () {
 
   it('should enable staking', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -938,7 +957,7 @@ describe('smart tokens', function () {
 
   it('should not enable staking', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -998,7 +1017,7 @@ describe('smart tokens', function () {
 
   it('should not enable staking again', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1049,7 +1068,7 @@ describe('smart tokens', function () {
 
   it('should stake tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1101,7 +1120,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.find({
           contract: 'tokens',
           table: 'balances',
@@ -1128,7 +1147,7 @@ describe('smart tokens', function () {
       res = await database1.getLatestBlockInfo();
 
       let txs = res.transactions;
-      
+
       assert.equal(JSON.parse(txs[0].logs).events[0].contract, 'tokens');
       assert.equal(JSON.parse(txs[0].logs).events[0].event, 'stake');
       assert.equal(JSON.parse(txs[0].logs).events[0].data.account, 'satoshi');
@@ -1164,7 +1183,7 @@ describe('smart tokens', function () {
 
   it('should not stake tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1227,7 +1246,7 @@ describe('smart tokens', function () {
 
   it('should start the unstake process', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1277,7 +1296,7 @@ describe('smart tokens', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1326,7 +1345,7 @@ describe('smart tokens', function () {
 
   it('should not start the unstake process', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1387,7 +1406,7 @@ describe('smart tokens', function () {
 
   it('should cancel an unstake', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1426,7 +1445,7 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, "0.00000001");
 
       await assertTotalStaked('0.00000001');
-      
+
       transactions = [];
       transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
@@ -1440,7 +1459,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1477,7 +1496,7 @@ describe('smart tokens', function () {
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
       assert.ok(unstake.txID)
-            
+
       const unstakeId = unstake.txID;
 
       transactions = [];
@@ -1536,7 +1555,7 @@ describe('smart tokens', function () {
 
   it('should cancel a multi tx unstake', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1546,7 +1565,9 @@ describe('smart tokens', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 14, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000002", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi2', 'tokens', 'stake', '{ "to":"satoshi2", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1558,26 +1579,16 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      let res = await database1.findOne({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: 'satoshi',
-            symbol: 'TKN'
-          }
-        });
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: "99.99999997", stake: "0.00000003" });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: "99.99999997", stake: "0.00000003" });
 
-      let balance = res;
+      await assertTotalStaked('0.00000006');
 
-      assert.equal(balance.symbol, 'TKN');
-      assert.equal(balance.account, 'satoshi');
-      assert.equal(balance.balance, "99.99999998");
-      assert.equal(balance.stake, "0.00000002");
-
-      await assertTotalStaked('0.00000002');
-      
       transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000002", "isSignedWithActiveKey": true }'));
+      const unstakeId = getNextTxId();
+      const unstakeId2 = getNextTxId();
+      transactions.push(new Transaction(12345678902, unstakeId, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, unstakeId2, 'satoshi2', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1589,45 +1600,13 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
-      res = await database1.findOne({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: 'satoshi',
-            symbol: 'TKN'
-          }
-        });
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '99.99999997', stake: '0.00000002', pendingUnstake: '0.00000003' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: '99.99999997', stake: '0.00000002', pendingUnstake: '0.00000003' });
 
-      balance = res;
+      await assertTotalStaked('0.00000004');
 
-      assert.equal(balance.symbol, 'TKN');
-      assert.equal(balance.account, 'satoshi');
-      assert.equal(balance.balance, '99.99999998');
-      assert.equal(balance.stake, '0.00000001');
-      assert.equal(balance.pendingUnstake, '0.00000002');
-
-      await assertTotalStaked('0.00000001');
-
-      res = await database1.findOne({
-          contract: 'tokens',
-          table: 'pendingUnstakes',
-          query: {
-            account: 'satoshi',
-            symbol: 'TKN'
-          }
-        });
-
-      let unstake = res;
-
-      assert.equal(unstake.symbol, 'TKN');
-      assert.equal(unstake.account, 'satoshi');
-      assert.equal(unstake.quantity, '0.00000002');
-      const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.ok(unstake.txID);
-      
-      const unstakeId = unstake.txID;
+      await assertPendingUnstake({ account: 'satoshi', symbol: 'TKN', quantity: '0.00000003', nextTransactionTimestamp: new Date('2018-07-07T00:02:00.000Z').getTime(), txID: unstakeId})
+      await assertPendingUnstake({ account: 'satoshi2', symbol: 'TKN', quantity: '0.00000003', nextTransactionTimestamp: new Date('2018-07-07T00:02:00.000Z').getTime(), txID: unstakeId2})
 
       transactions = [];
       transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'tokens', 'cancelUnstake', `{ "txID": "${unstakeId}", "isSignedWithActiveKey": true }`));
@@ -1636,43 +1615,39 @@ describe('smart tokens', function () {
         refHiveBlockNumber: 12345678903,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-30T00:03:00',
+        timestamp: '2018-07-07T00:02:00',
         transactions,
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      res = await database1.findOne({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: 'satoshi',
-            symbol: 'TKN'
-          }
-        });
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '99.99999997', stake: '0.00000003', pendingUnstake: '0.00000000' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: '99.99999998', stake: '0.00000000', pendingUnstake: '0.00000002' });
 
-      balance = res;
+      await assertTotalStaked('0.00000003');
 
-      assert.equal(balance.symbol, 'TKN');
-      assert.equal(balance.account, 'satoshi');
-      assert.equal(balance.balance, '99.99999998');
-      assert.equal(balance.stake, '0.00000002');
-      assert.equal(balance.pendingUnstake, '0.00000000', 'pending unstake should be 0');
+      await assertNoPendingUnstake('satoshi', 'TKN');
+      await assertPendingUnstake({ account: 'satoshi2', symbol: 'TKN', quantity: '0.00000003', nextTransactionTimestamp: new Date('2018-07-14T00:02:00.000Z').getTime(), txID: unstakeId2})
 
-      await assertTotalStaked('0.00000002');
+      transactions = [];
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi2', 'tokens', 'cancelUnstake', `{ "txID": "${unstakeId2}", "isSignedWithActiveKey": true }`));
 
-      res = await database1.findOne({
-          contract: 'tokens',
-          table: 'pendingUnstakes',
-          query: {
-            account: 'satoshi',
-            symbol: 'TKN'
-          }
-        });
+      block = {
+        refHiveBlockNumber: 12345678904,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-07-02T00:03:00',
+        transactions,
+      };
 
-      unstake = res;
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      assert.equal(unstake, null);
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '99.99999997', stake: '0.00000003', pendingUnstake: '0.00000000' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: '99.99999998', stake: '0.00000002', pendingUnstake: '0.00000000' });
+
+      await assertTotalStaked('0.00000005');
+
+      await assertNoPendingUnstake('satoshi2', 'TKN');
 
       resolve();
     })
@@ -1685,7 +1660,7 @@ describe('smart tokens', function () {
 
   it('should not cancel an unstake', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1738,7 +1713,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1774,7 +1749,7 @@ describe('smart tokens', function () {
       let blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
       assert.ok(unstake.txID);
-        
+
       const unstakeId = unstake.txID;
 
       transactions = [];
@@ -1838,7 +1813,7 @@ describe('smart tokens', function () {
 
   it('should process the pending unstakes', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -1901,7 +1876,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -2056,7 +2031,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -2342,7 +2317,7 @@ describe('smart tokens', function () {
       let blockDate = new Date('2018-07-01T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
       assert.ok(unstake.txID);
-        
+
       const unstakeId = unstake.txID;
 
       transactions = [];
@@ -2510,7 +2485,7 @@ describe('smart tokens', function () {
 
   it('should not delegate tokens with unstaking', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
@@ -2634,10 +2609,10 @@ describe('smart tokens', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       console.log("Checking initial balances");
-      await assertUserBalanceAndStake('satoshi', 'TKN', 0, '0.00000008');
-      await assertUserBalanceAndStake('satoshi', 'MTKN', 0, '0.00000008');
-      await assertUserBalanceAndStake('satoshi2', 'MTKN', 0, '0.00000008');
-      await assertUserBalanceAndStake('satoshi3', 'MTKN', 0, '0.00000008');
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
       await assertTotalStaked('0.00000008', 'TKN');
       await assertTotalStaked('0.00000024', 'MTKN');
 
@@ -2656,10 +2631,10 @@ describe('smart tokens', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       console.log("After first unstake ops");
-      await assertUserBalanceAndStake('satoshi', 'TKN', 0, '0.00000001');
-      await assertUserBalanceAndStake('satoshi', 'MTKN', 0, '0.00000001');
-      await assertUserBalanceAndStake('satoshi2', 'MTKN', 0, '0.00000008');
-      await assertUserBalanceAndStake('satoshi3', 'MTKN', 0, '0.00000008');
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: 0, stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: 0, stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
       await assertTotalStaked('0.00000008', 'TKN');
       await assertTotalStaked('0.00000024', 'MTKN');
 
@@ -2677,10 +2652,10 @@ describe('smart tokens', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       console.log("After first unstake+1day, second unstake");
-      await assertUserBalanceAndStake('satoshi', 'TKN', '0.00000007', '0.00000001');
-      await assertUserBalanceAndStake('satoshi', 'MTKN', '0.00000002', '0.00000001');
-      await assertUserBalanceAndStake('satoshi2', 'MTKN', 0, '0.00000001');
-      await assertUserBalanceAndStake('satoshi3', 'MTKN', 0, '0.00000008');
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: '0.00000002', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: 0, stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
       await assertTotalStaked('0.00000001', 'TKN');
       await assertTotalStaked('0.00000022', 'MTKN');
 
@@ -2698,10 +2673,10 @@ describe('smart tokens', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       console.log("After first unstake+2day, second unstake+1day, third unstake");
-      await assertUserBalanceAndStake('satoshi', 'TKN', '0.00000007', '0.00000001');
-      await assertUserBalanceAndStake('satoshi', 'MTKN', '0.00000004', '0.00000001');
-      await assertUserBalanceAndStake('satoshi2', 'MTKN', '0.00000002', '0.00000001');
-      await assertUserBalanceAndStake('satoshi3', 'MTKN', 0, '0.00000001');
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: '0.00000004', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: '0.00000002', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000001' });
       await assertTotalStaked('0.00000001', 'TKN');
       await assertTotalStaked('0.00000018', 'MTKN');
 
@@ -2717,16 +2692,16 @@ describe('smart tokens', function () {
         timestamp: '2018-07-04T00:02:00',
         transactions,
       };
-      
+
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       console.log("After first unstake+3days, second unstake+2days, third unstake+1day, contract update");
       await assertParams('fixMultiTxUnstakeBalance', true);
 
-      await assertUserBalanceAndStake('satoshi', 'TKN', '0.00000007', '0.00000001');
-      await assertUserBalanceAndStake('satoshi', 'MTKN', '0.00000007', '0.00000001');
-      await assertUserBalanceAndStake('satoshi2', 'MTKN', '0.00000004', '0.00000001');
-      await assertUserBalanceAndStake('satoshi3', 'MTKN', '0.00000002', '0.00000004');
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: '0.00000004', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: '0.00000002', stake: '0.00000004' });
       await assertTotalStaked('0.00000001', 'TKN');
       await assertTotalStaked('0.00000006', 'MTKN');
 

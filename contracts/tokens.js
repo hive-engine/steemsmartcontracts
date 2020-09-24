@@ -1771,7 +1771,7 @@ const processCancelUnstake = async (unstake) => {
 
     const tokensToRelease = numberTransactionsLeft > 1 ? api.BigNumber(quantity)
       .dividedBy(token.numberTransactions)
-      .toFixed(token.precision, api.BigNumber.ROUND_DOWN) : quantity;
+      .toFixed(token.precision, api.BigNumber.ROUND_DOWN) : quantityLeft;
     balance.stake = calculateBalance(
       balance.stake, tokensToRelease, token.precision, true,
     );

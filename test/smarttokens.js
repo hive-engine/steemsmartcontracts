@@ -112,7 +112,7 @@ function setupContractPayload(file) {
 }
 
 const contractPayload = setupContractPayload('./contracts/tokens.js');
-const oldContractPayload = setupContractPayload('./test/contracts/tokens_20200923.js');
+const oldContractPayload = setupContractPayload('./contracts/testing/tokens_20200923.js');
 
 async function assertUserBalances({ account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn }) {
   let res = await database1.findOne({

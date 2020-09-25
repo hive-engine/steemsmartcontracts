@@ -12,6 +12,7 @@ actions.createSSC = async () => {
 
     const params = {};
     params.poolCreationFee = '1000';
+    params.poolUpdateFee = '300';
     await api.db.insert('params', params);
   }
 };
@@ -19,45 +20,14 @@ actions.createSSC = async () => {
 actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
-  const { poolCreationFee } = payload;
+  const { poolCreationFee, poolUpdateFee } = payload;
 
   const params = await api.db.findOne('params', {});
 
   params.poolCreationFee = poolCreationFee;
+  params.poolUpdateFee = poolUpdateFee;
   await api.db.update('params', params);
 };
-
-actions.updatePool = async (payload) => {
-  const { id } = payload;
-
-  if (api.assert(id && typeof id === 'string', 'invalid params')) {
-    const pool = await api.db.findOne('pools', { id });
-
-    if (pool) {
-      if (api.assert(pool.owner === api.sender, 'must be the owner')) {
-        // TODO: update pool
-      }
-    }
-  }
-};
-
-async function validateTokenMiners(tokenMiners) {
-  if (!api.assert(tokenMiners && typeof tokenMiners === 'object')) return false;
-  const tokens = Object.keys(tokenMiners);
-  if (!api.assert(tokens.length >= 1 && tokens.length <= 2, 'only 1 or 2 tokenMiners allowed')) return false;
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    const tokenObject = await api.db.findOneInTable('tokens', 'tokens', { symbol: token });
-    if (!api.assert(tokenObject && tokenObject.stakingEnabled, 'tokenMiners must have staking enabled')) return false;
-    if (!api.assert(Number.isInteger(tokenMiners[token]) && tokenMiners[token] >= 1 && tokenMiners[token] <= 100, 'tokenMiner multiplier must be an integer from 1 to 100')) return false;
-  }
-  return true;
-}
-
-function generatePoolId(pool) {
-  const tokenMinerString = Object.keys(pool.tokenMiners).join('_');
-  return `${pool.minedToken}-${tokenMinerString}`;
-}
 
 const findAndProcessAll = async (contractName, table, query, callback) => {
   let offset = 0;
@@ -78,6 +48,34 @@ const findAndProcessAll = async (contractName, table, query, callback) => {
   }
 };
 
+async function validateTokenMiners(tokenMiners) {
+  if (!api.assert(tokenMiners && typeof tokenMiners === 'object', 'tokenMiners invalid')) return false;
+  const tokens = Object.keys(tokenMiners);
+  if (!api.assert(tokens.length >= 1 && tokens.length <= 2, 'only 1 or 2 tokenMiners allowed')) return false;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    const tokenObject = await api.db.findOneInTable('tokens', 'tokens', { symbol: token });
+    if (!api.assert(tokenObject && tokenObject.stakingEnabled, 'tokenMiners must have staking enabled')) return false;
+    if (!api.assert(Number.isInteger(tokenMiners[token]) && tokenMiners[token] >= 1 && tokenMiners[token] <= 100, 'tokenMiner multiplier must be an integer from 1 to 100')) return false;
+  }
+  return true;
+}
+
+function validateTokenMinersChange(oldTokenMiners, tokenMiners) {
+  const tokens = Object.keys(tokenMiners);
+  if (!api.assert(tokens.length === Object.keys(oldTokenMiners).length, 'cannot change tokenMiners keys')) return false;
+  let changed = false;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (!api.assert(oldTokenMiners[token], 'can only modify existing tokenMiner multiplier')) return false;
+    if (!api.assert(Number.isInteger(tokenMiners[token]) && tokenMiners[token] >= 1 && tokenMiners[token] <= 100, 'tokenMiner multiplier must be an integer from 1 to 100')) return false;
+    if (tokenMiners[token] !== oldTokenMiners[token]) {
+      changed = true;
+    }
+  }
+  return { changed };
+}
+
 function computeMiningPower(miningPower, tokenMiners) {
   let power = api.BigNumber(0);
   Object.keys(tokenMiners).forEach((token) => {
@@ -89,7 +87,7 @@ function computeMiningPower(miningPower, tokenMiners) {
   return power;
 }
 
-async function updateMiningPower(pool, token, account, stakedQuantity, delegatedQuantity) {
+async function updateMiningPower(pool, token, account, stakedQuantity, delegatedQuantity, reset) {
   let miningPower = await api.db.findOne('miningPower', { id: pool.id, account });
   let stake = api.BigNumber(stakedQuantity);
   let oldMiningPower = api.BigNumber(0);
@@ -105,7 +103,7 @@ async function updateMiningPower(pool, token, account, stakedQuantity, delegated
     };
     miningPower = await api.db.insert('miningPower', miningPower);
   } else {
-    if (!miningPower.balances[token]) {
+    if (!miningPower.balances[token] || reset) {
       miningPower.balances[token] = '0';
     }
     miningPower.balances[token] = stake.plus(miningPower.balances[token]);
@@ -117,15 +115,86 @@ async function updateMiningPower(pool, token, account, stakedQuantity, delegated
   return newMiningPower.minus(oldMiningPower);
 }
 
-async function initMiningPower(pool, token) {
+async function initMiningPower(pool, token, reset) {
   let totalAdjusted = api.BigNumber(0);
   await findAndProcessAll('tokens', 'balances', { symbol: token }, async (balance) => {
     const adjusted = await updateMiningPower(
-      pool, token, balance.account, balance.stake, balance.delegationsIn,
+      pool, token, balance.account, balance.stake, balance.delegationsIn, reset,
     );
     totalAdjusted = totalAdjusted.plus(adjusted);
   });
   return totalAdjusted;
+}
+
+actions.updatePool = async (payload) => {
+  const {
+    id, lotteryWinners, lotteryIntervalHours, lotteryAmount, tokenMiners, active,
+    isSignedWithActiveKey,
+  } = payload;
+
+  // get contract params
+  const params = await api.db.findOne('params', {});
+  const { poolUpdateFee } = params;
+  // get api.sender's UTILITY_TOKEN_SYMBOL balance
+  // eslint-disable-next-line no-template-curly-in-string
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
+
+  const authorized = api.BigNumber(poolUpdateFee).lte(0)
+    ? true
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(poolUpdateFee);
+
+  if (api.assert(authorized, 'you must have enough tokens to cover the update fee')
+    && api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(id && typeof id === 'string'
+      && lotteryAmount && typeof lotteryAmount === 'string' && !api.BigNumber(lotteryAmount).isNaN() && api.BigNumber(lotteryAmount).gt(0), 'invalid params')) {
+    if (api.assert(Number.isInteger(lotteryWinners) && lotteryWinners >= 1 && lotteryWinners <= 20, 'invalid lotteryWinners: integer between 1 and 20 only')
+      && api.assert(Number.isInteger(lotteryIntervalHours) && lotteryIntervalHours >= 1 && lotteryIntervalHours <= 720, 'invalid lotteryIntervalHours: integer between 1 and 720 only')) {
+      const pool = await api.db.findOne('pools', { id });
+      if (api.assert(pool, 'pool id not found')) {
+        const minedTokenObject = await api.db.findOneInTable('tokens', 'tokens', { symbol: pool.minedToken });
+        if (api.assert(minedTokenObject && minedTokenObject.issuer === api.sender, 'must be issuer of minedToken')
+          && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')) {
+          const validMinersChange = validateTokenMinersChange(pool.tokenMiners, tokenMiners);
+          if (validMinersChange) {
+            pool.lotteryWinners = lotteryWinners;
+            pool.lotteryIntervalHours = lotteryIntervalHours;
+            pool.lotteryAmount = lotteryAmount;
+            pool.tokenMiners = tokenMiners;
+            pool.active = active;
+
+            if (validMinersChange.changed) {
+              const tokenMinerSymbols = Object.keys(tokenMiners);
+              for (let i = 0; i < tokenMinerSymbols.length; i += 1) {
+                const token = tokenMinerSymbols[i];
+                await api.db.insert('tokenPools', { symbol: token, id: pool.id });
+                const adjustedPower = await initMiningPower(pool, token, true);
+                pool.totalPower = api.BigNumber(pool.totalPower).plus(adjustedPower);
+              }
+            }
+
+            const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+            pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
+              .plus(lotteryIntervalHours * 3600 * 1000).toNumber();
+
+            await api.db.update('pools', pool);
+
+            // burn the token creation fees
+            if (api.BigNumber(poolUpdateFee).gt(0)) {
+              await api.executeSmartContract('tokens', 'transfer', {
+                // eslint-disable-next-line no-template-curly-in-string
+                to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolUpdateFee, isSignedWithActiveKey,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+function generatePoolId(pool) {
+  const tokenMinerString = Object.keys(pool.tokenMiners).join('_');
+  return `${pool.minedToken}-${tokenMinerString}`;
 }
 
 actions.createPool = async (payload) => {
@@ -146,10 +215,10 @@ actions.createPool = async (payload) => {
     ? true
     : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(poolCreationFee);
 
-  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fees')
+  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
       && api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
       && api.assert(minedToken && typeof minedToken === 'string'
-        && lotteryAmount && typeof lotteryAmount === 'string' && !api.BigNumber(lotteryAmount).isNaN(), 'invalid params')) {
+        && lotteryAmount && typeof lotteryAmount === 'string' && !api.BigNumber(lotteryAmount).isNaN() && api.BigNumber(lotteryAmount).gt(0), 'invalid params')) {
     if (api.assert(minedToken.length > 0 && minedToken.length <= 10, 'invalid symbol: uppercase letters only, max length of 10')
       && api.assert(Number.isInteger(lotteryWinners) && lotteryWinners >= 1 && lotteryWinners <= 20, 'invalid lotteryWinners: integer between 1 and 20 only')
       && api.assert(Number.isInteger(lotteryIntervalHours) && lotteryIntervalHours >= 1 && lotteryIntervalHours <= 720, 'invalid lotteryIntervalHours: integer between 1 and 720 only')
@@ -162,7 +231,6 @@ actions.createPool = async (payload) => {
         && await validateTokenMiners(tokenMiners)) {
         const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
         const newPool = {
-          owner: api.sender,
           minedToken,
           lotteryWinners,
           lotteryIntervalHours,
@@ -204,6 +272,7 @@ actions.checkPendingLotteries = async () => {
 
     await findAndProcessAll('mining', 'pools',
       {
+        active: true,
         nextLotteryTimestamp: {
           $lte: timestamp,
         },
@@ -216,7 +285,6 @@ actions.checkPendingLotteries = async () => {
           .toFixed(minedToken.precision);
         for (let i = 0; i < pool.lotteryWinners; i += 1) {
           winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
-          api.emit('miningLotteryDebug', winningNumbers[i]);
         }
         // iterate power desc
         let offset = 0;
@@ -229,7 +297,6 @@ actions.checkPendingLotteries = async () => {
           miningPowers = await api.db.find('miningPower', { id: pool.id, power: { $gt: { $numberDecimal: '0' } } }, 1000, offset, [{ index: 'power', descending: true }]);
           for (let i = 0; i < miningPowers.length; i += 1) {
             const miningPower = miningPowers[i];
-            api.emit('miningLotteryDebug', miningPower);
             nextCumulativePower = cumulativePower.plus(miningPower.power.$numberDecimal);
             for (let j = 0; j < pool.lotteryWinners; j += 1) {
               const currentWinningNumber = winningNumbers[j];
@@ -253,6 +320,10 @@ actions.checkPendingLotteries = async () => {
           offset += 1000;
         }
         api.emit('miningLottery', { poolId: pool.id, winners });
+        // eslint-disable-next-line no-param-reassign
+        pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
+          .plus(pool.lotteryIntervalHours * 3600 * 1000).toNumber();
+        await api.db.update('pools', pool);
       });
   }
 };
@@ -271,7 +342,7 @@ actions.handleStakeChange = async (payload) => {
       } else {
         adjusted = await updateMiningPower(pool, symbol, account, quantity, 0);
       }
-      pool.totalPower = adjusted.plus(pool.totalPower)
+      pool.totalPower = adjusted.plus(pool.totalPower);
       await api.db.update('pools', pool);
     });
   }

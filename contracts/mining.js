@@ -58,7 +58,7 @@ async function validateTokenMiners(tokenMiners) {
     if (!api.assert(tokenMinerConfig && tokenMinerConfig.symbol
       && typeof (tokenMinerConfig.symbol) === 'string', 'tokenMiners invalid')) return false;
     if (!api.assert(!tokenMinerSymbols.has(tokenMinerConfig.symbol), 'tokenMiners cannot have duplicate symbols')) return false;
-    tokenMinerSymbols.add(tokenMinerConfig.symbol)
+    tokenMinerSymbols.add(tokenMinerConfig.symbol);
     const { symbol } = tokenMinerConfig;
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
     if (!api.assert(token && token.stakingEnabled, 'tokenMiners must have staking enabled')) return false;

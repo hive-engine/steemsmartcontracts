@@ -1611,7 +1611,7 @@ actions.stake = async (payload) => {
             // await api.executeSmartContract
             // ('witnesses', 'updateWitnessesApprovals', { account: api.sender });
           }
-          await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+          await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
         }
       }

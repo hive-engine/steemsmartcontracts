@@ -342,8 +342,8 @@ actions.handleStakeChange = async (payload) => {
   const {
     account, symbol, quantity, delegated, callingContractInfo,
   } = payload;
-  if (api.assert(callingContractInfo.name === 'tokens'
-      && api.sender === api.owner, 'must be called from tokens contract')) {
+  if (api.assert(callingContractInfo && callingContractInfo.name === 'tokens',
+    'must be called from tokens contract')) {
     await findAndProcessAll('mining', 'tokenPools', { symbol }, async (tokenPool) => {
       const pool = await api.db.findOne('pools', { id: tokenPool.id });
       let adjusted;

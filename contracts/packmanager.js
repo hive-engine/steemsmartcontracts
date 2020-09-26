@@ -10,8 +10,9 @@ const UTILITY_TOKEN_SYMBOL = 'BEE';
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('packs');
   if (tableExists === false) {
-    await api.db.createTable('packs', ['symbol', 'nft']);
+    await api.db.createTable('packs', ['account', 'symbol', 'nft']);
     await api.db.createTable('types', ['nft', 'edition', 'typeId']);
+    await api.db.createTable('managedNfts', ['nft']);
     await api.db.createTable('params');
 
     const params = {};
@@ -76,6 +77,65 @@ actions.updateParams = async (payload) => {
   }
 
   await api.db.update('params', params);
+};
+
+// TODO: add other creation settings
+actions.registerPack = async (payload) => {
+  const {
+    packSymbol,
+    nftSymbol,
+    edition,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(packSymbol && typeof packSymbol === 'string'
+      && nftSymbol && typeof nftSymbol === 'string'
+      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0, 'invalid params')) {
+    // make sure registration fee can be paid
+    const params = await api.db.findOne('params', {});
+    const hasEnoughBalance = await verifyUtilityTokenBalance(params.registerFee, api.sender);
+
+    if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the registration fee')) {
+      // verify pack & NFT symbols exist, and NFT was created through this contract
+      const packToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: packSymbol });
+      if (api.assert(packToken !== null, 'pack symbol must exist')) {
+        const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+        if (api.assert(underManagement !== null, `NFT not created through ${CONTRACT_NAME}`)) {
+          const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+          if (api.assert(nft !== null, 'NFT symbol must exist')
+            && api.assert(nft.issuer === api.sender, 'not authorized to register')
+            && api.assert(nft.circulatingSupply === 0, 'unable to register; NFT instances already issued')) {
+            // make sure this pack / NFT combo  hasn't been registered yet
+            const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
+            if (api.assert(settings === null, `pack already registered for ${nftSymbol}`)) {
+              // burn the registration fee
+              if (!(await burnFee(params.registerFee, isSignedWithActiveKey))) {
+                return false;
+              }
+
+              const newSettings = {
+                account: api.sender,
+                symbol: packSymbol,
+                nft: nftSymbol,
+                edition: edition,
+              };
+
+              await api.db.insert('packs', newSettings);
+
+              api.emit('registerPack', {
+                account: api.sender,
+                symbol: packSymbol,
+                nft: nftSymbol,
+              });
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+  return false;
 };
 
 actions.createNft = async (payload) => {
@@ -169,6 +229,10 @@ actions.createNft = async (payload) => {
               isSignedWithActiveKey,
             });
 
+            // indicates this contract is responsible for issuance of the NFT
+            const newRecord = { nft: symbol };
+            await api.db.insert('managedNfts', newRecord);
+
             // finally, verify groupBy was set OK
             nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
             const groupByCount = nft.groupBy.length;
@@ -228,8 +292,9 @@ const generateRandomCritter = (edition, to) => {
   return instance;
 };
 
-// issue some random critters!
-actions.hatch = async (payload) => {
+// open some packs
+// TODO: when opening, need to specify both a pack symbol and nft symbol
+actions.open = async (payload) => {
   // this action requires active key authorization
   const {
     packSymbol, // the token we want to buy with determines which edition to issue

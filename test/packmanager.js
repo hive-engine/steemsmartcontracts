@@ -266,7 +266,7 @@ describe('packmanager', function() {
       });
   });
 
-  it('registers new pack settings', (done) => {
+  it('registers new pack settings and updates settings', (done) => {
     new Promise(async (resolve) => {
 
       await loadPlugin(blockchain);
@@ -301,7 +301,7 @@ describe('packmanager', function() {
       console.log(transactionsBlock1[10].logs);
 
       // check if the pack was registered OK
-      const settings = await database1.find({
+      let settings = await database1.find({
         contract: 'packmanager',
         table: 'packs',
         query: {},
@@ -374,6 +374,39 @@ describe('packmanager', function() {
       assert.equal(JSON.parse(transactionsBlock2[4].logs).errors[0], 'NFT not created through packmanager');
       assert.equal(JSON.parse(transactionsBlock2[5].logs).errors[0], 'not authorized to register');
       assert.equal(JSON.parse(transactionsBlock2[7].logs).errors[0], 'pack already registered for WAR');
+
+      // update some settings
+      transactions = [];
+      transactions.push(new Transaction(38145388, 'TXID1249', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 38145388,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const block3 = await database1.getBlockInfo(3);
+      const transactionsBlock3 = block3.transactions;
+      console.log(transactionsBlock3[0].logs);
+
+      // check if the pack settings were updated OK
+      settings = await database1.find({
+        contract: 'packmanager',
+        table: 'packs',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(settings);
+
+      assert.equal(settings[0].account, 'cryptomancer');
+      assert.equal(settings[0].symbol, 'PACK');
+      assert.equal(settings[0].nft, 'WAR');
+      assert.equal(settings[0].edition, 3);
 
       resolve();
     })

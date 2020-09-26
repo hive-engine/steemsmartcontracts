@@ -80,6 +80,55 @@ actions.updateParams = async (payload) => {
 };
 
 // TODO: add other creation settings
+actions.updateSettings = async (payload) => {
+  const {
+    packSymbol,
+    nftSymbol,
+    edition,
+    isSignedWithActiveKey,
+  } = payload;
+
+  // nothing to do if there's not at least one field to update
+  if (edition === undefined) {
+    return false;
+  }
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(packSymbol && typeof packSymbol === 'string'
+      && nftSymbol && typeof nftSymbol === 'string'
+      && (edition === undefined || (typeof edition === 'number' && Number.isInteger(edition) && edition >= 0)), 'invalid params')) {
+    const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
+    if (api.assert(settings !== null, 'pack not registered for this NFT')) {
+      if (api.assert(settings.account === api.sender, 'not authorized to update settings')) {
+        const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+        if (api.assert(nft !== null, 'NFT symbol must exist')
+          && api.assert(nft.circulatingSupply === 0, 'NFT instances must not be in circulation')) {
+          const update = {
+            account: api.sender,
+            symbol: packSymbol,
+            nft: nftSymbol,
+          };
+
+          // all checks have passed, now we can update stuff
+          if (edition !== undefined) {
+            update.oldEdition = settings.edition;
+            settings.edition = edition;
+            update.newEdition = edition;
+          }
+
+          await api.db.update('packs', settings);
+
+          api.emit('updateSettings', update);
+
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
+// TODO: add other creation settings
 actions.registerPack = async (payload) => {
   const {
     packSymbol,

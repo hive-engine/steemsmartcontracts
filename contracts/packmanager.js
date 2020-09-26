@@ -11,10 +11,12 @@ actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('packs');
   if (tableExists === false) {
     await api.db.createTable('packs', ['symbol', 'nft']);
+    await api.db.createTable('types', ['nft', 'edition', 'typeId']);
     await api.db.createTable('params');
 
     const params = {};
     params.registerFee = '1000';
+    params.typeAddFee = '1';
     await api.db.insert('params', params);
   }
 };
@@ -61,12 +63,16 @@ actions.updateParams = async (payload) => {
 
   const {
     registerFee,
+    typeAddFee,
   } = payload;
 
   const params = await api.db.findOne('params', {});
 
   if (registerFee && typeof registerFee === 'string' && !api.BigNumber(registerFee).isNaN() && api.BigNumber(registerFee).gte(0)) {
     params.registerFee = registerFee;
+  }
+  if (typeAddFee && typeof typeAddFee === 'string' && !api.BigNumber(typeAddFee).isNaN() && api.BigNumber(typeAddFee).gte(0)) {
+    params.typeAddFee = typeAddFee;
   }
 
   await api.db.update('params', params);
@@ -79,118 +85,100 @@ actions.createNft = async (payload) => {
     productName,
     symbol,
     url,
+    isFoilReadOnly,
+    isTypeReadOnly,
     isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(symbol && typeof symbol === 'string'
+      && (isFoilReadOnly === undefined || typeof isFoilReadOnly === 'boolean')
+      && (isTypeReadOnly === undefined || typeof isTypeReadOnly === 'boolean'), 'invalid params')) {
     // calculate NFT creation costs based on contract params
     const nftParams = await api.db.findOneInTable('nft', 'params', {});
     const {
       nftCreationFee,
       dataPropertyCreationFee,
     } = nftParams;
-    const propertyFee = api.BigNumber(dataPropertyCreationFee).multipliedBy(1); // first 3 data properties are free
-    const totalFeeAmount = api.BigNumber(nftCreationFee).plus(propertyFee);
-  }
+    // TODO: can remove the below if not more than 3 data properties
+    //const propertyFee = api.BigNumber(dataPropertyCreationFee).multipliedBy(1); // first 3 data properties are free
+    //const totalFeeAmount = api.BigNumber(nftCreationFee).plus(propertyFee);
+    const hasEnoughBalance = await verifyUtilityTokenBalance(nftCreationFee, api.sender);
 
-  // verify CRITTER does not exist yet
-  const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: 'CRITTER' });
-  if (api.assert(nft === null, 'CRITTER already exists')
-    && api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
-    // create CRITTER
-    // Note 1: we don't specify maxSupply, which means the supply of CRITTER
-    // will be unlimited. But indirectly the supply is limited by the
-    // supply of the tokens you can use to buy CRITTERS.
-    // Note 2: we want this contract to be the only authorized token issuer
-    await api.executeSmartContract('nft', 'create', {
-      name: 'Mischievous Crypto Critters',
-      symbol: 'CRITTER',
-      authorizedIssuingAccounts: [],
-      authorizedIssuingContracts: [CONTRACT_NAME],
-      isSignedWithActiveKey,
-    });
-
-    // Now add some data properties (note that only this contract is
-    // authorized to edit data properties). We could have chosen a more
-    // economical design by formatting these in some custom way to fit
-    // within a single string data property, which would cut down on
-    // token issuance fees. The drawback is then we lose the ability to
-    // easily query tokens by properties (for example, get a list of all
-    // rare critters or all critters belonging to a certain edition, etc).
-
-    // Edition only gets set once at issuance and never changes, so we
-    // can make it read only.
-    await api.executeSmartContract('nft', 'addProperty', {
-      symbol: 'CRITTER',
-      name: 'edition',
-      type: 'number',
-      isReadOnly: true,
-      authorizedEditingAccounts: [],
-      authorizedEditingContracts: [CONTRACT_NAME],
-      isSignedWithActiveKey,
-    });
-
-    // Type (which also never changes once set) represents the kind of
-    // critter within an edition. The interpretation of this value is
-    // handled by whatever app uses these tokens; for example maybe
-    // 0 = dragon, 1 = troll, 2 = goblin, etc
-    await api.executeSmartContract('nft', 'addProperty', {
-      symbol: 'CRITTER',
-      name: 'type',
-      type: 'number',
-      isReadOnly: true,
-      authorizedEditingAccounts: [],
-      authorizedEditingContracts: [CONTRACT_NAME],
-      isSignedWithActiveKey,
-    });
-
-    // How rare is this critter? 0 = common, 1 = uncommon,
-    // 2 = rare, 3 = legendary
-    await api.executeSmartContract('nft', 'addProperty', {
-      symbol: 'CRITTER',
-      name: 'rarity',
-      type: 'number',
-      isReadOnly: true,
-      authorizedEditingAccounts: [],
-      authorizedEditingContracts: [CONTRACT_NAME],
-      isSignedWithActiveKey,
-    });
-
-    // Do we have a super rare gold foil?
-    await api.executeSmartContract('nft', 'addProperty', {
-      symbol: 'CRITTER',
-      name: 'isGoldFoil',
-      type: 'boolean',
-      isReadOnly: true,
-      authorizedEditingAccounts: [],
-      authorizedEditingContracts: [CONTRACT_NAME],
-      isSignedWithActiveKey,
-    });
-  }
-};
-
-// This action can be called by a token holder to change
-// their critter's name.
-actions.updateName = async (payload) => {
-  const { id, name } = payload;
-
-  if (api.assert(id && typeof id === 'string'
-    && !api.BigNumber(id).isNaN() && api.BigNumber(id).gt(0)
-    && name && typeof name === 'string', 'invalid params')
-    && api.assert(api.validator.isAlphanumeric(api.validator.blacklist(name, ' ')) && name.length > 0 && name.length <= 25, 'invalid name: letters, numbers, whitespaces only, max length of 25')) {
-    // fetch the token we want to edit
-    const instance = await api.db.findOneInTable('nft', 'CRITTERinstances', { _id: api.BigNumber(id).toNumber() });
-
-    if (instance) {
-      // make sure this token is owned by the caller
-      if (api.assert(instance.account === api.sender && instance.ownedBy === 'u', 'must be the token holder')) {
-        await api.executeSmartContract('nft', 'setProperties', {
-          symbol: 'CRITTER',
-          fromType: 'contract',
-          nfts: [{
-            id, properties: { name },
-          }],
+    if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the NFT creation')) {
+      // verify nft doesn't already exist
+      let nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+      if (api.assert(nft === null, 'symbol already exists')) {
+        // We don't specify maxSupply, which means the supply
+        // will be unlimited. But indirectly the supply is limited by the
+        // supply of the pack tokens.
+        await api.executeSmartContract('nft', 'create', {
+          name: name,
+          symbol: symbol,
+          orgName: orgName,
+          productName: productName,
+          url: url,
+          authorizedIssuingAccounts: [],
+          authorizedIssuingContracts: [CONTRACT_NAME],
+          isSignedWithActiveKey,
         });
+
+        // verify nft was created OK
+        nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+        if (api.assert(nft !== null, 'error creating NFT')) {
+          const finalIsFoilReadOnly = isFoilReadOnly === undefined ? true : isFoilReadOnly;
+          const finalIsTypeReadOnly = isTypeReadOnly === undefined ? true : isTypeReadOnly;
+
+          // Edition only gets set once at issuance and never changes, so we
+          // can make it read only.
+          await api.executeSmartContract('nft', 'addProperty', {
+            symbol: symbol,
+            name: 'edition',
+            type: 'number',
+            isReadOnly: true,
+            authorizedEditingAccounts: [],
+            authorizedEditingContracts: [CONTRACT_NAME],
+            isSignedWithActiveKey,
+          });
+
+          await api.executeSmartContract('nft', 'addProperty', {
+            symbol: symbol,
+            name: 'foil',
+            type: 'number',
+            isReadOnly: finalIsFoilReadOnly,
+            authorizedEditingContracts: [CONTRACT_NAME],
+            isSignedWithActiveKey,
+          });
+
+          await api.executeSmartContract('nft', 'addProperty', {
+            symbol: symbol,
+            name: 'type',
+            type: 'number',
+            isReadOnly: finalIsTypeReadOnly,
+            authorizedEditingContracts: [CONTRACT_NAME],
+            isSignedWithActiveKey,
+          });
+
+          // now verify data properties were added OK
+          nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+          const propertyCount = Object.keys(nft.properties).length;
+          if (api.assert(propertyCount === 3, 'NFT created but error adding data properties')) {
+            await api.executeSmartContract('nft', 'setGroupBy', {
+              symbol: symbol,
+              properties: ['edition', 'foil', 'type'],
+              isSignedWithActiveKey,
+            });
+
+            // finally, verify groupBy was set OK
+            nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+            const groupByCount = nft.groupBy.length;
+            if (api.assert(groupByCount === 3, 'NFT created with data properties, but error setting groupBy')) {
+              api.emit('createNft', {
+                symbol
+              });
+            }
+          }
+        }
       }
     }
   }

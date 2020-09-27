@@ -6,6 +6,7 @@ const CONTRACT_NAME = 'packmanager';
 
 // BEE tokens on Hive Engine, ENG on Steem Engine, and SSC on the testnet
 const UTILITY_TOKEN_SYMBOL = 'BEE';
+const UTILITY_TOKEN_PRECISION = 8;
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('packs');
@@ -32,6 +33,12 @@ const isTokenTransferVerified = (result, from, to, symbol, quantity, eventStr) =
   }
   return false;
 };
+
+const calculateBalance = (balance, quantity, precision, add) => (add
+  ? api.BigNumber(balance).plus(quantity).toFixed(precision)
+  : api.BigNumber(balance).minus(quantity).toFixed(precision));
+
+const countDecimals = value => api.BigNumber(value).dp();
 
 const verifyUtilityTokenBalance = async (amount, account) => {
   if (api.BigNumber(amount).lte(0)) {
@@ -77,6 +84,43 @@ actions.updateParams = async (payload) => {
   }
 
   await api.db.update('params', params);
+};
+
+actions.deposit = async (payload) => {
+  const {
+    nftSymbol,
+    amount,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(nftSymbol && typeof nftSymbol === 'string'
+      && amount && typeof amount === 'string' && !api.BigNumber(amount).isNaN()
+      && api.BigNumber(amount).gt(0) && countDecimals(amount) <= UTILITY_TOKEN_PRECISION, 'invalid params')) {
+    const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+    if (api.assert(underManagement !== null, 'NFT not under management')) {
+      const hasEnoughBalance = await verifyUtilityTokenBalance(amount, api.sender);
+      if (api.assert(hasEnoughBalance, 'not enough tokens to deposit')) {
+        // send tokens to the contract and update pool balance
+        const res = await api.executeSmartContract('tokens', 'transferToContract', {
+          to: CONTRACT_NAME, symbol: UTILITY_TOKEN_SYMBOL, quantity: amount, isSignedWithActiveKey,
+        });
+        if (!isTokenTransferVerified(res, api.sender, CONTRACT_NAME, UTILITY_TOKEN_SYMBOL, amount, 'transferToContract')) {
+          return false;
+        }
+
+        underManagement.feePool = calculateBalance(underManagement.feePool, amount, UTILITY_TOKEN_PRECISION, true);
+        await api.db.update('managedNfts', underManagement);
+
+        api.emit('deposit', {
+          nft: nftSymbol, newFeePool: underManagement.feePool,
+        });
+
+        return true;
+      }
+    }
+  }
+  return false;
 };
 
 // TODO: add other creation settings
@@ -279,7 +323,10 @@ actions.createNft = async (payload) => {
             });
 
             // indicates this contract is responsible for issuance of the NFT
-            const newRecord = { nft: symbol };
+            const newRecord = {
+              nft: symbol,
+              feePool: '0',
+            };
             await api.db.insert('managedNfts', newRecord);
 
             // finally, verify groupBy was set OK

@@ -511,6 +511,7 @@ describe('packmanager', function() {
 
       console.log(underManagement);
       assert.equal(underManagement[0].nft, 'WAR');
+      assert.equal(underManagement[0].feePool, '0');
 
       resolve();
     })

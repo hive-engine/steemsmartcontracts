@@ -175,7 +175,7 @@ class Block {
         const authorizedAccountContractDeployment = ['null', CONSTANTS.HIVE_ENGINE_ACCOUNT, CONSTANTS.HIVE_PEGGED_ACCOUNT];
 
         if (authorizedAccountContractDeployment.includes(sender)) {
-          results = await SmartContracts.deploySmartContract( // eslint-disable-line
+          results = await SmartContracts.deploySmartContractInTransaction( // eslint-disable-line
             database, transaction, this.blockNumber, this.timestamp,
             this.refHiveBlockId, this.prevRefHiveBlockId, jsVMTimeout,
           );
@@ -183,7 +183,7 @@ class Block {
           results = { logs: { errors: ['the contract deployment is currently unavailable'] } };
         }
       } else {
-        results = await SmartContracts.executeSmartContract(// eslint-disable-line
+        results = await SmartContracts.executeSmartContractInTransaction(// eslint-disable-line
           database, transaction, this.blockNumber, this.timestamp,
           this.refHiveBlockId, this.prevRefHiveBlockId, jsVMTimeout,
         );

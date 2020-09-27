@@ -171,6 +171,20 @@ let testcontractPayload = {
   code: base64ContractCode,
 };
 
+function assertError(tx, message) {
+  const logs = JSON.parse(tx.logs);
+  assert(logs.errors, 'No error in logs. Error expected with message ' + message);
+  assert.equal(logs.errors[0], message, `Error expected with message ${message}. Instead got ${logs.errors[0]}`);
+}
+
+async function assertNoErrorInLastBlock() {
+  const transactions = (await database1.getLatestBlockInfo()).transactions;
+  for (let i = 0; i < transactions.length; i++) {
+    const logs = JSON.parse(transactions[i].logs);
+    assert(!logs.errors, `Tx #${i} had unexpected error ${logs.errors}`);
+  }
+}
+
 // nft
 describe('nft', function() {
   this.timeout(20000);
@@ -413,8 +427,9 @@ describe('nft', function() {
       transactions.push(new Transaction(12345678901, 'TXID1242', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT", "symbol":"TSTNFT", "url":"http://mynft.com", "maxSupply":"1000", "authorizedIssuingAccounts": ["myaccountdup","myaccountdup"] }'));
       transactions.push(new Transaction(12345678901, 'TXID1243', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "5", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, 'TXID1244', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT", "symbol":"TSTNFT", "url":"http://mynft.com", "maxSupply":"1000" }'));
-      transactions.push(new Transaction(12345678901, 'TXID1245', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT2", "symbol":"TSTNFTTWO", "productName": "tooooooloooooooooonnnnnnnnnnnggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", "url":"http://mynft.com", "maxSupply":"1000" }'));
-      transactions.push(new Transaction(12345678901, 'TXID1246', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT2", "symbol":"TSTNFTTWO", "orgName": "tooooooloooooooooonnnnnnnnnnnggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", "url":"http://mynft.com", "maxSupply":"1000" }'));
+      transactions.push(new Transaction(12345678901, 'TXID1245', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT", "symbol":"TSTNFT", "url":"http://mynft.com", "maxSupply":"1000" }'));
+      transactions.push(new Transaction(12345678901, 'TXID1246', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT2", "symbol":"TSTNFTTWO", "productName": "tooooooloooooooooonnnnnnnnnnnggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", "url":"http://mynft.com", "maxSupply":"1000" }'));
+      transactions.push(new Transaction(12345678901, 'TXID1247', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT2", "symbol":"TSTNFTTWO", "orgName": "tooooooloooooooooonnnnnnnnnnnggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", "url":"http://mynft.com", "maxSupply":"1000" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -450,9 +465,9 @@ describe('nft', function() {
       assert.equal(JSON.parse(transactionsBlock1[10].logs).errors[0], 'maxSupply must be positive');
       assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], `maxSupply must be lower than ${Number.MAX_SAFE_INTEGER}`);
       assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'cannot add the same account twice');
-      assert.equal(JSON.parse(transactionsBlock1[14].logs).errors[0], 'symbol already exists');
-      assert.equal(JSON.parse(transactionsBlock1[15].logs).errors[0], 'invalid product name: letters, numbers, whitespaces only, max length of 50');
-      assert.equal(JSON.parse(transactionsBlock1[16].logs).errors[0], 'invalid org name: letters, numbers, whitespaces only, max length of 50');
+      assert.equal(JSON.parse(transactionsBlock1[15].logs).errors[0], 'symbol already exists');
+      assert.equal(JSON.parse(transactionsBlock1[16].logs).errors[0], 'invalid product name: letters, numbers, whitespaces only, max length of 50');
+      assert.equal(JSON.parse(transactionsBlock1[17].logs).errors[0], 'invalid org name: letters, numbers, whitespaces only, max length of 50');
 
       resolve();
     })
@@ -3009,7 +3024,7 @@ describe('nft', function() {
       ];
 
       let instances2 = [
-        { fromType: "user", symbol: "TSTNFT", to:"contract1", toType: "contract", feeSymbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, properties:{"level":0} },   // won't issue this one because caller not authorized
+        // { fromType: "user", symbol: "TSTNFT", to:"contract1", toType: "contract", feeSymbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, properties:{"level":0} },   // won't issue this one because caller not authorized
         { fromType: "contract", symbol: "TSTNFT", to:"dice", toType: "contract", feeSymbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, lockTokens },
         { fromType: "contract", symbol: "TSTNFT", to:"tokens", toType: "contract", feeSymbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, lockTokens: lockTokens2, properties:{"color":"red","frozen":true} },
         { fromType: "contract", symbol: "TSTNFT", to:"market", toType: "contract", feeSymbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, lockTokens:{}, properties:{} },
@@ -3046,6 +3061,8 @@ describe('nft', function() {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
 
       let res = await database1.find({
           contract: 'nft',
@@ -3102,7 +3119,7 @@ describe('nft', function() {
       const block1 = res;
       const transactionsBlock1 = block1.transactions;
 
-      assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'not allowed to issue tokens');
+      //assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'not allowed to issue tokens');
 
       resolve();
     })
@@ -3745,7 +3762,7 @@ describe('nft', function() {
       assert.equal(instances[0]._id, 1);
       assert.equal(instances[0].account, 'aggroed');
       assert.equal(instances[0].ownedBy, 'u');
-      assert.equal(JSON.stringify(instances[0].properties), '{"color":"red","level":5,"frozen":true}');
+      assert.equal(JSON.stringify(instances[0].properties), '{"color":"blue","level":5,"frozen":true}');
       assert.equal(instances.length, 1);
 
       resolve();

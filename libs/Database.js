@@ -12,19 +12,32 @@ class Database {
     this.chain = null;
     this.databaseHash = '';
     this.client = null;
+    this.session = null;
+  }
+
+  startSession() {
+    this.session = this.client.startSession();
+    return this.session;
+  }
+
+  async endSession() {
+    if (this.session) {
+      await this.session.endSession();
+      this.session = null;
+    }
   }
 
   async initSequence(name, startID = 1) {
     const sequences = this.database.collection('sequences');
 
-    await sequences.insertOne({ _id: name, seq: startID });
+    await sequences.insertOne({ _id: name, seq: startID }, { session: this.session });
   }
 
   async getNextSequence(name) {
     const sequences = this.database.collection('sequences');
 
     const sequence = await sequences.findOneAndUpdate(
-      { _id: name }, { $inc: { seq: 1 } }, { new: true },
+      { _id: name }, { $inc: { seq: 1 } }, { new: true, session: this.session }
     );
 
     return sequence.value.seq;
@@ -33,9 +46,17 @@ class Database {
   async getLastSequence(name) {
     const sequences = this.database.collection('sequences');
 
-    const sequence = await sequences.findOne({ _id: name });
+    const sequence = await sequences.findOne({ _id: name }, { session: this.session });
 
     return sequence.seq;
+  }
+
+  async getContractCollection(contract, name) {
+    const contractInDb = await this.findContract({ name: contract });
+    if (contractInDb && contractInDb.tables[name] !== undefined) {
+      return this.database.collection(name);
+    }
+    return null;
   }
 
   getCollection(name) {
@@ -44,8 +65,9 @@ class Database {
         // collection does not exist
         if (err) {
           resolve(null);
+        } else {
+          resolve(collection);
         }
-        resolve(collection);
       });
     });
   }
@@ -62,10 +84,10 @@ class Database {
 
     if (coll === null) {
       await this.initSequence('chain', 0);
-      this.chain = await this.database.createCollection('chain');
+      this.chain = await this.database.createCollection('chain', { session: this.session });
 
-      await this.database.createCollection('transactions');
-      await this.database.createCollection('contracts');
+      await this.database.createCollection('transactions', { session: this.session });
+      await this.database.createCollection('contracts', { session: this.session });
     } else {
       this.chain = coll;
     }
@@ -79,7 +101,7 @@ class Database {
     // eslint-disable-next-line
     genesisBlock._id = await this.getNextSequence('chain');
 
-    await this.chain.insertOne(genesisBlock);
+    await this.chain.insertOne(genesisBlock, { session: this.session });
   }
 
   async addTransactions(block) {
@@ -95,20 +117,20 @@ class Database {
         index,
       };
 
-      await transactionsTable.insertOne(transactionToSave); // eslint-disable-line no-await-in-loop
+      await transactionsTable.insertOne(transactionToSave, { session: this.session }); // eslint-disable-line no-await-in-loop
     }
   }
 
   async updateTableHash(contract, table) {
     const contracts = this.database.collection('contracts');
-    const contractInDb = await contracts.findOne({ _id: contract });
+    const contractInDb = await contracts.findOne({ _id: contract }, { session: this.session });
 
     if (contractInDb && contractInDb.tables[table] !== undefined) {
       const tableHash = contractInDb.tables[table].hash;
 
       contractInDb.tables[table].hash = SHA256(tableHash).toString(enchex);
 
-      await contracts.updateOne({ _id: contract }, { $set: contractInDb });
+      await contracts.updateOne({ _id: contract }, { $set: contractInDb }, { session: this.session });
 
       this.databaseHash = SHA256(this.databaseHash + contractInDb.tables[table].hash)
         .toString(enchex);
@@ -126,7 +148,7 @@ class Database {
   async getTransactionInfo(txid) {
     const transactionsTable = this.database.collection('transactions');
 
-    const transaction = await transactionsTable.findOne({ _id: txid });
+    const transaction = await transactionsTable.findOne({ _id: txid }, { session: this.session });
 
     let result = null;
 
@@ -145,7 +167,7 @@ class Database {
   async addBlock(block) {
     const finalBlock = block;
     finalBlock._id = await this.getNextSequence('chain'); // eslint-disable-line no-underscore-dangle
-    await this.chain.insertOne(finalBlock);
+    await this.chain.insertOne(finalBlock, { session: this.session });
     await this.addTransactions(finalBlock);
   }
 
@@ -153,7 +175,7 @@ class Database {
     try {
       const _idNewBlock = await this.getLastSequence('chain'); // eslint-disable-line no-underscore-dangle
 
-      const lastestBlock = await this.chain.findOne({ _id: _idNewBlock - 1 });
+      const lastestBlock = await this.chain.findOne({ _id: _idNewBlock - 1 }, { session: this.session });
 
       return lastestBlock;
     } catch (error) {
@@ -167,7 +189,7 @@ class Database {
     try {
       const _idNewBlock = await this.getLastSequence('chain'); // eslint-disable-line no-underscore-dangle
 
-      const lastestBlock = await this.chain.findOne({ _id: _idNewBlock - 1 });
+      const lastestBlock = await this.chain.findOne({ _id: _idNewBlock - 1 }, { session: this.session });
 
       if (lastestBlock) {
         lastestBlock.transactions = [];
@@ -185,7 +207,7 @@ class Database {
   async getBlockInfo(blockNumber) {
     try {
       const block = typeof blockNumber === 'number' && Number.isInteger(blockNumber)
-        ? await this.chain.findOne({ _id: blockNumber })
+        ? await this.chain.findOne({ _id: blockNumber }, { session: this.session })
         : null;
 
       return block;
@@ -211,7 +233,7 @@ class Database {
         round,
         roundHash,
       } = payload;
-      const block = await this.chain.findOne({ _id: blockNumber });
+      const block = await this.chain.findOne({ _id: blockNumber }, { session: this.session });
 
       if (block) {
         block.witness = witness;
@@ -222,7 +244,7 @@ class Database {
 
         await this.chain.updateOne(
           { _id: block._id }, // eslint-disable-line no-underscore-dangle
-          { $set: block },
+          { $set: block }, { session: this.session },
         );
       } else {
         // eslint-disable-next-line no-console
@@ -245,7 +267,7 @@ class Database {
       if (name && typeof name === 'string') {
         const contracts = this.database.collection('contracts');
 
-        const contractInDb = await contracts.findOne({ _id: name });
+        const contractInDb = await contracts.findOne({ _id: name }, { session: this.session });
 
         if (contractInDb) {
           return contractInDb;
@@ -280,7 +302,7 @@ class Database {
       && code && typeof code === 'string'
       && tables && typeof tables === 'object') {
       const contracts = this.database.collection('contracts');
-      await contracts.insertOne(payload);
+      await contracts.insertOne(payload, { session: this.session });
     }
   }
 
@@ -306,9 +328,9 @@ class Database {
       && tables && typeof tables === 'object') {
       const contracts = this.database.collection('contracts');
 
-      const contract = await contracts.findOne({ _id, owner });
+      const contract = await contracts.findOne({ _id, owner }, { session: this.session });
       if (contract !== null) {
-        await contracts.updateOne({ _id }, { $set: payload });
+        await contracts.updateOne({ _id }, { $set: payload }, { session: this.session });
       }
     }
   }
@@ -331,11 +353,11 @@ class Database {
         || (indexes.length > 0 && indexes.every(el => typeof el === 'string' && validator.isAlphanumeric(el))))) {
       const finalTableName = `${contractName}_${tableName}`;
       // get the table from the database
-      let table = await this.getCollection(finalTableName);
+      let table = await this.getContractCollection(contractName, finalTableName);
       if (table === null) {
         // if it doesn't exist, create it (with the binary indexes)
         await this.initSequence(finalTableName);
-        await this.database.createCollection(finalTableName);
+        await this.database.createCollection(finalTableName, { session: this.session });
         table = this.database.collection(finalTableName);
 
         if (indexes.length > 0) {
@@ -346,7 +368,7 @@ class Database {
             const finalIndex = {};
             finalIndex[index] = 1;
 
-            await table.createIndex(finalIndex);
+            await table.createIndex(finalIndex, { session: this.session });
           }
         }
 
@@ -396,7 +418,7 @@ class Database {
         && lim > 0 && lim <= 1000
         && off >= 0) {
         const finalTableName = `${contract}_${table}`;
-        const tableData = await this.getCollection(finalTableName);
+        const tableData = await this.getContractCollection(contract, finalTableName);
 
         if (tableData) {
           // if there is an index passed, check if it exists
@@ -408,6 +430,7 @@ class Database {
                 limit: lim,
                 skip: off,
                 sort: ind.map(el => [el.index === '$loki' ? '_id' : el.index, el.descending === true ? 'desc' : 'asc']),
+                session: this.session
               }).toArray();
 
               result = EJSON.serialize(result);
@@ -416,6 +439,7 @@ class Database {
             result = await tableData.find(EJSON.deserialize(query), {
               limit: lim,
               skip: off,
+              session: this.session
             }).toArray();
             result = EJSON.serialize(result);
           }
@@ -448,9 +472,9 @@ class Database {
         }
         const finalTableName = `${contract}_${table}`;
 
-        const tableData = await this.getCollection(finalTableName);
+        const tableData = await this.getContractCollection(contract, finalTableName);
         if (tableData) {
-          result = await tableData.findOne(EJSON.deserialize(query));
+          result = await tableData.findOne(EJSON.deserialize(query), { session: this.session });
           result = EJSON.serialize(result);
         }
       }
@@ -474,11 +498,11 @@ class Database {
 
     const contractInDb = await this.findContract({ name: contract });
     if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
-      const tableInDb = await this.getCollection(finalTableName);
+      const tableInDb = this.database.collection(finalTableName);
       if (tableInDb) {
         finalRecord = EJSON.deserialize(record);
         finalRecord._id = await this.getNextSequence(finalTableName); // eslint-disable-line
-        await tableInDb.insertOne(finalRecord);
+        await tableInDb.insertOne(finalRecord, { session: this.session });
         await this.updateTableHash(contract, finalTableName);
       }
     }
@@ -498,10 +522,10 @@ class Database {
 
     const contractInDb = await this.findContract({ name: contract });
     if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
-      const tableInDb = await this.getCollection(finalTableName);
+      const tableInDb = this.database.collection(finalTableName);
       if (tableInDb) {
         await this.updateTableHash(contract, finalTableName);
-        await tableInDb.deleteOne({ _id: record._id }); // eslint-disable-line no-underscore-dangle
+        await tableInDb.deleteOne({ _id: record._id }, { session: this.session }); // eslint-disable-line no-underscore-dangle
       }
     }
   }
@@ -521,14 +545,14 @@ class Database {
 
     const contractInDb = await this.findContract({ name: contract });
     if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
-      const tableInDb = await this.getCollection(finalTableName);
+      const tableInDb = this.database.collection(finalTableName);
       if (tableInDb) {
         await this.updateTableHash(contract, finalTableName);
 
         if (unsets) {
-          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record), $unset: EJSON.deserialize(unsets) }); // eslint-disable-line
+          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record), $unset: EJSON.deserialize(unsets) }, { session: this.session }); // eslint-disable-line
         } else {
-          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record) }); // eslint-disable-line
+          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record) }, { session: this.session }); // eslint-disable-line
         }
       }
     }
@@ -547,7 +571,7 @@ class Database {
     const contractInDb = await this.findContract({ name: contract });
     let tableDetails = null;
     if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
-      const tableInDb = await this.getCollection(finalTableName);
+      const tableInDb = this.database.collection(finalTableName);
       if (tableInDb) {
         tableDetails = Object.assign({}, contractInDb.tables[finalTableName]);
         tableDetails.indexes = await tableInDb.indexInformation();
@@ -569,7 +593,7 @@ class Database {
     let result = false;
     const contractInDb = await this.findContract({ name: contract });
     if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
-      const tableInDb = await this.getCollection(finalTableName);
+      const tableInDb = this.database.collection(finalTableName);
       if (tableInDb) {
         result = true;
       }
@@ -609,12 +633,14 @@ class Database {
           limit: lim,
           skip: off,
           sort: ind.map(el => [el.index === '$loki' ? '_id' : el.index, el.descending === true ? 'desc' : 'asc']),
+          session: this.session
         });
         records = EJSON.serialize(records);
       } else {
         records = await tableInDb.find(EJSON.deserialize(query), {
           limit: lim,
           skip: off,
+          session: this.session
         });
         records = EJSON.serialize(records);
       }
@@ -641,7 +667,7 @@ class Database {
     }
 
     if (tableInDb) {
-      record = await tableInDb.findOne(EJSON.deserialize(query));
+      record = await tableInDb.findOne(EJSON.deserialize(query), { session: this.session });
       record = EJSON.serialize(record);
     }
 
@@ -658,7 +684,7 @@ class Database {
     const tableInDb = this.database.collection(table);
     const finalRecord = record;
     finalRecord._id = await this.getNextSequence(table); // eslint-disable-line
-    await tableInDb.insertOne(EJSON.deserialize(finalRecord));
+    await tableInDb.insertOne(EJSON.deserialize(finalRecord), { session: this.session });
     await this.updateTableHash(table.split('_')[0], table.split('_')[1]);
 
     return finalRecord;
@@ -676,7 +702,7 @@ class Database {
     await this.updateTableHash(table.split('_')[0], table.split('_')[1]);
     await tableInDb.updateOne(
       { _id: record._id }, // eslint-disable-line no-underscore-dangle
-      { $set: EJSON.deserialize(record) },
+      { $set: EJSON.deserialize(record) }, { session: this.session },
     );
   }
 
@@ -690,7 +716,7 @@ class Database {
 
     const tableInDb = this.database.collection(table);
     await this.updateTableHash(table.split('_')[0], table.split('_')[1]);
-    await tableInDb.deleteOne({ _id: record._id }); // eslint-disable-line no-underscore-dangle
+    await tableInDb.deleteOne({ _id: record._id }, { session: this.session }); // eslint-disable-line no-underscore-dangle
   }
 }
 

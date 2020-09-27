@@ -19,6 +19,13 @@ This is actually pretty easy, you basically need a Hive account and that's it. T
 
 see wiki: https://github.com/harpagon210/steemsmartcontracts/wiki/How-to-setup-a-Steem-Smart-Contracts-node
 
+In addition, the followimg is needed to use transaction framework for MongoDB:
+- Run MongoDB in replicated mode. This is as simple as changing the mongo config to add replication config:
+  ```
+    replication:
+      replSetName: "rs0"
+  ```
+- Need version 3.6 mongo node library.
 ## 5. Tests
 * npm run test
 

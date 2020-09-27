@@ -16,7 +16,33 @@ const RESERVED_ACTIONS = ['createSSC'];
 const JSVMs = [];
 const MAXJSVMs = 5;
 
+const abortTransactionError = new Error('rollback');
+
 class SmartContracts {
+  static async deploySmartContractInTransaction(
+    database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout,
+  ) {
+    const session = database.startSession();
+    let ret;
+    try {
+      try {
+        await session.withTransaction(async() => {
+            ret = await this.deploySmartContract(database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout); 
+            if (ret.logs && ret.logs.errors && ret.logs.errors.length > 0) {
+              throw abortTransactionError;
+            }
+        });
+      } finally {
+        await database.endSession();
+      }
+    } catch(e) {
+      if (e !== abortTransactionError) {
+        throw e;
+      }
+    }
+    return ret;
+  }
+
   // deploy the smart contract to the blockchain and initialize the database if needed
   static async deploySmartContract(
     database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout,
@@ -238,6 +264,29 @@ class SmartContracts {
       // console.error('ERROR DURING CONTRACT DEPLOYMENT: ', name, e);
       return { logs: { errors: [`${e.name}: ${e.message}`] } };
     }
+  }
+
+  static async executeSmartContractInTransaction(database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout,
+  ) {
+    const session = database.startSession();
+    let ret;
+    try {
+      try {
+        await session.withTransaction(async() => {
+            ret = await this.executeSmartContract(database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout);
+            if (ret.logs && ret.logs.errors && ret.logs.errors.length > 0) {
+              throw abortTransactionError;
+            }
+        });
+      } finally {
+        await database.endSession();
+      }
+    } catch(e) {
+      if (e !== abortTransactionError) {
+        throw e;
+      }
+    }
+    return ret;
   }
 
   // execute the smart contract and perform actions on the database if needed

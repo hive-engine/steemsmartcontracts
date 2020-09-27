@@ -284,8 +284,8 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACK", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 1, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
 
       // add some types
       transactions.push(new Transaction(38145386, 'TXID1242', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 0, "category": 1, "rarity": 1, "team": 3, "name": "Tank", "isSignedWithActiveKey": true }'));
@@ -418,7 +418,7 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACK", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 5, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -448,6 +448,7 @@ describe('packmanager', function() {
       assert.equal(settings[0].symbol, 'PACK');
       assert.equal(settings[0].nft, 'WAR');
       assert.equal(settings[0].edition, 0);
+      assert.equal(settings[0].cardsPerPack, 5);
 
       // check if account balance updated OK
       const balances = await database1.find({
@@ -471,14 +472,14 @@ describe('packmanager', function() {
 
       // test failure cases
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(38145387, 'TXID1242', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1243', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "BAD", "nftSymbol": "WAR", "edition": 0, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1245', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "BAD", "edition": 0, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1246', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 0, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1242', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1243', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "BAD", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1245', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "BAD", "edition": 0, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1246', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145387, 'TXID1247', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"500", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145387, 'TXID1248', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1248', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 1, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -528,6 +529,9 @@ describe('packmanager', function() {
       // this should fail as edition 3 hasn't been registered
       transactions.push(new Transaction(38145388, 'TXID1249', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
 
+      // this should succeed
+      transactions.push(new Transaction(38145388, 'TXID1250', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "isSignedWithActiveKey": true }'));
+
       block = {
         refHiveBlockNumber: 38145388,
         refHiveBlockId: 'ABCD1',
@@ -541,6 +545,7 @@ describe('packmanager', function() {
       const block3 = await database1.getBlockInfo(3);
       const transactionsBlock3 = block3.transactions;
       console.log(transactionsBlock3[0].logs);
+      console.log(transactionsBlock3[1].logs);
       assert.equal(JSON.parse(transactionsBlock3[0].logs).errors[0], 'edition not registered');
 
       // check if the pack settings were updated OK
@@ -557,6 +562,7 @@ describe('packmanager', function() {
       assert.equal(settings[0].symbol, 'PACK');
       assert.equal(settings[0].nft, 'WAR');
       assert.equal(settings[0].edition, 0);
+      assert.equal(settings[0].cardsPerPack, 7);
 
       resolve();
     })

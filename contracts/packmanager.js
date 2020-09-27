@@ -9,6 +9,7 @@ const UTILITY_TOKEN_SYMBOL = 'BEE';
 const UTILITY_TOKEN_PRECISION = 8;
 
 const MAX_NAME_LENGTH = 100;
+const MAX_CARDS_PER_PACK = 10; // TODO: see if we can make this higher
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('packs');
@@ -310,18 +311,20 @@ actions.updateSettings = async (payload) => {
     packSymbol,
     nftSymbol,
     edition,
+    cardsPerPack,
     isSignedWithActiveKey,
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (edition === undefined) {
+  if (edition === undefined && cardsPerPack === undefined) {
     return false;
   }
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
-      && (edition === undefined || (typeof edition === 'number' && Number.isInteger(edition) && edition >= 0)), 'invalid params')) {
+      && (edition === undefined || (typeof edition === 'number' && Number.isInteger(edition) && edition >= 0))
+      && (cardsPerPack === undefined || (typeof cardsPerPack === 'number' && Number.isInteger(cardsPerPack) && cardsPerPack >= 1 && cardsPerPack <= MAX_CARDS_PER_PACK)), 'invalid params')) {
     const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
     if (api.assert(settings !== null, 'pack not registered for this NFT')) {
       if (api.assert(settings.account === api.sender, 'not authorized to update settings')) {
@@ -349,6 +352,11 @@ actions.updateSettings = async (payload) => {
             settings.edition = edition;
             update.newEdition = edition;
           }
+          if (cardsPerPack !== undefined) {
+            update.oldCardsPerPack = settings.cardsPerPack;
+            settings.cardsPerPack = cardsPerPack;
+            update.newCardsPerPack = cardsPerPack;
+          }
 
           await api.db.update('packs', settings);
 
@@ -368,13 +376,15 @@ actions.registerPack = async (payload) => {
     packSymbol,
     nftSymbol,
     edition,
+    cardsPerPack,
     isSignedWithActiveKey,
   } = payload;
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
-      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0, 'invalid params')) {
+      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0
+      && cardsPerPack !== undefined && typeof cardsPerPack === 'number' && Number.isInteger(cardsPerPack) && cardsPerPack >= 1 && cardsPerPack <= MAX_CARDS_PER_PACK, 'invalid params')) {
     // make sure registration fee can be paid
     const params = await api.db.findOne('params', {});
     const hasEnoughBalance = await verifyUtilityTokenBalance(params.registerFee, api.sender);
@@ -402,6 +412,7 @@ actions.registerPack = async (payload) => {
                 symbol: packSymbol,
                 nft: nftSymbol,
                 edition: edition,
+                cardsPerPack: cardsPerPack,
               };
 
               // if this is a registration for a new edition, we need

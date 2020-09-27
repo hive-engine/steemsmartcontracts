@@ -8,6 +8,8 @@ const CONTRACT_NAME = 'packmanager';
 const UTILITY_TOKEN_SYMBOL = 'BEE';
 const UTILITY_TOKEN_PRECISION = 8;
 
+const MAX_NAME_LENGTH = 100;
+
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('packs');
   if (tableExists === false) {
@@ -51,13 +53,14 @@ const verifyUtilityTokenBalance = async (amount, account) => {
   return false;
 };
 
-const burnFee = async (amount, isSignedWithActiveKey) => {
+const transferFee = async (amount, dest, isSignedWithActiveKey) => {
+  const actionStr = (dest === CONTRACT_NAME) ? 'transferToContract' : 'transfer';
   if (api.BigNumber(amount).gt(0)) {
-    const res = await api.executeSmartContract('tokens', 'transfer', {
-      to: 'null', symbol: UTILITY_TOKEN_SYMBOL, quantity: amount, isSignedWithActiveKey,
+    const res = await api.executeSmartContract('tokens', actionStr, {
+      to: dest, symbol: UTILITY_TOKEN_SYMBOL, quantity: amount, isSignedWithActiveKey,
     });
     // check if the tokens were sent
-    if (!isTokenTransferVerified(res, api.sender, 'null', UTILITY_TOKEN_SYMBOL, amount, 'transfer')) {
+    if (!isTokenTransferVerified(res, api.sender, dest, UTILITY_TOKEN_SYMBOL, amount, actionStr)) {
       return false;
     }
   }
@@ -102,10 +105,7 @@ actions.deposit = async (payload) => {
       const hasEnoughBalance = await verifyUtilityTokenBalance(amount, api.sender);
       if (api.assert(hasEnoughBalance, 'not enough tokens to deposit')) {
         // send tokens to the contract and update pool balance
-        const res = await api.executeSmartContract('tokens', 'transferToContract', {
-          to: CONTRACT_NAME, symbol: UTILITY_TOKEN_SYMBOL, quantity: amount, isSignedWithActiveKey,
-        });
-        if (!isTokenTransferVerified(res, api.sender, CONTRACT_NAME, UTILITY_TOKEN_SYMBOL, amount, 'transferToContract')) {
+        if (!(await transferFee(amount, CONTRACT_NAME, isSignedWithActiveKey))) {
           return false;
         }
 
@@ -117,6 +117,66 @@ actions.deposit = async (payload) => {
         });
 
         return true;
+      }
+    }
+  }
+  return false;
+};
+
+actions.addType = async (payload) => {
+  const {
+    nftSymbol,
+    edition,
+    category,
+    rarity,
+    team,
+    name,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(name && typeof name === 'string'
+      && api.validator.isAlphanumeric(api.validator.blacklist(name, ' ')) && name.length > 0 && name.length <= MAX_NAME_LENGTH, `invalid type name: letters, numbers, whitespaces only, max length of ${MAX_NAME_LENGTH}`)
+    && api.assert(nftSymbol && typeof nftSymbol === 'string'
+      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0
+      && category !== undefined && typeof category === 'number' && Number.isInteger(category) && category >= 0
+      && rarity !== undefined && typeof rarity === 'number' && Number.isInteger(rarity) && rarity >= 0
+      && team !== undefined && typeof team === 'number' && Number.isInteger(team) && team >= 0, 'invalid params')) {
+    // make sure registration fee can be paid
+    const params = await api.db.findOne('params', {});
+    const hasEnoughBalance = await verifyUtilityTokenBalance(params.typeAddFee, api.sender);
+
+    if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the type add fee')) {
+      const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+      if (api.assert(underManagement !== null, 'NFT not under management')) {
+        if (api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+          // burn the type add fee
+          if (!(await transferFee(params.typeAddFee, 'null', isSignedWithActiveKey))) {
+            return false;
+          }
+
+          const newTypeId = underManagement.editionMapping[edition.toString()];
+
+          const newType = {
+            nft: nftSymbol,
+            edition: edition,
+            typeId: newTypeId,
+            category: category,
+            rarity: rarity,
+            team: team,
+            name: name,
+          };
+          const result = await api.db.insert('types', newType);
+
+          underManagement.editionMapping[edition.toString()] = newTypeId + 1;
+          await api.db.update('managedNfts', underManagement);
+
+          api.emit('addType', {
+            nft: nftSymbol, edition: edition, typeId: newTypeId, rowId: result._id,
+          });
+
+          return true;
+        }
       }
     }
   }
@@ -147,6 +207,15 @@ actions.updateSettings = async (payload) => {
         const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
         if (api.assert(nft !== null, 'NFT symbol must exist')
           && api.assert(nft.circulatingSupply === 0, 'NFT instances must not be in circulation')) {
+          // if edition is being updated, a registration for the new edition must
+          // already have been made
+          if (edition !== undefined) {
+            const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+            if (!api.assert(underManagement !== null && edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+              return false;
+            }
+          }
+
           const update = {
             account: api.sender,
             symbol: packSymbol,
@@ -194,7 +263,7 @@ actions.registerPack = async (payload) => {
       const packToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: packSymbol });
       if (api.assert(packToken !== null, 'pack symbol must exist')) {
         const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
-        if (api.assert(underManagement !== null, `NFT not created through ${CONTRACT_NAME}`)) {
+        if (api.assert(underManagement !== null, 'NFT not under management')) {
           const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
           if (api.assert(nft !== null, 'NFT symbol must exist')
             && api.assert(nft.issuer === api.sender, 'not authorized to register')
@@ -203,7 +272,7 @@ actions.registerPack = async (payload) => {
             const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
             if (api.assert(settings === null, `pack already registered for ${nftSymbol}`)) {
               // burn the registration fee
-              if (!(await burnFee(params.registerFee, isSignedWithActiveKey))) {
+              if (!(await transferFee(params.registerFee, 'null', isSignedWithActiveKey))) {
                 return false;
               }
 
@@ -213,6 +282,13 @@ actions.registerPack = async (payload) => {
                 nft: nftSymbol,
                 edition: edition,
               };
+
+              // if this is a registration for a new edition, we need
+              // to start a new edition mapping
+              if (!(edition.toString() in underManagement.editionMapping)) {
+                underManagement.editionMapping[edition.toString()] = 0;
+                await api.db.update('managedNfts', underManagement);
+              }
 
               await api.db.insert('packs', newSettings);
 
@@ -326,6 +402,11 @@ actions.createNft = async (payload) => {
             const newRecord = {
               nft: symbol,
               feePool: '0',
+              categoryRO: false,
+              rarityRO: false,
+              teamRO: false,
+              nameRO: false,
+              editionMapping: {},
             };
             await api.db.insert('managedNfts', newRecord);
 

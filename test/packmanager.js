@@ -371,12 +371,26 @@ describe('packmanager', function() {
       assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'invalid params');
       assert.equal(JSON.parse(transactionsBlock2[2].logs).errors[0], 'you must have enough tokens to cover the registration fee');
       assert.equal(JSON.parse(transactionsBlock2[3].logs).errors[0], 'pack symbol must exist');
-      assert.equal(JSON.parse(transactionsBlock2[4].logs).errors[0], 'NFT not created through packmanager');
+      assert.equal(JSON.parse(transactionsBlock2[4].logs).errors[0], 'NFT not under management');
       assert.equal(JSON.parse(transactionsBlock2[5].logs).errors[0], 'not authorized to register');
       assert.equal(JSON.parse(transactionsBlock2[7].logs).errors[0], 'pack already registered for WAR');
 
+      // verify contract now manages the new NFT
+      const underManagement = await database1.find({
+        contract: 'packmanager',
+        table: 'managedNfts',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(underManagement);
+      assert.equal(underManagement[0].nft, 'WAR');
+      assert.equal(underManagement[0].feePool, '0');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":0}');
+
       // update some settings
       transactions = [];
+      // this should fail as edition 3 hasn't been registered
       transactions.push(new Transaction(38145388, 'TXID1249', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
 
       block = {
@@ -392,6 +406,7 @@ describe('packmanager', function() {
       const block3 = await database1.getBlockInfo(3);
       const transactionsBlock3 = block3.transactions;
       console.log(transactionsBlock3[0].logs);
+      assert.equal(JSON.parse(transactionsBlock3[0].logs).errors[0], 'edition not registered');
 
       // check if the pack settings were updated OK
       settings = await database1.find({
@@ -406,7 +421,7 @@ describe('packmanager', function() {
       assert.equal(settings[0].account, 'cryptomancer');
       assert.equal(settings[0].symbol, 'PACK');
       assert.equal(settings[0].nft, 'WAR');
-      assert.equal(settings[0].edition, 3);
+      assert.equal(settings[0].edition, 0);
 
       resolve();
     })
@@ -512,6 +527,10 @@ describe('packmanager', function() {
       console.log(underManagement);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
+      assert.equal(underManagement[0].categoryRO, false);
+      assert.equal(underManagement[0].rarityRO, false);
+      assert.equal(underManagement[0].teamRO, false);
+      assert.equal(underManagement[0].nameRO, false);
 
       resolve();
     })

@@ -123,6 +123,121 @@ actions.deposit = async (payload) => {
   return false;
 };
 
+actions.deleteType = async (payload) => {
+  const {
+    nftSymbol,
+    edition,
+    typeId,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(nftSymbol && typeof nftSymbol === 'string'
+      && typeId !== undefined && typeof typeId === 'number' && Number.isInteger(typeId) && typeId >= 0
+      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0, 'invalid params')) {
+    // make sure user is authorized for this NFT
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+    if (api.assert(nft !== null, 'NFT symbol must exist')) {
+      if (api.assert(nft.issuer === api.sender, 'not authorized to delete types')
+        && api.assert(nft.circulatingSupply === 0, 'NFT instances must not be in circulation')) {
+        const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+        if (api.assert(underManagement !== null, 'NFT not under management')) {
+          const theType = await api.db.findOne('types', { nft: nftSymbol, edition: edition, typeId: typeId });
+          if (theType !== null) {
+            // all checks have passed, now remove the type
+            await api.db.remove('types', theType);
+
+            api.emit('deleteType', { nft: nftSymbol, edition: edition, typeId: typeId });
+
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+};
+
+actions.updateType = async (payload) => {
+  const {
+    nftSymbol,
+    edition,
+    typeId,
+    category,
+    rarity,
+    team,
+    name,
+    isSignedWithActiveKey,
+  } = payload;
+
+  // nothing to do if there's not at least one field to update
+  if (name === undefined && category === undefined && rarity === undefined && team === undefined) {
+    return false;
+  }
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(name === undefined || (name && typeof name === 'string'
+      && api.validator.isAlphanumeric(api.validator.blacklist(name, ' ')) && name.length > 0 && name.length <= MAX_NAME_LENGTH), `invalid type name: letters, numbers, whitespaces only, max length of ${MAX_NAME_LENGTH}`)
+    && api.assert(nftSymbol && typeof nftSymbol === 'string'
+      && typeId !== undefined && typeof typeId === 'number' && Number.isInteger(typeId) && typeId >= 0
+      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0
+      && (category === undefined || (typeof category === 'number' && Number.isInteger(category) && category >= 0))
+      && (rarity === undefined || (typeof rarity === 'number' && Number.isInteger(rarity) && rarity >= 0))
+      && (team === undefined || (typeof team === 'number' && Number.isInteger(team) && team >= 0)), 'invalid params')) {
+    // make sure user is authorized for this NFT
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+    if (api.assert(nft !== null, 'NFT symbol must exist')) {
+      if (api.assert(nft.issuer === api.sender, 'not authorized to update types')) {
+        const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+        if (api.assert(underManagement !== null, 'NFT not under management')) {
+          if (api.assert(nft.circulatingSupply === 0 || ((category === undefined || !underManagement.categoryRO)
+            && (rarity === undefined || !underManagement.rarityRO)
+            && (team === undefined || !underManagement.teamRO)
+            && (name === undefined || !underManagement.nameRO)), 'cannot edit read-only properties')) {
+            const theType = await api.db.findOne('types', { nft: nftSymbol, edition: edition, typeId: typeId });
+            if (api.assert(theType !== null, 'type does not exist')) {
+              const update = {
+                nft: nftSymbol,
+                edition: edition,
+                typeId: typeId,
+              };
+
+              // all checks have passed, now we can update stuff
+              if (name !== undefined) {
+                update.oldName = theType.name;
+                theType.name = name;
+                update.newName = name;
+              }
+              if (category !== undefined) {
+                update.oldCategory = theType.category;
+                theType.category = category;
+                update.newCategory = category;
+              }
+              if (rarity !== undefined) {
+                update.oldRarity = theType.rarity;
+                theType.rarity = rarity;
+                update.newRarity = rarity;
+              }
+              if (team !== undefined) {
+                update.oldTeam = theType.team;
+                theType.team = team;
+                update.newTeam = team;
+              }
+
+              await api.db.update('types', theType);
+
+              api.emit('updateType', update);
+
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+  return false;
+};
+
 actions.addType = async (payload) => {
   const {
     nftSymbol,
@@ -142,40 +257,46 @@ actions.addType = async (payload) => {
       && category !== undefined && typeof category === 'number' && Number.isInteger(category) && category >= 0
       && rarity !== undefined && typeof rarity === 'number' && Number.isInteger(rarity) && rarity >= 0
       && team !== undefined && typeof team === 'number' && Number.isInteger(team) && team >= 0, 'invalid params')) {
-    // make sure registration fee can be paid
-    const params = await api.db.findOne('params', {});
-    const hasEnoughBalance = await verifyUtilityTokenBalance(params.typeAddFee, api.sender);
+    // make sure user is authorized for this NFT
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+    if (api.assert(nft !== null, 'NFT symbol must exist')) {
+      if (api.assert(nft.issuer === api.sender, 'not authorized to add a type')) {
+        // make sure registration fee can be paid
+        const params = await api.db.findOne('params', {});
+        const hasEnoughBalance = await verifyUtilityTokenBalance(params.typeAddFee, api.sender);
 
-    if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the type add fee')) {
-      const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
-      if (api.assert(underManagement !== null, 'NFT not under management')) {
-        if (api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
-          // burn the type add fee
-          if (!(await transferFee(params.typeAddFee, 'null', isSignedWithActiveKey))) {
-            return false;
+        if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the type add fee')) {
+          const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+          if (api.assert(underManagement !== null, 'NFT not under management')) {
+            if (api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+              // burn the type add fee
+              if (!(await transferFee(params.typeAddFee, 'null', isSignedWithActiveKey))) {
+                return false;
+              }
+
+              const newTypeId = underManagement.editionMapping[edition.toString()].nextTypeId;
+
+              const newType = {
+                nft: nftSymbol,
+                edition: edition,
+                typeId: newTypeId,
+                category: category,
+                rarity: rarity,
+                team: team,
+                name: name,
+              };
+              const result = await api.db.insert('types', newType);
+
+              underManagement.editionMapping[edition.toString()].nextTypeId = newTypeId + 1;
+              await api.db.update('managedNfts', underManagement);
+
+              api.emit('addType', {
+                nft: nftSymbol, edition: edition, typeId: newTypeId, rowId: result._id,
+              });
+
+              return true;
+            }
           }
-
-          const newTypeId = underManagement.editionMapping[edition.toString()];
-
-          const newType = {
-            nft: nftSymbol,
-            edition: edition,
-            typeId: newTypeId,
-            category: category,
-            rarity: rarity,
-            team: team,
-            name: name,
-          };
-          const result = await api.db.insert('types', newType);
-
-          underManagement.editionMapping[edition.toString()] = newTypeId + 1;
-          await api.db.update('managedNfts', underManagement);
-
-          api.emit('addType', {
-            nft: nftSymbol, edition: edition, typeId: newTypeId, rowId: result._id,
-          });
-
-          return true;
         }
       }
     }
@@ -286,7 +407,10 @@ actions.registerPack = async (payload) => {
               // if this is a registration for a new edition, we need
               // to start a new edition mapping
               if (!(edition.toString() in underManagement.editionMapping)) {
-                underManagement.editionMapping[edition.toString()] = 0;
+                const newMapping = {
+                  nextTypeId: 0
+                };
+                underManagement.editionMapping[edition.toString()] = newMapping;
                 await api.db.update('managedNfts', underManagement);
               }
 

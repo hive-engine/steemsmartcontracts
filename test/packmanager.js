@@ -266,6 +266,140 @@ describe('packmanager', function() {
       });
   });
 
+  it('adds and edits types', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(pmContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "50", "dataPropertyCreationFee": "5" }'));
+      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'packmanager', 'updateParams', '{ "registerFee": "500", "typeAddFee": "2" }'));
+      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1060", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"550", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACK", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 1, "isSignedWithActiveKey": true }'));
+
+      // add some types
+      transactions.push(new Transaction(38145386, 'TXID1242', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 0, "category": 1, "rarity": 1, "team": 3, "name": "Tank", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1243', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 0, "category": 2, "rarity": 2, "team": 0, "name": "Destroyer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1244', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 0, "category": 2, "rarity": 3, "team": 3, "name": "Submarine", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1245', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 1, "category": 3, "rarity": 4, "team": 0, "name": "B52 Bomber", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1246', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 1, "category": 3, "rarity": 5, "team": 3, "name": "Fighter Plane", "isSignedWithActiveKey": true }'));
+
+      // do some updates
+      transactions.push(new Transaction(38145386, 'TXID1247', 'cryptomancer', 'packmanager', 'updateType', '{ "nftSymbol": "WAR", "edition": 1, "typeId": 1, "name": "Japanese Zero Fighter", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1248', 'cryptomancer', 'packmanager', 'deleteType', '{ "nftSymbol": "WAR", "edition": 0, "typeId": 1, "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 38145386,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const block1 = await database1.getBlockInfo(1);
+      const transactionsBlock1 = block1.transactions;
+      console.log(transactionsBlock1[12].logs);
+      console.log(transactionsBlock1[13].logs);
+      console.log(transactionsBlock1[14].logs);
+      console.log(transactionsBlock1[15].logs);
+      console.log(transactionsBlock1[16].logs);
+      console.log(transactionsBlock1[17].logs);
+      console.log(transactionsBlock1[18].logs);
+
+      // check if account balance updated OK
+      const balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: {
+          symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL,
+          account: { $in: ['null', 'cryptomancer'] }
+        },
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(balances);
+
+      assert.equal(balances[0].account, 'null');
+      assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+      assert.equal(balances[0].balance, 1260);
+      assert.equal(balances[1].account, 'cryptomancer');
+      assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+      assert.equal(balances[1].balance, 0);
+
+      // check that types were added
+      const types = await database1.find({
+        contract: 'packmanager',
+        table: 'types',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(types);
+
+      assert.equal(types[0].nft, 'WAR');
+      assert.equal(types[0].edition, 0);
+      assert.equal(types[0].typeId, 0);
+      assert.equal(types[0].category, 1);
+      assert.equal(types[0].rarity, 1);
+      assert.equal(types[0].team, 3);
+      assert.equal(types[0].name, 'Tank');
+      assert.equal(types[1].nft, 'WAR');
+      assert.equal(types[1].edition, 0);
+      assert.equal(types[1].typeId, 2);
+      assert.equal(types[1].category, 2);
+      assert.equal(types[1].rarity, 3);
+      assert.equal(types[1].team, 3);
+      assert.equal(types[1].name, 'Submarine');
+      assert.equal(types[2].nft, 'WAR');
+      assert.equal(types[2].edition, 1);
+      assert.equal(types[2].typeId, 0);
+      assert.equal(types[2].category, 3);
+      assert.equal(types[2].rarity, 4);
+      assert.equal(types[2].team, 0);
+      assert.equal(types[2].name, 'B52 Bomber');
+      assert.equal(types[3].nft, 'WAR');
+      assert.equal(types[3].edition, 1);
+      assert.equal(types[3].typeId, 1);
+      assert.equal(types[3].category, 3);
+      assert.equal(types[3].rarity, 5);
+      assert.equal(types[3].team, 3);
+      assert.equal(types[3].name, 'Japanese Zero Fighter');
+
+      // verify edition mappings
+      const underManagement = await database1.find({
+        contract: 'packmanager',
+        table: 'managedNfts',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(underManagement);
+      console.log(underManagement[0].editionMapping);
+      assert.equal(underManagement[0].nft, 'WAR');
+      assert.equal(underManagement[0].feePool, '0');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":3},"1":{"nextTypeId":2}}');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('registers new pack settings and updates settings', (done) => {
     new Promise(async (resolve) => {
 
@@ -384,9 +518,10 @@ describe('packmanager', function() {
       });
 
       console.log(underManagement);
+      console.log(underManagement[0].editionMapping);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
-      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":0}');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0}}');
 
       // update some settings
       transactions = [];

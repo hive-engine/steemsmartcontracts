@@ -74,7 +74,7 @@ class Database {
 
   async init(databaseURL, databaseName) {
     // init the database
-    this.client = await MongoClient.connect(databaseURL, { useNewUrlParser: true });
+    this.client = await MongoClient.connect(databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
     this.database = await this.client.db(databaseName);
     // await database.dropDatabase();
     // return

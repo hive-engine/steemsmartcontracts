@@ -117,7 +117,7 @@ describe('smart tokens', function () {
 
   before((done) => {
     new Promise(async (resolve) => {
-      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true });
+      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
       db = await client.db(conf.databaseName);
       await db.dropDatabase();
       resolve();

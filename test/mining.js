@@ -124,6 +124,10 @@ async function assertUserBalances(account, symbol, balance, stake, delegationsIn
       }
     });
 
+  if (!balance && !stake && !delegationsIn) {
+    assert(!res, `Balance found for ${account}, ${symbol}, expected none.`);
+    return;
+  }
   assert.ok(res, `No balance for ${account}, ${symbol}`);
 
   assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
@@ -142,12 +146,16 @@ async function assertMiningPower(account, id, power) {
         account,
       }
     });
+  if (!power) {
+    assert(!res, `Power found for ${account} in pool ${id}, expected to be missing.`);
+    return;
+  }
   assert.ok(res, `No power for ${account} in pool ${id}`);
 
   assert.equal(res.power['$numberDecimal'], power, `${account} has ${id} power ${res.power['$numberDecimal']}, expected ${power}`);
 }
 
-async function assertPool(pool) {
+async function assertPool(pool, updating) {
   const { id } = pool;
   let res = await database1.findOne({
       contract: 'mining',
@@ -162,6 +170,11 @@ async function assertPool(pool) {
   Object.keys(pool).forEach(k => {
     assert.equal(res[k], pool[k], `Pool ${id} has ${k} ${res[k]}, expected ${pool[k]}`);
   });
+  if (updating) {
+    Object.keys(updating).forEach(k => {
+      assert.equal(res.updating[k], updating[k], `Pool ${id} has updating.${k} ${res.updating[k]}, expected ${updating[k]}`);
+    });
+  }
 }
 
 async function assertTokenPool(symbol, poolId) {
@@ -782,7 +795,7 @@ describe('mining', function () {
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '30');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '20');
-      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '50'});
+      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '50'}, { inProgress: true, lastAccountId: 0, tokenIndex: 1 });
 
       // allow mining power update to resume
       transactions = [];
@@ -799,7 +812,7 @@ describe('mining', function () {
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '50');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '64');
-      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '114', lotteryWinners: 1, lotteryIntervalHours: 720, lotteryAmount: "1", nextLotteryTimestamp: new Date('2018-07-01T00:00:00.000Z').getTime()});
+      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '114', lotteryWinners: 1, lotteryIntervalHours: 720, lotteryAmount: "1", nextLotteryTimestamp: new Date('2018-07-01T00:00:00.000Z').getTime()}, { inProgress: false, lastAccountId: 0, tokenIndex: 0 });
 
       transactions = [];
       transactions.push(new Transaction(12345678903, getNextTxId(), 'harpagon', 'mining', 'updatePool', '{ "id": "TKN:MTKN,TKN", "lotteryWinners": 2, "lotteryIntervalHours": 3, "lotteryAmount": "15.7", "minedToken": "TKN", "tokenMiners": [{"symbol": "TKN", "multiplier": 2}, {"symbol": "MTKN", "multiplier": 3}], "isSignedWithActiveKey": true }'));
@@ -1087,7 +1100,7 @@ describe('mining', function () {
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '30');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '20');
-      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '50'});
+      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '50'}, { inProgress: true, lastAccountId: 0, tokenIndex: 1 });
 
       // allow mining power update to resume
       transactions = [];
@@ -1104,7 +1117,7 @@ describe('mining', function () {
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '50');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '100');
-      await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '150', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() });
+      await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '150', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() }, { inProgress: false, lastAccountId: 0, tokenIndex: 0 });
 
       transactions = [];
       transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
@@ -1159,6 +1172,144 @@ describe('mining', function () {
       assert(winnerCount['satoshi'] < winnerCount['satoshi2']);
       await assertUserBalances('satoshi', 'TKN', (50 + winnerCount['satoshi']).toFixed(8), '30.00000000');
       await assertUserBalances('satoshi2', 'TKN', (1 + winnerCount['satoshi2']).toFixed(8), '20.00000000');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should cap lotteries run', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "5200", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "to":"satoshi", "symbol": "TKN", "quantity": "50", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "to":"satoshi2", "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'mining', 'createPool', '{ "lotteryWinners": 1, "lotteryIntervalHours": 1, "lotteryAmount": "1", "minedToken": "TKN", "tokenMiners": [{"symbol": "TKN", "multiplier": 1}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKNB", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKNB", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'mining', 'createPool', '{ "lotteryWinners": 1, "lotteryIntervalHours": 1, "lotteryAmount": "1", "minedToken": "TKNB", "tokenMiners": [{"symbol": "TKN", "multiplier": 1}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'mining', 'updateParams', '{ "maxBalancesProcessedPerBlock": 2, "processQueryLimit": 1, "maxLotteriesPerBlock": 1 }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      await assertTokenPool('TKN', 'TKN:TKN');
+
+      await assertUserBalances('harpagon', 'TKN', '0.00000000', 0);
+      await assertUserBalances('satoshi', 'TKN', '40.00000000', '50.00000000');
+      await assertUserBalances('satoshi2', 'TKN', 0, '10.00000000');
+
+      await assertMiningPower('satoshi', 'TKN:TKN', '50');
+      await assertMiningPower('satoshi2', 'TKN:TKN', 0);
+      await assertPool({ id: 'TKN:TKN', totalPower: '50', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() }, { inProgress: true, lastAccountId: 7, tokenIndex: 0 });
+      await assertPool({ id: 'TKNB:TKN', totalPower: '0', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() }, { inProgress: true, lastAccountId: 0, tokenIndex: 0 });
+
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertMiningPower('satoshi2', 'TKN:TKN', '10');
+      await assertPool({ id: 'TKN:TKN', totalPower: '60', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() }, { inProgress: false, lastAccountId: 0, tokenIndex: 0 });
+      await assertPool({ id: 'TKNB:TKN', totalPower: '0', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() }, { inProgress: true, lastAccountId: 0, tokenIndex: 0 });
+
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertMiningPower('satoshi', 'TKNB:TKN', '50');
+      await assertMiningPower('satoshi2', 'TKNB:TKN', 0);
+      await assertPool({ id: 'TKNB:TKN', totalPower: '50', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() }, { inProgress: true, lastAccountId: 7, tokenIndex: 0 });
+
+      transactions = [];
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678904,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T01:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertMiningPower('satoshi2', 'TKNB:TKN', '10');
+      await assertPool({ id: 'TKNB:TKN', totalPower: '60', nextLotteryTimestamp: new Date('2018-06-01T01:00:00.000Z').getTime() }, { inProgress: false, lastAccountId: 0, tokenIndex: 0 });
+
+      let res = (await database1.getLatestBlockInfo());
+      let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      assert(virtualEventLog.events.filter(x => x.event === 'miningLottery').length === 1, 'Expected 1 miningLottery');
+      let lotteryEvent = virtualEventLog.events.find(x => x.event === 'miningLottery');
+      assert.ok(lotteryEvent, 'Expected to find miningLottery event');
+      assert.equal(lotteryEvent.data.poolId, 'TKN:TKN');
+      assert.equal(lotteryEvent.data.winners.length, 1);
+      assert.equal(lotteryEvent.data.winners[0].winner, "satoshi");
+      assert.equal(lotteryEvent.data.winners[0].winningAmount, "1.00000000");
+
+      await assertUserBalances('satoshi', 'TKN', '41.00000000', '50.00000000');
+      await assertUserBalances('satoshi2', 'TKN', 0, '10.00000000');
+
+      transactions = [];
+      transactions.push(new Transaction(12345678905, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678905,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T01:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = (await database1.getLatestBlockInfo());
+      virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      assert(virtualEventLog.events.filter(x => x.event === 'miningLottery').length === 1, 'Expected only 1 miningLottery');
+      lotteryEvent = virtualEventLog.events.find(x => x.event === 'miningLottery');
+      assert.ok(lotteryEvent, 'Expected to find miningLottery event');
+      assert.equal(lotteryEvent.data.poolId, 'TKNB:TKN');
+      assert.equal(lotteryEvent.data.winners.length, 1);
+      assert.equal(lotteryEvent.data.winners[0].winner, "satoshi2");
+      assert.equal(lotteryEvent.data.winners[0].winningAmount, "1.00000000");
+
+      await assertUserBalances('satoshi', 'TKNB', 0, 0);
+      await assertUserBalances('satoshi2', 'TKNB', '1.00000000', 0);
 
       resolve();
     })

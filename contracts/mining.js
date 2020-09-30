@@ -24,12 +24,37 @@ actions.createSSC = async () => {
 actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
-  const { poolCreationFee, poolUpdateFee } = payload;
+  const {
+    poolCreationFee,
+    poolUpdateFee,
+    maxLotteriesPerBlock,
+    maxBalancesProcessedPerBlock,
+    processQueryLimit,
+  } = payload;
 
   const params = await api.db.findOne('params', {});
 
-  params.poolCreationFee = poolCreationFee;
-  params.poolUpdateFee = poolUpdateFee;
+  if (poolCreationFee) {
+    if (!api.assert(typeof poolCreationFee === 'string' && !api.BigNumber(poolCreationFee).isNaN() && api.BigNumber(poolCreationFee).gt(0), 'invalid poolCreationFee')) return;
+    params.poolCreationFee = poolCreationFee;
+  }
+  if (poolUpdateFee) {
+    if (!api.assert(typeof poolUpdateFee === 'string' && !api.BigNumber(poolUpdateFee).isNaN() && api.BigNumber(poolUpdateFee).gt(0), 'invalid poolUpdateFee')) return;
+    params.poolUpdateFee = poolUpdateFee;
+  }
+  if (maxLotteriesPerBlock) {
+    if (!api.assert(Number.isInteger(maxLotteriesPerBlock) && maxLotteriesPerBlock >= 1, 'invalid maxLotteriesPerBlock')) return;
+    params.maxLotteriesPerBlock = maxLotteriesPerBlock;
+  }
+  if (maxBalancesProcessedPerBlock) {
+    if (!api.assert(Number.isInteger(maxBalancesProcessedPerBlock) && maxBalancesProcessedPerBlock >= 1, 'invalid maxBalancesProcessedPerBlock')) return;
+    params.maxBalancesProcessedPerBlock = maxBalancesProcessedPerBlock;
+  }
+  if (processQueryLimit) {
+    if (!api.assert(Number.isInteger(processQueryLimit) && processQueryLimit >= 1, 'invalid processQueryLimit')) return;
+    params.processQueryLimit = processQueryLimit;
+  }
+
   await api.db.update('params', params);
 };
 
@@ -134,8 +159,10 @@ async function initMiningPower(pool, params, token, lastAccountId) {
   let lastAccountIdProcessed = lastAccountId;
   let complete = false;
   let balances;
-  while (!complete || offset < params.maxBalancesProcessedPerBlock) {
+  api.emit('debug', { pool, params, token, lastAccountId });
+  while (!complete && offset < params.maxBalancesProcessedPerBlock) {
     balances = await api.db.findInTable('tokens', 'balances', { symbol: token, _id: { $gt: lastAccountId } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
+  api.emit('debug', balances);
     for (let i = 0; i < balances.length; i += 1) {
       const balance = balances[i];
       if (api.BigNumber(balance.stake).gt(0) || api.BigNumber(balance.delegationsIn).gt(0)) {
@@ -151,6 +178,7 @@ async function initMiningPower(pool, params, token, lastAccountId) {
     }
     offset += params.processQueryLimit;
   }
+  api.emit('debug', { adjustedPower, lastAccountIdProcessed, complete });
   return { adjustedPower, nextAccountId: lastAccountIdProcessed, complete };
 }
 

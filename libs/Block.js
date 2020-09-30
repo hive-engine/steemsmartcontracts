@@ -98,11 +98,11 @@ class Block {
     virtualTransactions.push(new Transaction(0, '', 'null', 'tokens', 'checkPendingUndelegations', ''));
     virtualTransactions.push(new Transaction(0, '', 'null', 'nft', 'checkPendingUndelegations', ''));
 
-    // TODO: hive block number
-    virtualTransactions.push(new Transaction(0, '', 'null', 'mining', 'checkPendingLotteries', ''));
-
     if (this.refHiveBlockNumber >= 45251626) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'botcontroller', 'tick', ''));
+    }
+    if (this.refHiveBlockNumber >= 47746850) {
+      virtualTransactions.push(new Transaction(0, '', 'null', 'mining', 'checkPendingLotteries', ''));
     }
 
     // TODO: cleanup
@@ -140,6 +140,10 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'botcontroller'
           && transaction.action === 'tick'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
+        } else if (transaction.contract === 'mining'
+          && transaction.action === 'checkPendingLotteries'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else {

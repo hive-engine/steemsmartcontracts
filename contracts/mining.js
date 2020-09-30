@@ -1,4 +1,5 @@
 /* eslint-disable no-await-in-loop */
+/* eslint no-underscore-dangle: ["error", { "allow": ["_id"] }] */
 /* global actions, api */
 
 actions.createSSC = async () => {
@@ -13,6 +14,9 @@ actions.createSSC = async () => {
     const params = {};
     params.poolCreationFee = '1000';
     params.poolUpdateFee = '300';
+    params.maxLotteriesPerBlock = 20;
+    params.maxBalancesProcessedPerBlock = 10000;
+    params.processQueryLimit = 1000;
     await api.db.insert('params', params);
   }
 };
@@ -124,16 +128,62 @@ async function updateMiningPower(pool, token, account, stakedQuantity, delegated
   return newMiningPower.minus(oldMiningPower);
 }
 
-async function initMiningPower(pool, token, reset) {
-  let totalAdjusted = api.BigNumber(0);
-  await findAndProcessAll('tokens', 'balances', { symbol: token }, async (balance) => {
-    const adjusted = await updateMiningPower(
-      pool, token, balance.account, balance.stake, balance.delegationsIn, reset,
-    );
-    totalAdjusted = totalAdjusted.plus(adjusted);
-  });
-  return totalAdjusted;
+async function initMiningPower(pool, params, token, lastAccountId) {
+  let adjustedPower = api.BigNumber(0);
+  let offset = 0;
+  let lastAccountIdProcessed = lastAccountId;
+  let complete = false;
+  let balances;
+  while (!complete || offset < params.maxBalancesProcessedPerBlock) {
+    balances = await api.db.findInTable('tokens', 'balances', { symbol: token, _id: { $gt: lastAccountId } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
+    for (let i = 0; i < balances.length; i += 1) {
+      const balance = balances[i];
+      if (api.BigNumber(balance.stake).gt(0) || api.BigNumber(balance.delegationsIn).gt(0)) {
+        const adjusted = await updateMiningPower(
+          pool, token, balance.account, balance.stake, balance.delegationsIn, /* reset */ true,
+        );
+        adjustedPower = adjustedPower.plus(adjusted);
+      }
+      lastAccountIdProcessed = balance._id;
+    }
+    if (balances.length < params.processQueryLimit) {
+      complete = true;
+    }
+    offset += params.processQueryLimit;
+  }
+  return { adjustedPower, nextAccountId: lastAccountIdProcessed, complete };
 }
+
+async function resumePowerUpdate(pool, params) {
+  let { inProgress, tokenIndex, lastAccountId } = pool.updating;
+  if (!inProgress) {
+    return;
+  }
+
+  const tokenConfig = pool.tokenMiners[tokenIndex];
+  const { adjustedPower, nextAccountId, complete } = await initMiningPower(
+    pool, params, tokenConfig.symbol, lastAccountId,
+  );
+  // eslint-disable-next-line no-param-reassign
+  pool.totalPower = api.BigNumber(pool.totalPower)
+    .plus(adjustedPower);
+  if (complete) {
+    tokenIndex += 1;
+    lastAccountId = 0;
+    if (tokenIndex === pool.tokenMiners.length) {
+      inProgress = false;
+      tokenIndex = 0;
+    }
+  } else {
+    lastAccountId = nextAccountId;
+  }
+  const { updating } = pool;
+  updating.inProgress = inProgress;
+  updating.tokenIndex = tokenIndex;
+  updating.lastAccountId = lastAccountId;
+  await api.db.update('pools', pool);
+}
+
 
 actions.updatePool = async (payload) => {
   const {
@@ -172,12 +222,9 @@ actions.updatePool = async (payload) => {
             pool.active = active;
 
             if (validMinersChange.changed) {
-              for (let i = 0; i < tokenMiners.length; i += 1) {
-                const tokenConfig = tokenMiners[i];
-                await api.db.insert('tokenPools', { symbol: tokenConfig.symbol, id: pool.id });
-                const adjustedPower = await initMiningPower(pool, tokenConfig.symbol, true);
-                pool.totalPower = api.BigNumber(pool.totalPower).plus(adjustedPower);
-              }
+              pool.updating.inProgress = true;
+              pool.updating.tokenIndex = 0;
+              pool.updating.lastAccountId = 0;
             }
 
             const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
@@ -256,10 +303,12 @@ actions.createPool = async (payload) => {
           for (let i = 0; i < tokenMiners.length; i += 1) {
             const tokenConfig = tokenMiners[i];
             await api.db.insert('tokenPools', { symbol: tokenConfig.symbol, id: newPool.id });
-            const adjustedPower = await initMiningPower(newPool, tokenConfig.symbol);
-            newPool.totalPower = api.BigNumber(newPool.totalPower)
-              .plus(adjustedPower);
           }
+          newPool.updating = {
+            inProgress: true,
+            tokenIndex: 0,
+            lastAccountId: 0,
+          };
           await api.db.insert('pools', newPool);
 
           // burn the token creation fees
@@ -275,66 +324,94 @@ actions.createPool = async (payload) => {
   }
 };
 
+async function runLottery(pool, params) {
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  const winningNumbers = [];
+  const minedToken = await api.db.findOneInTable('tokens', 'tokens',
+    { symbol: pool.minedToken });
+  const winningAmount = api.BigNumber(pool.lotteryAmount).dividedBy(pool.lotteryWinners)
+    .toFixed(minedToken.precision);
+  for (let i = 0; i < pool.lotteryWinners; i += 1) {
+    winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
+  }
+  let offset = 0;
+  let miningPowers;
+  let cumulativePower = api.BigNumber(0);
+  let nextCumulativePower = api.BigNumber(0);
+  let computedWinners = 0;
+  const winners = [];
+  while (computedWinners < pool.lotteryWinners) {
+    miningPowers = await api.db.find('miningPower', { id: pool.id, power: { $gt: { $numberDecimal: '0' } } },
+      params.processQueryLimit,
+      offset,
+      [{ index: 'power', descending: true }, { index: '_id', descending: false }]);
+    for (let i = 0; i < miningPowers.length; i += 1) {
+      const miningPower = miningPowers[i];
+      nextCumulativePower = cumulativePower.plus(miningPower.power.$numberDecimal);
+      for (let j = 0; j < pool.lotteryWinners; j += 1) {
+        const currentWinningNumber = winningNumbers[j];
+        if (cumulativePower.lte(currentWinningNumber)
+            && nextCumulativePower.gt(currentWinningNumber)) {
+          computedWinners += 1;
+          winners.push({
+            winner: miningPower.account,
+            winningNumber: currentWinningNumber,
+            winningAmount,
+          });
+        }
+      }
+      cumulativePower = nextCumulativePower;
+    }
+    if (computedWinners === pool.lotteryWinners || miningPowers.length < params.processQueryLimit) {
+      break;
+    }
+    offset += params.processQueryLimit;
+  }
+  api.emit('miningLottery', { poolId: pool.id, winners });
+  for (let i = 0; i < winners.length; i += 1) {
+    const winner = winners[i];
+    await api.executeSmartContract('tokens', 'issue',
+      { to: winner.winner, symbol: minedToken.symbol, quantity: winningAmount });
+  }
+  // eslint-disable-next-line no-param-reassign
+  pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
+    .plus(pool.lotteryIntervalHours * 3600 * 1000).toNumber();
+  await api.db.update('pools', pool);
+}
+
 actions.checkPendingLotteries = async () => {
   if (api.assert(api.sender === 'null', 'not authorized')) {
     const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
     const timestamp = blockDate.getTime();
 
-    await findAndProcessAll('mining', 'pools',
+    const params = await api.db.findOne('params', {});
+    const updatingLotteries = await api.db.find('pools',
+      {
+        'updating.inProgress': true,
+      },
+      params.maxLotteriesPerBlock,
+      0,
+      [{ index: 'id', descending: false }]);
+    for (let i = 0; i < updatingLotteries.length; i += 1) {
+      const pool = updatingLotteries[i];
+      await resumePowerUpdate(pool, params);
+    }
+    const pendingLotteries = await api.db.find('pools',
       {
         active: true,
+        'updating.inProgress': false,
         nextLotteryTimestamp: {
           $lte: timestamp,
         },
       },
-      async (pool) => {
-        const winningNumbers = [];
-        const minedToken = await api.db.findOneInTable('tokens', 'tokens',
-          { symbol: pool.minedToken });
-        const winningAmount = api.BigNumber(pool.lotteryAmount).dividedBy(pool.lotteryWinners)
-          .toFixed(minedToken.precision);
-        for (let i = 0; i < pool.lotteryWinners; i += 1) {
-          winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
-        }
-        // iterate power desc
-        let offset = 0;
-        let miningPowers;
-        let cumulativePower = api.BigNumber(0);
-        let nextCumulativePower = api.BigNumber(0);
-        let computedWinners = 0;
-        const winners = [];
-        while (computedWinners < pool.lotteryWinners) {
-          miningPowers = await api.db.find('miningPower', { id: pool.id, power: { $gt: { $numberDecimal: '0' } } }, 1000, offset, [{ index: 'power', descending: true }]);
-          for (let i = 0; i < miningPowers.length; i += 1) {
-            const miningPower = miningPowers[i];
-            nextCumulativePower = cumulativePower.plus(miningPower.power.$numberDecimal);
-            for (let j = 0; j < pool.lotteryWinners; j += 1) {
-              const currentWinningNumber = winningNumbers[j];
-              if (cumulativePower.lte(currentWinningNumber)
-                  && nextCumulativePower.gt(currentWinningNumber)) {
-                computedWinners += 1;
-                winners.push({
-                  winner: miningPower.account,
-                  winningNumber: currentWinningNumber,
-                  winningAmount,
-                });
-                await api.executeSmartContract('tokens', 'issue',
-                  { to: miningPower.account, symbol: minedToken.symbol, quantity: winningAmount });
-              }
-            }
-            cumulativePower = nextCumulativePower;
-          }
-          if (computedWinners === pool.lotteryWinners || miningPowers.length < 1000) {
-            break;
-          }
-          offset += 1000;
-        }
-        api.emit('miningLottery', { poolId: pool.id, winners });
-        // eslint-disable-next-line no-param-reassign
-        pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
-          .plus(pool.lotteryIntervalHours * 3600 * 1000).toNumber();
-        await api.db.update('pools', pool);
-      });
+      params.maxLotteriesPerBlock,
+      0,
+      [{ index: 'id', descending: false }]);
+
+    for (let i = 0; i < pendingLotteries.length; i += 1) {
+      const pool = pendingLotteries[i];
+      await runLottery(pool, params);
+    }
   }
 };
 

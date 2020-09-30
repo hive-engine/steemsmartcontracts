@@ -159,10 +159,8 @@ async function initMiningPower(pool, params, token, lastAccountId) {
   let lastAccountIdProcessed = lastAccountId;
   let complete = false;
   let balances;
-  api.emit('debug', { pool, params, token, lastAccountId });
   while (!complete && offset < params.maxBalancesProcessedPerBlock) {
     balances = await api.db.findInTable('tokens', 'balances', { symbol: token, _id: { $gt: lastAccountId } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
-  api.emit('debug', balances);
     for (let i = 0; i < balances.length; i += 1) {
       const balance = balances[i];
       if (api.BigNumber(balance.stake).gt(0) || api.BigNumber(balance.delegationsIn).gt(0)) {
@@ -178,7 +176,6 @@ async function initMiningPower(pool, params, token, lastAccountId) {
     }
     offset += params.processQueryLimit;
   }
-  api.emit('debug', { adjustedPower, lastAccountIdProcessed, complete });
   return { adjustedPower, nextAccountId: lastAccountIdProcessed, complete };
 }
 

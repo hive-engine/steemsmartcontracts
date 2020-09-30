@@ -35,11 +35,11 @@ actions.updateParams = async (payload) => {
   const params = await api.db.findOne('params', {});
 
   if (poolCreationFee) {
-    if (!api.assert(typeof poolCreationFee === 'string' && !api.BigNumber(poolCreationFee).isNaN() && api.BigNumber(poolCreationFee).gt(0), 'invalid poolCreationFee')) return;
+    if (!api.assert(typeof poolCreationFee === 'string' && !api.BigNumber(poolCreationFee).isNaN() && api.BigNumber(poolCreationFee).gte(0), 'invalid poolCreationFee')) return;
     params.poolCreationFee = poolCreationFee;
   }
   if (poolUpdateFee) {
-    if (!api.assert(typeof poolUpdateFee === 'string' && !api.BigNumber(poolUpdateFee).isNaN() && api.BigNumber(poolUpdateFee).gt(0), 'invalid poolUpdateFee')) return;
+    if (!api.assert(typeof poolUpdateFee === 'string' && !api.BigNumber(poolUpdateFee).isNaN() && api.BigNumber(poolUpdateFee).gte(0), 'invalid poolUpdateFee')) return;
     params.poolUpdateFee = poolUpdateFee;
   }
   if (maxLotteriesPerBlock) {

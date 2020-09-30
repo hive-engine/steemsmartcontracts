@@ -1482,7 +1482,7 @@ const processUnstake = async (unstake) => {
         if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
           // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
         }
-        await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+        await api.executeSmartContract('mining', 'handleStakeChange',
           { account, symbol, quantity: api.BigNumber(tokensToRelease).negated() });
       }
     }
@@ -1656,7 +1656,7 @@ actions.stakeFromContract = async (payload) => {
             // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals',
             // { account: finalTo });
           }
-          await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+          await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
         }
       }
@@ -1695,7 +1695,7 @@ const startUnstake = async (account, token, quantity) => {
       if (token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
         // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
       }
-      await api.executeSmartContractAsOwner('mining', 'handleStakeChange', {
+      await api.executeSmartContract('mining', 'handleStakeChange', {
         account,
         symbol: token.symbol,
         quantity: api.BigNumber(nextTokensToRelease).negated(),
@@ -1795,7 +1795,7 @@ const processCancelUnstake = async (unstake) => {
         // await api.executeSmartContract
         // ('witnesses', 'updateWitnessesApprovals', { account: api.sender });
       }
-      await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+      await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity: tokensToRelease });
 
       return true;
@@ -1998,11 +1998,11 @@ actions.delegate = async (payload) => {
               // await api.executeSmartContract('witnesses',
               // 'updateWitnessesApprovals', { account: finalTo });
             }
-            await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+            await api.executeSmartContract('mining', 'handleStakeChange',
               {
                 account: finalTo, symbol, quantity, delegated: true,
               });
-            await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+            await api.executeSmartContract('mining', 'handleStakeChange',
               { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
           } else {
             // if a delegation already exists, increase it
@@ -2043,11 +2043,11 @@ actions.delegate = async (payload) => {
               // await api.executeSmartContract('witnesses',
               // 'updateWitnessesApprovals', { account: finalTo });
             }
-            await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+            await api.executeSmartContract('mining', 'handleStakeChange',
               {
                 account: finalTo, symbol, quantity, delegated: true,
               });
-            await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+            await api.executeSmartContract('mining', 'handleStakeChange',
               { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
           }
         }
@@ -2143,7 +2143,7 @@ actions.undelegate = async (payload) => {
                 // await api.executeSmartContract('witnesses',
                 // 'updateWitnessesApprovals', { account: finalFrom });
               }
-              await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+              await api.executeSmartContract('mining', 'handleStakeChange',
                 {
                   account: finalFrom,
                   symbol,
@@ -2195,7 +2195,7 @@ const processUndelegation = async (undelegation) => {
         // await api.executeSmartContract('witnesses',
         // 'updateWitnessesApprovals', { account });
       }
-      await api.executeSmartContractAsOwner('mining', 'handleStakeChange',
+      await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity });
     }
   }

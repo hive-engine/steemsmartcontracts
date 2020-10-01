@@ -15,6 +15,7 @@ const ACCOUNT_BLACKLIST = {
   'probitsteem': 1,
   'probithive': 1,
   'ionomy': 1,
+  'mxchive': 1,
 };
 
 const RESERVED_SYMBOLS = {

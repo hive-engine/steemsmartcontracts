@@ -95,7 +95,7 @@ const unloadPlugin = (plugin) => {
   currentJobId = 0;
 }
 
-function setupContractPayload(file) {
+function setupContractPayload(name, file) {
   let contractCode = fs.readFileSync(file);
   contractCode = contractCode.toString();
   contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
@@ -105,14 +105,15 @@ function setupContractPayload(file) {
   let base64ContractCode = Base64.encode(contractCode);
 
   return {
-    name: 'tokens',
+    name,
     params: '',
     code: base64ContractCode,
   };
 }
 
-const contractPayload = setupContractPayload('./contracts/tokens.js');
-const oldContractPayload = setupContractPayload('./contracts/testing/tokens_20200923.js');
+const contractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const oldContractPayload = setupContractPayload('tokens', './contracts/testing/tokens_20200923.js');
+const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 
 async function assertUserBalances({ account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn }) {
   let res = await database1.findOne({
@@ -364,6 +365,7 @@ describe('smart tokens', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
@@ -563,6 +565,7 @@ describe('smart tokens', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));

@@ -503,19 +503,19 @@ describe('botcontroller', function() {
             assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: true, strategy: 2 });
             assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: true, strategy: 1 });
             break;
-          case 41: // beggars ticks, loses premium and markets are disabled
+          case 41: // beggars ticks, loses premium and markets are disabled (still has premium, but loses markets)
             console.log('ticking: ' + numBlocks);
             assertFields(users[0], { account: 'cryptomancer', isPremium: false, isOnCooldown: true,  isEnabled: false, lastTickBlock: 36, timeLimit: 0 * 3 * 1000 });
             assertFields(users[1], { account: 'aggroed',      isPremium: false, isOnCooldown: false, isEnabled: true,  lastTickBlock: 41, timeLimit: 5 * 3 * 1000 });
-            assertFields(users[2], { account: 'beggars',      isPremium: false,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 42, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 0 });
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false, strategy: 1 });
+            assertFields(users[2], { account: 'beggars',      isPremium: true,  isOnCooldown: false, isEnabled: true,  lastTickBlock: 42, timeLimit: 10 * 3 * 1000, markets: 2, enabledMarkets: 0 });
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false, strategy: 2 });
             assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false, strategy: 1 });
             break;
-          case 42: // beggars tries to re-enable market, but can't because he is no longer premium
+          case 42: // beggars tries to re-enable market, but can't because he lost stake
             console.log('ticking: ' + numBlocks);i
             console.log(transactionData[1].logs);
-            assert.equal(JSON.parse(transactionData[1].logs).errors[0], 'user has too many markets; premium upgrade required');
-            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false, strategy: 1 });
+            assert.equal(JSON.parse(transactionData[1].logs).errors[0], 'must stake more BEE to enable market');
+            assertMarketFields(markets[0], { account: 'beggars', symbol: 'TKN',     isEnabled: false, strategy: 2 });
             assertMarketFields(markets[1], { account: 'beggars', symbol: 'TESTNFT', isEnabled: false, strategy: 1 });
             break;
           default:

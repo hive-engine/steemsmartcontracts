@@ -95,21 +95,116 @@ const unloadPlugin = (plugin) => {
   currentJobId = 0;
 }
 
+function setupContractPayload(name, file) {
+  let contractCode = fs.readFileSync(file);
+  contractCode = contractCode.toString();
+  contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
+  contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
+  contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
 
-let contractCode = fs.readFileSync('./contracts/tokens.js');
-contractCode = contractCode.toString();
+  let base64ContractCode = Base64.encode(contractCode);
 
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
+  return {
+    name,
+    params: '',
+    code: base64ContractCode,
+  };
+}
 
-let base64ContractCode = Base64.encode(contractCode);
+const contractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const oldContractPayload = setupContractPayload('tokens', './contracts/testing/tokens_20200923.js');
+const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 
-let contractPayload = {
-  name: 'tokens',
-  params: '',
-  code: base64ContractCode,
-};
+async function assertUserBalances({ account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn }) {
+  let res = await database1.findOne({
+      contract: 'tokens',
+      table: 'balances',
+      query: {
+        account,
+        symbol,
+      }
+    });
+
+  assert.ok(res, `No balance for ${account}, ${symbol}`);
+
+  assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
+  assert.equal(res.stake, stake, `${account} has ${symbol} stake ${res.stake}, expected ${stake}`);
+  if (pendingUnstake)
+    assert.equal(res.pendingUnstake, pendingUnstake, `${account} has ${symbol} pendingUnstake ${res.pendingUnstake}, expected ${pendingUnstake}`);
+  if (delegationsIn)
+    assert.equal(res.delegationsIn, delegationsIn, `${account} has ${symbol} delegationsIn ${res.delegationsIn}, expected ${delegationsIn}`);
+  if (delegationsOut)
+    assert.equal(res.delegationsOut, delegationsOut, `${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
+}
+
+async function assertTotalStaked(amount, symbol='TKN') {
+  let res = await database1.findOne({
+    contract: 'tokens',
+    table: 'tokens',
+    query: {
+      symbol,
+    },
+  });
+
+  assert.equal(res.totalStaked, amount, `${symbol} has ${res.totalStaked} staked, expected ${amount}`);
+}
+
+async function assertPendingUnstake({ account, symbol, quantity, nextTransactionTimestamp, txID }) {
+  let unstake = await database1.findOne({
+    contract: 'tokens',
+    table: 'pendingUnstakes',
+    query: {
+      account,
+      symbol,
+    }
+  });
+  assert.equal(unstake.symbol, symbol);
+  assert.equal(unstake.account, account);
+  assert.equal(unstake.quantity, quantity);
+  assert.equal(unstake.nextTransactionTimestamp, nextTransactionTimestamp);
+  assert.equal(unstake.txID, txID);
+}
+
+async function assertNoPendingUnstake(account, symbol) {
+  let unstake = await database1.findOne({
+    contract: 'tokens',
+    table: 'pendingUnstakes',
+    query: {
+      account,
+      symbol,
+    }
+  });
+  assert(!unstake);
+}
+
+async function assertParams(key, value) {
+    let res = await database1.findOne({
+        contract: 'tokens',
+        table: 'params',
+        query: {},
+    });
+    assert.equal(res[key], value, `Params for ${key} is ${res[key]}, expected ${value}`);
+}
+
+function assertError(tx, message) {
+  const logs = JSON.parse(tx.logs);
+  assert(logs.errors, 'No error in logs. Error expected with message ' + message);
+  assert.equal(logs.errors[0], message, `Error expected with message ${message}. Instead got ${logs.errors[0]}`);
+}
+
+async function assertNoErrorInLastBlock() {
+  const transactions = (await database1.getLatestBlockInfo()).transactions;
+  for (let i = 0; i < transactions.length; i++) {
+    const logs = JSON.parse(transactions[i].logs);
+    assert(!logs.errors, `Tx #${i} had unexpected error ${logs.errors}`);
+  }
+}
+
+let txId = 1;
+function getNextTxId() {
+    txId++;
+    return `TXID${txId.toString().padStart(8, "0")}`;
+}
 
 // smart tokens
 describe('smart tokens', function () {
@@ -126,7 +221,7 @@ describe('smart tokens', function () {
         done()
       })
   });
-  
+
   after((done) => {
     new Promise(async (resolve) => {
       await client.close();
@@ -160,16 +255,16 @@ describe('smart tokens', function () {
 
   it('should enable delegation', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -180,6 +275,8 @@ describe('smart tokens', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
 
       let res = await database1.findOne({
           contract: 'tokens',
@@ -193,12 +290,12 @@ describe('smart tokens', function () {
       let token = res;
 
       assert.equal(token.symbol, 'TKN');
-      assert.equal(token.issuer, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(token.issuer, 'harpagon');
       assert.equal(token.stakingEnabled, true);
       assert.equal(token.unstakingCooldown, 7);
       assert.equal(token.delegationEnabled, true);
       assert.equal(token.undelegationCooldown, 7);
-      
+
       resolve();
     })
       .then(() => {
@@ -210,24 +307,25 @@ describe('smart tokens', function () {
 
   it('should not enable delegation', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
+
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "NKT", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 18250, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1245', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "satoshi", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1246', 'satoshi', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 18250, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1241', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 0, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1242', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 18251, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1243', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1244', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "4000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "NKT", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 18250, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "satoshi", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 18250, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 0, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 18251, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -243,12 +341,12 @@ describe('smart tokens', function () {
 
       let txs = res.transactions;
 
-      assert.equal(JSON.parse(txs[4].logs).errors[0], 'staking not enabled');
-      assert.equal(JSON.parse(txs[6].logs).errors[0], 'you must have enough tokens to cover  fees');
-      assert.equal(JSON.parse(txs[8].logs).errors[0], 'must be the issuer');
-      assert.equal(JSON.parse(txs[9].logs).errors[0], 'undelegationCooldown must be an integer between 1 and 18250');
-      assert.equal(JSON.parse(txs[10].logs).errors[0], 'undelegationCooldown must be an integer between 1 and 18250');
-      assert.equal(JSON.parse(txs[12].logs).errors[0], 'delegation already enabled');
+      assertError(txs[4], 'staking not enabled');
+      assertError(txs[6], 'you must have enough tokens to cover  fees');
+      assertError(txs[8], 'must be the issuer');
+      assertError(txs[9], 'undelegationCooldown must be an integer between 1 and 18250');
+      assertError(txs[10], 'undelegationCooldown must be an integer between 1 and 18250');
+      assertError(txs[12], 'delegation already enabled');
 
       resolve();
     })
@@ -261,19 +359,20 @@ describe('smart tokens', function () {
 
   it('should delegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -285,30 +384,23 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      let res = await database1.find({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: {
-              $in: ['satoshi', 'vitalik']
-            },
-            symbol: 'TKN'
-          }
-        });
+      await assertNoErrorInLastBlock();
 
-      let balances = res;
-
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].balance, "99.99999999");
-      assert.equal(balances[0].stake, "0.00000000");
-      assert.equal(balances[0].delegationsOut, "0.00000001");
-
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].balance, "0");
-      assert.equal(balances[1].stake, "0");
-      assert.equal(balances[1].delegationsIn, "0.00000001");
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "99.99999999",
+          stake: "0.00000000",
+          delegationsOut: "0.00000001",
+      });
+      await assertUserBalances({
+          account: 'vitalik',
+          symbol: 'TKN',
+          balance: "0",
+          stake: "0",
+          delegationsIn: "0.00000001",
+      });
+      await assertTotalStaked('0.00000001');
 
       res = await database1.find({
           contract: 'tokens',
@@ -327,10 +419,10 @@ describe('smart tokens', function () {
       assert.equal(delegations[0].quantity, '0.00000001');
 
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1241', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, 'TXID1242', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, 'TXID1243', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "ned", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, 'TXID1244', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "ned", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -341,38 +433,28 @@ describe('smart tokens', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-      
-      res = await database1.find({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: {
-              $in: ['satoshi', 'vitalik', 'ned']
-            },
-            symbol: 'TKN'
-          }
-        });
 
-      balances = res;
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].balance, "99.99999996");
-      assert.equal(balances[0].stake, "0.00000000");
-      assert.equal(balances[0].delegationsOut, "0.00000004");
-
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].balance, "0");
-      assert.equal(balances[1].stake, "0");
-      assert.equal(balances[1].delegationsIn, "0.00000003");
-
-      assert.equal(balances[2].symbol, 'TKN');
-      assert.equal(balances[2].account, 'ned');
-      assert.equal(balances[2].balance, "100");
-      assert.equal(balances[2].stake, "0");
-      assert.equal(balances[2].delegationsIn, "0.00000001");
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "99.99999996",
+          stake: "0.00000000",
+          delegationsOut: "0.00000004",
+      });
+      await assertUserBalances({
+          account: 'vitalik',
+          symbol: 'TKN',
+          balance: "0",
+          stake: "0",
+          delegationsIn: "0.00000003",
+      });
+      await assertUserBalances({
+          account: 'ned',
+          symbol: 'TKN',
+          balance: "100",
+          stake: "0",
+          delegationsIn: "0.00000001",
+      });
 
       res = await database1.find({
           contract: 'tokens',
@@ -406,25 +488,25 @@ describe('smart tokens', function () {
 
   it('should not delegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "az", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', 'satoshi', 'tokens', 'delegate', '{ "symbol": "NKT", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.000000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1241', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1242', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1243', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "-0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1244', 'ned', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1245', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1246', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "az", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "NKT", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.000000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "-0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ned', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "satoshi", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -436,7 +518,19 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      let res = await database1.findOne({
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      assertError(txs[5], 'invalid to');
+      assertError(txs[6], 'symbol does not exist');
+      assertError(txs[7], 'symbol precision mismatch');
+      assertError(txs[8], 'delegation not enabled');
+      assertError(txs[10], 'must delegate positive quantity');
+      assertError(txs[11], 'balanceFrom does not exist');
+      assertError(txs[12], 'overdrawn stake');
+      assertError(txs[13], 'cannot delegate to yourself');
+
+      res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
           query: {
@@ -454,19 +548,6 @@ describe('smart tokens', function () {
       assert.equal(balance.delegationsOut, 0);
       assert.equal(balance.delegationsIn, 0);
 
-      res = await database1.getLatestBlockInfo();
-
-      let txs = res.transactions;
-
-      assert.equal(JSON.parse(txs[5].logs).errors[0], 'invalid to');
-      assert.equal(JSON.parse(txs[6].logs).errors[0], 'symbol does not exist');
-      assert.equal(JSON.parse(txs[7].logs).errors[0], 'symbol precision mismatch');
-      assert.equal(JSON.parse(txs[8].logs).errors[0], 'delegation not enabled');
-      assert.equal(JSON.parse(txs[10].logs).errors[0], 'must delegate positive quantity');
-      assert.equal(JSON.parse(txs[11].logs).errors[0], 'balanceFrom does not exist');
-      assert.equal(JSON.parse(txs[12].logs).errors[0], 'overdrawn stake');
-      assert.equal(JSON.parse(txs[13].logs).errors[0], 'cannot delegate to yourself');
-
       resolve();
     })
       .then(() => {
@@ -478,20 +559,21 @@ describe('smart tokens', function () {
 
   it('should undelegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1241', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -502,6 +584,8 @@ describe('smart tokens', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
 
       let res = await database1.find({
           contract: 'tokens',
@@ -536,6 +620,8 @@ describe('smart tokens', function () {
       assert.equal(balances[2].stake, "0");
       assert.equal(balances[2].delegationsIn, "0.00000001");
 
+      await assertTotalStaked('0.00000003');
+
       res = await database1.find({
           contract: 'tokens',
           table: 'delegations',
@@ -558,7 +644,7 @@ describe('smart tokens', function () {
       assert.equal(delegations[1].quantity, '0.00000001');
 
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1242', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -603,6 +689,8 @@ describe('smart tokens', function () {
       assert.equal(balances[1].stake, "0");
       assert.equal(balances[1].delegationsIn, "0.00000001");
 
+      await assertTotalStaked('0.00000003');
+
       res = await database1.find({
           contract: 'tokens',
           table: 'delegations',
@@ -640,7 +728,7 @@ describe('smart tokens', function () {
       assert.equal(pendingUndelegations[0].quantity, '0.00000001');
       let blockDate = new Date('2018-06-01T00:00:01.000Z')
       assert.equal(pendingUndelegations[0].completeTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.equal(pendingUndelegations[0].txID, 'TXID1242');
+      assert.ok(pendingUndelegations[0].txID);
 
 
       resolve();
@@ -654,34 +742,34 @@ describe('smart tokens', function () {
 
   it('should not undelegate tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "az", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "NKT", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.000000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1241', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1242', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1243', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "-0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1244', 'ned', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1245', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1246', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1247', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000004", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1248', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1249', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1250', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1251', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1252', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1253', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "ned", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1254', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "satoshi", "isSignedWithActiveKey": true }'));
-      
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "az", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "NKT", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.000000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "-0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ned', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000004", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "ned", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000002", "from": "satoshi", "isSignedWithActiveKey": true }'));
+
       let block = {
         refHiveBlockNumber: 12345678901,
         refHiveBlockId: 'ABCD1',
@@ -719,20 +807,20 @@ describe('smart tokens', function () {
 
   it('should process the pending undelegations', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1241', 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "ned", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -745,7 +833,7 @@ describe('smart tokens', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1242', 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "vitalik", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -759,7 +847,7 @@ describe('smart tokens', function () {
 
       transactions = [];
       // send whatever transaction
-      transactions.push(new Transaction(12345678902, 'TXID123810', 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -826,15 +914,15 @@ describe('smart tokens', function () {
 
   it('should enable staking', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -857,7 +945,7 @@ describe('smart tokens', function () {
       let token = res;
 
       assert.equal(token.symbol, 'TKN');
-      assert.equal(token.issuer, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(token.issuer, 'harpagon');
       assert.equal(token.stakingEnabled, true);
       assert.equal(token.unstakingCooldown, 7);
 
@@ -872,20 +960,20 @@ describe('smart tokens', function () {
 
   it('should not enable staking', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "NKT", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', 'satoshi', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "satoshi", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1239', 'satoshi', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID12310', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 0, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID12311', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 18251, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "NKT", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "satoshi", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 0, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 18251, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -908,7 +996,7 @@ describe('smart tokens', function () {
       let token = res;
 
       assert.equal(token.symbol, 'TKN');
-      assert.equal(token.issuer, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(token.issuer, 'harpagon');
       assert.equal(token.stakingEnabled, false);
       assert.equal(token.unstakingCooldown, 1);
 
@@ -932,16 +1020,16 @@ describe('smart tokens', function () {
 
   it('should not enable staking again', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 10, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 10, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -964,13 +1052,13 @@ describe('smart tokens', function () {
       let token = res;
 
       assert.equal(token.symbol, 'TKN');
-      assert.equal(token.issuer, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(token.issuer, 'harpagon');
       assert.equal(token.stakingEnabled, true);
       assert.equal(token.unstakingCooldown, 7);
 
-      let tx = await database1.getTransactionInfo('TXID1238');
-
-      assert.equal(JSON.parse(tx.logs).errors[0], 'staking already enabled');
+      res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+      assertError(txs[4], 'staking already enabled');
 
       resolve();
     })
@@ -983,17 +1071,17 @@ describe('smart tokens', function () {
 
   it('should stake tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1022,8 +1110,8 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, "0.00000001");
 
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1239', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, 'TXID1240', 'satoshi', 'tokens', 'stake', '{ "to":"vitalik", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"vitalik", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1035,7 +1123,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.find({
           contract: 'tokens',
           table: 'balances',
@@ -1062,7 +1150,7 @@ describe('smart tokens', function () {
       res = await database1.getLatestBlockInfo();
 
       let txs = res.transactions;
-      
+
       assert.equal(JSON.parse(txs[0].logs).events[0].contract, 'tokens');
       assert.equal(JSON.parse(txs[0].logs).events[0].event, 'stake');
       assert.equal(JSON.parse(txs[0].logs).events[0].data.account, 'satoshi');
@@ -1085,7 +1173,7 @@ describe('smart tokens', function () {
 
       const token = res;
 
-      assert.equal(token.totalStaked, '0.00000003');
+      await assertTotalStaked('0.00000003');
 
       resolve();
     })
@@ -1098,21 +1186,21 @@ describe('smart tokens', function () {
 
   it('should not stake tokens', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', 'satoshi', 'tokens', 'stake', '{ "to":"ez", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "-1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1241', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "100.00000001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1242', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.000000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"ez", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "-1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "100.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.000000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1161,17 +1249,17 @@ describe('smart tokens', function () {
 
   it('should start the unstake process', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1200,7 +1288,7 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, "0.00000001");
 
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1239', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1211,7 +1299,7 @@ describe('smart tokens', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1247,7 +1335,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.numberTransactionsLeft, 1);
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.ok(unstake.txID);
 
       resolve();
     })
@@ -1260,20 +1348,20 @@ describe('smart tokens', function () {
 
   it('should not start the unstake process', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1239', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "-1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1240', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1241', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.000000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "-1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.000000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1321,17 +1409,17 @@ describe('smart tokens', function () {
 
   it('should cancel an unstake', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1359,8 +1447,10 @@ describe('smart tokens', function () {
       assert.equal(balance.balance, "99.99999999");
       assert.equal(balance.stake, "0.00000001");
 
+      await assertTotalStaked('0.00000001');
+
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1239', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1372,7 +1462,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1390,6 +1480,8 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, 0);
       assert.equal(balance.pendingUnstake, '0.00000001');
 
+      await assertTotalStaked(0);
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'pendingUnstakes',
@@ -1406,10 +1498,12 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.ok(unstake.txID)
+
+      const unstakeId = unstake.txID;
 
       transactions = [];
-      transactions.push(new Transaction(12345678903, 'TXID123910', 'satoshi', 'tokens', 'cancelUnstake', '{ "txID": "TXID1239", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'tokens', 'cancelUnstake', `{ "txID": "${unstakeId}", "isSignedWithActiveKey": true }`));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -1438,6 +1532,8 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, '0.00000001');
       assert.equal(balance.pendingUnstake, '0.00000000');
 
+      await assertTotalStaked('0.00000001');
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'pendingUnstakes',
@@ -1460,19 +1556,124 @@ describe('smart tokens', function () {
       });
   });
 
-  it('should not cancel an unstake', (done) => {
+  it('should cancel a multi tx unstake', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 14, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi2', 'tokens', 'stake', '{ "to":"satoshi2", "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: "99.99999997", stake: "0.00000003" });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: "99.99999997", stake: "0.00000003" });
+
+      await assertTotalStaked('0.00000006');
+
+      transactions = [];
+      const unstakeId = getNextTxId();
+      const unstakeId2 = getNextTxId();
+      transactions.push(new Transaction(12345678902, unstakeId, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, unstakeId2, 'satoshi2', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000003", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-30T00:02:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '99.99999997', stake: '0.00000002', pendingUnstake: '0.00000003' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: '99.99999997', stake: '0.00000002', pendingUnstake: '0.00000003' });
+
+      await assertTotalStaked('0.00000004');
+
+      await assertPendingUnstake({ account: 'satoshi', symbol: 'TKN', quantity: '0.00000003', nextTransactionTimestamp: new Date('2018-07-07T00:02:00.000Z').getTime(), txID: unstakeId})
+      await assertPendingUnstake({ account: 'satoshi2', symbol: 'TKN', quantity: '0.00000003', nextTransactionTimestamp: new Date('2018-07-07T00:02:00.000Z').getTime(), txID: unstakeId2})
+
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'tokens', 'cancelUnstake', `{ "txID": "${unstakeId}", "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-07-07T00:02:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '99.99999997', stake: '0.00000003', pendingUnstake: '0.00000000' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: '99.99999998', stake: '0.00000000', pendingUnstake: '0.00000002' });
+
+      await assertTotalStaked('0.00000003');
+
+      await assertNoPendingUnstake('satoshi', 'TKN');
+      await assertPendingUnstake({ account: 'satoshi2', symbol: 'TKN', quantity: '0.00000003', nextTransactionTimestamp: new Date('2018-07-14T00:02:00.000Z').getTime(), txID: unstakeId2})
+
+      transactions = [];
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi2', 'tokens', 'cancelUnstake', `{ "txID": "${unstakeId2}", "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: 12345678904,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-07-02T00:03:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '99.99999997', stake: '0.00000003', pendingUnstake: '0.00000000' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'TKN', balance: '99.99999998', stake: '0.00000002', pendingUnstake: '0.00000000' });
+
+      await assertTotalStaked('0.00000005');
+
+      await assertNoPendingUnstake('satoshi2', 'TKN');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should not cancel an unstake', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1500,8 +1701,10 @@ describe('smart tokens', function () {
       assert.equal(balance.balance, "99.99999999");
       assert.equal(balance.stake, "0.00000001");
 
+      await assertTotalStaked("0.00000001");
+
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1239', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1513,7 +1716,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1530,6 +1733,7 @@ describe('smart tokens', function () {
       assert.equal(balance.balance, '99.99999999');
       assert.equal(balance.stake, 0);
       assert.equal(balance.pendingUnstake, '0.00000001');
+      await assertTotalStaked(0);
 
       res = await database1.findOne({
           contract: 'tokens',
@@ -1547,11 +1751,13 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantity, '0.00000001');
       let blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.ok(unstake.txID);
+
+      const unstakeId = unstake.txID;
 
       transactions = [];
-      transactions.push(new Transaction(12345678903, 'TXID123910', 'satoshi', 'tokens', 'cancelUnstake', '{ "txID": "TXID12378", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678903, 'TXID123911', 'harpagon', 'tokens', 'cancelUnstake', '{ "txID": "TXID1239", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'tokens', 'cancelUnstake', '{ "txID": "NOTXID12378", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'harpagon', 'tokens', 'cancelUnstake', `{ "txID": "${unstakeId}", "isSignedWithActiveKey": true }`));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -1579,6 +1785,7 @@ describe('smart tokens', function () {
       assert.equal(balance.balance, '99.99999999');
       assert.equal(balance.stake, '0.00000000');
       assert.equal(balance.pendingUnstake, '0.00000001');
+      await assertTotalStaked(0);
 
       res = await database1.findOne({
           contract: 'tokens',
@@ -1596,7 +1803,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantity, '0.00000001');
       blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.ok(unstake.txID);
 
       resolve();
     })
@@ -1609,17 +1816,17 @@ describe('smart tokens', function () {
 
   it('should process the pending unstakes', (done) => {
     new Promise(async (resolve) => {
-      
+
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1657,10 +1864,10 @@ describe('smart tokens', function () {
 
       let token = res;
 
-      assert.equal(token.totalStaked, '0.00000001');
+      await assertTotalStaked('0.00000001');
 
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1239', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1672,7 +1879,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1706,11 +1913,11 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.ok(unstake.txID);
 
       transactions = [];
       // send whatever transaction
-      transactions.push(new Transaction(12345678903, 'TXID123810', 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -1764,17 +1971,7 @@ describe('smart tokens', function () {
       assert.equal(event.data.quantity, '0.00000001');
       assert.equal(event.data.symbol, 'TKN');
 
-      res = await database1.findOne({
-          contract: 'tokens',
-          table: 'tokens',
-          query: {
-            symbol: 'TKN'
-          }
-        });
-
-      token = res;
-
-      assert.equal(token.totalStaked, 0);
+      await assertTotalStaked(0);
 
       resolve();
     })
@@ -1787,17 +1984,16 @@ describe('smart tokens', function () {
 
   it.skip('should process thousands of pending unstakes', (done) => {
     new Promise(async (resolve) => {
-      
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -1826,7 +2022,7 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, "0.00000001");
 
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1239', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1838,7 +2034,7 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
@@ -1872,11 +2068,11 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.ok(unstake.txID);
 
       transactions = [];
       // send whatever transaction
-      transactions.push(new Transaction(12345678903, 'TXID123810', 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -1931,7 +2127,7 @@ describe('smart tokens', function () {
       assert.equal(event.data.symbol, 'TKN');
 
       transactions = [];
-      transactions.push(new Transaction(12345678904, 'TXID223811', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "1", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678904,
@@ -1945,9 +2141,9 @@ describe('smart tokens', function () {
 
       // generate thousands of unstakes
       console.log('start generating pending unstakes');
-      for (let index = 10000; index < 12000; index++) {
+      for (let index = 10000; index < 11000; index++) {
         transactions = [];
-        transactions.push(new Transaction(12345678901 + index, `TXID${index}`, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+        transactions.push(new Transaction(12345678901, `TXID${index}`, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
 
         block = {
           refHiveBlockNumber: 12345678901 + index,
@@ -1961,11 +2157,11 @@ describe('smart tokens', function () {
       }
 
       transactions = [];
-      transactions.push(new Transaction(12345678905, `TXID2000`, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345698901, `TXID2000`, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000001", "isSignedWithActiveKey": true }'));
       console.log('done generating pending unstakes');
 
       block = {
-        refHiveBlockNumber: 12345678905,
+        refHiveBlockNumber: 12345698901,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-07-14T00:02:01',
@@ -1988,15 +2184,15 @@ describe('smart tokens', function () {
       assert.equal(balance.symbol, 'TKN');
       assert.equal(balance.account, 'satoshi');
       assert.equal(balance.balance, '99.00000000');
-      assert.equal(balance.stake, '0.99997999');
-      assert.equal(balance.pendingUnstake, '0.00002001');
+      assert.equal(balance.stake, '0.99998999');
+      assert.equal(balance.pendingUnstake, '0.00001001');
 
       transactions = [];
       // send whatever transaction
-      transactions.push(new Transaction(12345678906, 'TXID123899', 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345698902, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
       block = {
-        refHiveBlockNumber: 12345678906,
+        refHiveBlockNumber: 12345698902,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-07-21T00:02:00',
@@ -2019,8 +2215,8 @@ describe('smart tokens', function () {
 
       assert.equal(balance.symbol, 'TKN');
       assert.equal(balance.account, 'satoshi');
-      assert.equal(balance.balance, '99.00002000');
-      assert.equal(balance.stake, '0.99997999');
+      assert.equal(balance.balance, '99.00001000');
+      assert.equal(balance.stake, '0.99998999');
       assert.equal(balance.pendingUnstake, '0.00000001');
 
       resolve();
@@ -2034,17 +2230,16 @@ describe('smart tokens', function () {
 
   it('should process the pending unstakes (with multi transactions)', (done) => {
     new Promise(async (resolve) => {
-      
       await loadPlugin(blockchain);
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 3, "numberTransactions": 3, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID1238', 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000008", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 3, "numberTransactions": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "symbol": "TKN", "quantity": "0.00000008", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -2072,8 +2267,10 @@ describe('smart tokens', function () {
       assert.equal(balance.balance, "99.99999992");
       assert.equal(balance.stake, "0.00000008");
 
+      await assertTotalStaked('0.00000008');
+
       transactions = [];
-      transactions.push(new Transaction(12345678902, 'TXID1239', 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000006", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000006", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -2099,8 +2296,10 @@ describe('smart tokens', function () {
       assert.equal(balance.symbol, 'TKN');
       assert.equal(balance.account, 'satoshi');
       assert.equal(balance.balance, '99.99999992');
-      assert.equal(balance.stake, '0.00000002');
+      assert.equal(balance.stake, '0.00000006');
       assert.equal(balance.pendingUnstake, '0.00000006');
+
+      await assertTotalStaked('0.00000006');
 
       res = await database1.findOne({
           contract: 'tokens',
@@ -2120,11 +2319,13 @@ describe('smart tokens', function () {
       assert.equal(unstake.numberTransactionsLeft, 3);
       let blockDate = new Date('2018-07-01T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.ok(unstake.txID);
+
+      const unstakeId = unstake.txID;
 
       transactions = [];
       // send whatever transaction
-      transactions.push(new Transaction(12345678903, 'TXID123810', 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -2150,8 +2351,10 @@ describe('smart tokens', function () {
       assert.equal(balance.symbol, 'TKN');
       assert.equal(balance.account, 'satoshi');
       assert.equal(balance.balance, '99.99999994');
-      assert.equal(balance.stake, '0.00000002');
+      assert.equal(balance.stake, '0.00000004');
       assert.equal(balance.pendingUnstake, '0.00000004');
+
+      await assertTotalStaked('0.00000004');
 
       res = await database1.findOne({
           contract: 'tokens',
@@ -2171,11 +2374,11 @@ describe('smart tokens', function () {
       assert.equal(unstake.numberTransactionsLeft, 2);
       blockDate = new Date('2018-07-02T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.equal(unstake.txID, unstakeId);
 
       transactions = [];
       // send whatever transaction
-      transactions.push(new Transaction(12345678904, 'TXID123811', 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
       block = {
         refHiveBlockNumber: 12345678904,
@@ -2204,6 +2407,8 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, '0.00000002');
       assert.equal(balance.pendingUnstake, '0.00000002');
 
+      await assertTotalStaked('0.00000002');
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'pendingUnstakes',
@@ -2222,11 +2427,11 @@ describe('smart tokens', function () {
       assert.equal(unstake.numberTransactionsLeft, 1);
       blockDate = new Date('2018-07-03T00:02:00.000Z')
       assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
-      assert.equal(unstake.txID, 'TXID1239');
+      assert.equal(unstake.txID, unstakeId);
 
       transactions = [];
       // send whatever transaction
-      transactions.push(new Transaction(12345678905, 'TXID123812', 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678905, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
       block = {
         refHiveBlockNumber: 12345678905,
@@ -2255,6 +2460,8 @@ describe('smart tokens', function () {
       assert.equal(balance.stake, '0.00000002');
       assert.equal(balance.pendingUnstake, '0.00000000');
 
+      await assertTotalStaked('0.00000002');
+
       res = await database1.findOne({
           contract: 'tokens',
           table: 'pendingUnstakes',
@@ -2269,6 +2476,237 @@ describe('smart tokens', function () {
       assert.equal(unstake, null);
 
 
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should not delegate tokens with unstaking', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 3, "numberTransactions": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "to":"satoshi", "symbol": "TKN", "quantity": "0.00000009", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000007", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000003", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+      assertError(txs[8], 'overdrawn stake');
+
+      res = await database1.findOne({
+          contract: 'tokens',
+          table: 'balances',
+          query: {
+            account: 'satoshi',
+            symbol: 'TKN'
+          }
+        });
+
+      let balance = res;
+
+      assert.equal(balance.symbol, 'TKN');
+      assert.equal(balance.account, 'satoshi');
+      assert.equal(balance.balance, '99.99999991');
+      assert.equal(balance.stake, '0.00000006');
+      assert.equal(balance.pendingUnstake, '0.00000007');
+      assert.equal(balance.delegationsOut, '0.00000001');
+      assert.equal(balance.delegationsIn, 0);
+
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000002", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'delegate', '{ "symbol": "TKN", "quantity": "0.00000001", "to": "vitalik", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-02T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.getLatestBlockInfo();
+      txs = res.transactions;
+      assertError(txs[0], 'overdrawn stake');
+
+      res = await database1.findOne({
+          contract: 'tokens',
+          table: 'balances',
+          query: {
+            account: 'satoshi',
+            symbol: 'TKN'
+          }
+        });
+
+      balance = res;
+
+      assert.equal(balance.symbol, 'TKN');
+      assert.equal(balance.account, 'satoshi');
+      assert.equal(balance.balance, '99.99999993');
+      assert.equal(balance.stake, '0.00000003');
+      assert.equal(balance.pendingUnstake, '0.00000005');
+      assert.equal(balance.delegationsOut, '0.00000002');
+      assert.equal(balance.delegationsIn, 0);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should backfill stake balances for multi tx unstakes on contract update', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(oldContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 1, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "MTKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "MTKN", "unstakingCooldown": 3, "numberTransactions": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "0.00000008", "to": "harpagon", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "MTKN", "quantity": "0.00000024", "to": "harpagon", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'stake', '{ "symbol": "TKN", "quantity": "0.00000008", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'stake', '{ "symbol": "MTKN", "quantity": "0.00000008", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'stake', '{ "symbol": "MTKN", "quantity": "0.00000008", "to": "satoshi2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'stake', '{ "symbol": "MTKN", "quantity": "0.00000008", "to": "satoshi3", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      console.log("Checking initial balances");
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertTotalStaked('0.00000008', 'TKN');
+      await assertTotalStaked('0.00000024', 'MTKN');
+
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000007", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "MTKN", "quantity": "0.00000007", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-07-01T00:02:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      console.log("After first unstake ops");
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: 0, stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: 0, stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertTotalStaked('0.00000008', 'TKN');
+      await assertTotalStaked('0.00000024', 'MTKN');
+
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi2', 'tokens', 'unstake', '{ "symbol": "MTKN", "quantity": "0.00000007", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-07-02T00:02:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      console.log("After first unstake+1day, second unstake");
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: '0.00000002', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: 0, stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000008' });
+      await assertTotalStaked('0.00000001', 'TKN');
+      await assertTotalStaked('0.00000022', 'MTKN');
+
+      transactions = [];
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi3', 'tokens', 'unstake', '{ "symbol": "MTKN", "quantity": "0.00000007", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678904,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-07-03T00:02:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      console.log("After first unstake+2day, second unstake+1day, third unstake");
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: '0.00000004', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: '0.00000002', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: 0, stake: '0.00000001' });
+      await assertTotalStaked('0.00000001', 'TKN');
+      await assertTotalStaked('0.00000018', 'MTKN');
+
+      await assertParams('fixMultiTxUnstakeBalance', undefined);
+
+      transactions = [];
+      transactions.push(new Transaction(12345678905, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+
+      block = {
+        refHiveBlockNumber: 12345678905,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-07-04T00:02:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      console.log("After first unstake+3days, second unstake+2days, third unstake+1day, contract update");
+      await assertParams('fixMultiTxUnstakeBalance', true);
+
+      await assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi', symbol: 'MTKN', balance: '0.00000007', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi2', symbol: 'MTKN', balance: '0.00000004', stake: '0.00000001' });
+      await assertUserBalances({ account: 'satoshi3', symbol: 'MTKN', balance: '0.00000002', stake: '0.00000004' });
+      await assertTotalStaked('0.00000001', 'TKN');
+      await assertTotalStaked('0.00000006', 'MTKN');
 
       resolve();
     })

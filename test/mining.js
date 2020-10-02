@@ -850,6 +850,61 @@ describe('mining', function () {
       });
   });
 
+  it.only('should update mining pool for utility token as api owner', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "7300", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'mining', 'createPool', `{ "lotteryWinners": 1, "lotteryIntervalHours": 720, "lotteryAmount": "1", "minedToken": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "tokenMiners": [{"symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "multiplier": 1}], "isSignedWithActiveKey": true }`));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      await assertPool({id: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, totalPower: '0', lotteryWinners: 1, lotteryIntervalHours: 720, lotteryAmount: "1", nextLotteryTimestamp: new Date('2018-07-01T00:00:00.000Z').getTime()}, { inProgress: false, lastAccountId: 0, tokenIndex: 0 });
+
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'mining', 'updatePool', `{ "id": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "lotteryWinners": 2, "lotteryIntervalHours": 3, "lotteryAmount": "15.7", "minedToken": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "tokenMiners": [{"symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "multiplier": 1}], "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      await assertTokenPool(CONSTANTS.UTILITY_TOKEN_SYMBOL, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+
+      await assertPool({id: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, totalPower: '0', lotteryWinners: 2, lotteryIntervalHours: 3, lotteryAmount: "15.7", nextLotteryTimestamp: new Date('2018-06-01T03:00:00.000Z').getTime()}, { inProgress: false, lastAccountId: 0, tokenIndex: 0 });
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('should not run basic lottery when inactive', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);

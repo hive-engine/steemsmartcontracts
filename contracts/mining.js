@@ -223,7 +223,7 @@ actions.updatePool = async (payload) => {
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
 
-  const authorized = api.BigNumber(poolUpdateFee).lte(0)
+  const authorized = api.BigNumber(poolUpdateFee).lte(0) || api.sender === api.owner
     ? true
     : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(poolUpdateFee);
 
@@ -236,7 +236,8 @@ actions.updatePool = async (payload) => {
       const pool = await api.db.findOne('pools', { id });
       if (api.assert(pool, 'pool id not found')) {
         const minedTokenObject = await api.db.findOneInTable('tokens', 'tokens', { symbol: pool.minedToken });
-        if (api.assert(minedTokenObject && minedTokenObject.issuer === api.sender, 'must be issuer of minedToken')
+        // eslint-disable-next-line no-template-curly-in-string
+        if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')
           && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')) {
           const validMinersChange = validateTokenMinersChange(pool.tokenMiners, tokenMiners);
           if (validMinersChange) {
@@ -291,7 +292,7 @@ actions.createPool = async (payload) => {
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
 
-  const authorizedCreation = api.BigNumber(poolCreationFee).lte(0)
+  const authorizedCreation = api.BigNumber(poolCreationFee).lte(0) || api.sender === api.owner
     ? true
     : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(poolCreationFee);
 
@@ -306,7 +307,8 @@ actions.createPool = async (payload) => {
       const minedTokenObject = await api.db.findOneInTable('tokens', 'tokens', { symbol: minedToken });
 
       if (api.assert(minedTokenObject, 'minedToken does not exist')
-        && api.assert(minedTokenObject.issuer === api.sender, 'must be issuer of minedToken')
+        // eslint-disable-next-line no-template-curly-in-string
+        && api.assert(minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner), 'must be issuer of minedToken')
         && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')
         && await validateTokenMiners(tokenMiners)) {
         const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);

@@ -260,7 +260,7 @@ actions.updatePool = async (payload) => {
             await api.db.update('pools', pool);
 
             // burn the token creation fees
-            if (api.BigNumber(poolUpdateFee).gt(0)) {
+            if (api.sender !== api.owner && api.BigNumber(poolUpdateFee).gt(0)) {
               await api.executeSmartContract('tokens', 'transfer', {
                 // eslint-disable-next-line no-template-curly-in-string
                 to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolUpdateFee, isSignedWithActiveKey,
@@ -339,7 +339,7 @@ actions.createPool = async (payload) => {
           await api.db.insert('pools', newPool);
 
           // burn the token creation fees
-          if (api.BigNumber(poolCreationFee).gt(0)) {
+          if (api.sender !== api.owner && api.BigNumber(poolCreationFee).gt(0)) {
             await api.executeSmartContract('tokens', 'transfer', {
               // eslint-disable-next-line no-template-curly-in-string
               to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolCreationFee, isSignedWithActiveKey,

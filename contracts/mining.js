@@ -336,7 +336,7 @@ actions.createPool = async (payload) => {
             tokenIndex: 0,
             lastAccountId: 0,
           };
-          await api.db.insert('pools', newPool);
+          const insertedPool = await api.db.insert('pools', newPool);
 
           // burn the token creation fees
           if (api.sender !== api.owner && api.BigNumber(poolCreationFee).gt(0)) {
@@ -345,6 +345,7 @@ actions.createPool = async (payload) => {
               to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolCreationFee, isSignedWithActiveKey,
             });
           }
+          api.emit('createPool', { id: insertedPool.id });
         }
       }
     }

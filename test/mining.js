@@ -407,6 +407,9 @@ describe('mining', function () {
 
       await assertPool({id: 'TEST-TKN:TEST-MTKN,TEST-TKN', totalPower: '0'});
 
+      let eventLog = JSON.parse(res.transactions[7].logs);
+      let createPoolEvent = eventLog.events.find(x => x.event === 'createPool');
+      assert.equal(createPoolEvent.data.id, 'TEST-TKN:TEST-MTKN,TEST-TKN');
       resolve();
     })
       .then(() => {

@@ -1373,7 +1373,16 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      let res = await database1.findOne({
+      let res = await database1.getLatestBlockInfo();
+
+      let txs = res.transactions;
+
+      assert.equal(JSON.parse(txs[4].logs).errors[0], 'staking not enabled');
+      assert.equal(JSON.parse(txs[6].logs).errors[0], 'must unstake positive quantity');
+      assert.equal(JSON.parse(txs[7].logs).errors[0], 'overdrawn stake');
+      assert.equal(JSON.parse(txs[8].logs).errors[0], 'symbol precision mismatch');
+
+      res = await database1.findOne({
           contract: 'tokens',
           table: 'balances',
           query: {
@@ -1389,14 +1398,74 @@ describe('smart tokens', function () {
       assert.equal(balance.balance, "100");
       assert.equal(balance.stake, 0);
 
-      res = await database1.getLatestBlockInfo();
+            resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
 
+  it('should not start the unstake process multi tx', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 14, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to": "satoshi", "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "0.00000000",
+          stake: "50.00000000",
+          pendingUnstake: "100.00000000",
+      });
+
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "50", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "0.00000000",
+          stake: "50.00000000",
+          pendingUnstake: "100.00000000",
+      });
+
+      let res = await database1.getLatestBlockInfo();
       let txs = res.transactions;
-
-      assert.equal(JSON.parse(txs[4].logs).errors[0], 'staking not enabled');
-      assert.equal(JSON.parse(txs[6].logs).errors[0], 'must unstake positive quantity');
-      assert.equal(JSON.parse(txs[7].logs).errors[0], 'overdrawn stake');
-      assert.equal(JSON.parse(txs[8].logs).errors[0], 'symbol precision mismatch');
+      assert.equal(JSON.parse(txs[0].logs).errors[0], 'overdrawn stake');
 
       resolve();
     })

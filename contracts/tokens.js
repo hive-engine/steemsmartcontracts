@@ -56,6 +56,14 @@ const findAndProcessAll = async (table, query, callback) => {
   }
 };
 
+async function cancelBadUnstakes() {
+  await findAndProcessAll('pendingUnstakes', { _id: { $lte: 14508, $gte: 13736 }, 'numberTransactionsLeft': { $gt: 1 } }, async (pendingUnstake) => {
+    if (await actions.processCancelUnstake(pendingUnstake)) {
+      await api.db.remove('pendingUnstakes', pendingUnstake);
+    }
+  });
+}
+
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('tokens');
   if (tableExists === false) {
@@ -72,6 +80,13 @@ actions.createSSC = async () => {
     params.enableDelegationFee = '0';
     params.enableStakingFee = '0';
     await api.db.insert('params', params);
+  } else {
+    const params = await api.db.findOne('params', {});
+    if (!params.cancelBadUnstakes) {
+      await cancelBadUnstakes();
+      params.cancelBadUnstakes = true;
+    }
+    await api.db.update('params', params);
   }
 };
 
@@ -1012,7 +1027,7 @@ const processCancelUnstake = async (unstake) => {
       );
       await api.db.update('tokens', token);
 
-      api.emit('unstake', { account, symbol, quantity: quantityLeft });
+      api.emit('unstakeCancel', { account, symbol, quantity: quantityLeft });
 
       // update witnesses rank
       // eslint-disable-next-line no-template-curly-in-string

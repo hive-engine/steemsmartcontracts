@@ -56,13 +56,14 @@ const findAndProcessAll = async (table, query, callback) => {
   }
 };
 
-async function cancelBadUnstakes() {
+const cancelBadUnstakes = async () => {
   await findAndProcessAll('pendingUnstakes', { _id: { $lte: 14508, $gte: 13736 }, 'numberTransactionsLeft': { $gt: 1 } }, async (pendingUnstake) => {
-    if (await actions.processCancelUnstake(pendingUnstake)) {
+    // eslint-disable-next-line no-use-before-define
+    if (await processCancelUnstake(pendingUnstake)) {
       await api.db.remove('pendingUnstakes', pendingUnstake);
     }
   });
-}
+};
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('tokens');

@@ -49,33 +49,35 @@ def getTokenInfo(symbol):
         return None
     return r[0]
 
+
 def getBalances(symbol, unitAmount):
     index = 0
     limit = 1000
-    balanceData = {}
-
+    allBalanceData = {}
     while True:
         r = fetchData('tokens', 'balances', index, limit, {'symbol': symbol})
         index = index + limit
         for data in r:
-            balance = Decimal(data['balance'])
+            balanceData = { "liquid": Decimal(0), "staked": Decimal(0) }
+            balanceData["liquid"] = Decimal(data['balance'])
             if 'stake' in data:
-                balance = balance + Decimal(data['stake'])
+                balanceData["staked"] += Decimal(data['stake'])
             if 'pendingUnstake' in data:
-                balance = balance + Decimal(data['pendingUnstake'])
+                balanceData["staked"] += Decimal(data['pendingUnstake'])
             if 'delegationsOut' in data:
-                balance = balance + Decimal(data['delegationsOut'])
-            if 'pendingUndelegations' in data:
-                balance = balance + Decimal(data['pendingUndelegations'])
+                balanceData["staked"] += Decimal(data['delegationsOut'])
+            if 'pendingUndelegations' in data and Decimal(data['pendingUndelegations']) > 0:
+                balanceData["staked"] += Decimal(data['pendingUndelegations'])
             if 'delegatedStake' in data:
-                balance = balance + Decimal(data['delegatedStake'])   # old style of recording delegations
-            quantizedBalance = balance.quantize(unitAmount, rounding=ROUND_HALF_DOWN)
-            balanceData[data['account']] = quantizedBalance
+                balanceData["staked"] += Decimal(data['delegatedStake'])   # old style of recording delegations
+            balanceData["liquid"] = balanceData["liquid"].quantize(unitAmount, rounding=ROUND_HALF_DOWN)
+            balanceData["staked"] = balanceData["staked"].quantize(unitAmount, rounding=ROUND_HALF_DOWN)
+            allBalanceData[data['account']] = balanceData
 
         if len(r) < limit:
             break
 
-    return balanceData
+    return allBalanceData
 
 def addMarketBalances(accountData, symbol, unitAmount):
     index = 0
@@ -88,9 +90,9 @@ def addMarketBalances(accountData, symbol, unitAmount):
             balance = Decimal(data['quantity'])
             quantizedBalance = balance.quantize(unitAmount, rounding=ROUND_HALF_DOWN)
             if data['account'] in accountData:
-                accountData[data['account']] = accountData[data['account']] + quantizedBalance
+                accountData[data['account']]["liquid"] += quantizedBalance
             else:
-                accountData[data['account']] = quantizedBalance
+                accountData[data['account']] = { "liquid": quantizedBalance, "staked": Decimal(0) }
 
         if len(r) < limit:
             break
@@ -117,7 +119,7 @@ if __name__ == '__main__':
 
     accountData = getBalances(symbol, unitAmount)
     addMarketBalances(accountData, symbol, unitAmount)
-    
+   
     # output final results
     count = 0
     balanceTotal = Decimal('0')
@@ -129,19 +131,22 @@ if __name__ == '__main__':
             balance = data[1]
             if balance > Decimal(0) and account not in excludedAccounts:
                 finalBalance = balance.quantize(unitAmount, rounding=ROUND_HALF_DOWN)
-                print(account, '{0:f}'.format(finalBalance))
+                print(f"{account}, {'{0:f}'.format(finalBalance)}")
                 balanceTotal = balanceTotal + finalBalance
                 count += 1
     else:
         # sort alphabetically (default option)
         for account in sorted(accountData):
-            if accountData[account] > Decimal(0) and account not in excludedAccounts:
-                finalBalance = accountData[account].quantize(unitAmount, rounding=ROUND_HALF_DOWN)
-                print(account, '{0:f}'.format(finalBalance))
-                balanceTotal = balanceTotal + finalBalance
+            if account not in excludedAccounts:
+                balanceData = accountData[account]
+                balanceData["liquid"] = balanceData["liquid"].quantize(unitAmount, rounding=ROUND_HALF_DOWN)
+                balanceData["staked"] = balanceData["staked"].quantize(unitAmount, rounding=ROUND_HALF_DOWN)
+                if balanceData["liquid"] == Decimal(0) and balanceData["staked"] == Decimal(0):
+                    continue
+                balanceTotal += balanceData["liquid"] + balanceData["staked"]
+                print(f"{account}, {'{0:f}'.format(balanceData['liquid'])}, {'{0:f}'.format(balanceData['staked'])}")
                 count += 1
 
     print('')
     print(count, 'accounts total')
-    balanceTotal = balanceTotal.quantize(unitAmount, rounding=ROUND_HALF_DOWN)
-    print('{0:f}'.format(balanceTotal), symbol, 'total\n')
+    print(balanceTotal, ' tokens total')

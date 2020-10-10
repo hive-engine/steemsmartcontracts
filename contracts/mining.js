@@ -121,7 +121,11 @@ function computeMiningPower(miningPower, tokenMiners) {
         .multipliedBy(tokenMiners[i].multiplier));
     }
   }
-  return power;
+  if (power.gt(0)) {
+    return power;
+  } else {
+    return api.BigNumber(0);
+  }
 }
 
 async function updateMiningPower(pool, token, account, stakedQuantity, delegatedQuantity, reset) {
@@ -209,6 +213,31 @@ async function resumePowerUpdate(pool, params) {
   await api.db.update('pools', pool);
 }
 
+actions.setActive = async (payload) => {
+  const {
+    id,
+    active,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
+    return;
+  }
+  const pool = await api.db.findOne('pools', { id });
+  if (api.assert(pool, 'pool id not found')) {
+    pool.active = !!active;
+
+    const minedTokenObject = await api.db.findOneInTable('tokens', 'tokens', { symbol: pool.minedToken });
+    // eslint-disable-next-line no-template-curly-in-string
+    if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')) {
+      const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+      pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
+          .plus(pool.lotteryIntervalHours * 3600 * 1000).toNumber();
+
+      await api.db.update('pools', pool);
+    }
+  }
+}
 
 actions.updatePool = async (payload) => {
   const {
@@ -245,7 +274,6 @@ actions.updatePool = async (payload) => {
             pool.lotteryIntervalHours = lotteryIntervalHours;
             pool.lotteryAmount = lotteryAmount;
             pool.tokenMiners = tokenMiners;
-            pool.active = active;
 
             if (validMinersChange.changed) {
               pool.updating.inProgress = true;
@@ -318,7 +346,7 @@ actions.createPool = async (payload) => {
           lotteryIntervalHours,
           lotteryAmount,
           tokenMiners,
-          active: true,
+          active: false,
           nextLotteryTimestamp: api.BigNumber(blockDate.getTime())
             .plus(lotteryIntervalHours * 3600 * 1000).toNumber(),
           totalPower: '0',

@@ -123,9 +123,8 @@ function computeMiningPower(miningPower, tokenMiners) {
   }
   if (power.gt(0)) {
     return power;
-  } else {
-    return api.BigNumber(0);
   }
+  return api.BigNumber(0);
 }
 
 async function updateMiningPower(pool, token, account, stakedQuantity, delegatedQuantity, reset) {
@@ -232,16 +231,16 @@ actions.setActive = async (payload) => {
     if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')) {
       const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
       pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
-          .plus(pool.lotteryIntervalHours * 3600 * 1000).toNumber();
+        .plus(pool.lotteryIntervalHours * 3600 * 1000).toNumber();
 
       await api.db.update('pools', pool);
     }
   }
-}
+};
 
 actions.updatePool = async (payload) => {
   const {
-    id, lotteryWinners, lotteryIntervalHours, lotteryAmount, tokenMiners, active,
+    id, lotteryWinners, lotteryIntervalHours, lotteryAmount, tokenMiners,
     isSignedWithActiveKey,
   } = payload;
 

@@ -9,7 +9,8 @@ const UTILITY_TOKEN_SYMBOL = 'BEE';
 const UTILITY_TOKEN_PRECISION = 8;
 
 const MAX_NAME_LENGTH = 100;
-const MAX_CARDS_PER_PACK = 10; // TODO: see if we can make this higher
+const MAX_CARDS_PER_PACK = 30; // how many NFT instances can a single pack generate?
+const MAX_PACKS_AT_ONCE = 10; // how many packs can we open in one action?
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('packs');
@@ -43,12 +44,12 @@ const calculateBalance = (balance, quantity, precision, add) => (add
 
 const countDecimals = value => api.BigNumber(value).dp();
 
-const verifyUtilityTokenBalance = async (amount, account) => {
+const verifyTokenBalance = async (amount, symbol, account) => {
   if (api.BigNumber(amount).lte(0)) {
     return true;
   }
-  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account, symbol: UTILITY_TOKEN_SYMBOL });
-  if (utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(amount)) {
+  const tokenBalance = await api.db.findOneInTable('tokens', 'balances', { account, symbol });
+  if (tokenBalance && api.BigNumber(tokenBalance.balance).gte(amount)) {
     return true;
   }
   return false;
@@ -103,7 +104,7 @@ actions.deposit = async (payload) => {
       && api.BigNumber(amount).gt(0) && countDecimals(amount) <= UTILITY_TOKEN_PRECISION, 'invalid params')) {
     const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
     if (api.assert(underManagement !== null, 'NFT not under management')) {
-      const hasEnoughBalance = await verifyUtilityTokenBalance(amount, api.sender);
+      const hasEnoughBalance = await verifyTokenBalance(amount, UTILITY_TOKEN_SYMBOL, api.sender);
       if (api.assert(hasEnoughBalance, 'not enough tokens to deposit')) {
         // send tokens to the contract and update pool balance
         if (!(await transferFee(amount, CONTRACT_NAME, isSignedWithActiveKey))) {
@@ -264,7 +265,7 @@ actions.addType = async (payload) => {
       if (api.assert(nft.issuer === api.sender, 'not authorized to add a type')) {
         // make sure registration fee can be paid
         const params = await api.db.findOne('params', {});
-        const hasEnoughBalance = await verifyUtilityTokenBalance(params.typeAddFee, api.sender);
+        const hasEnoughBalance = await verifyTokenBalance(params.typeAddFee, UTILITY_TOKEN_SYMBOL, api.sender);
 
         if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the type add fee')) {
           const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
@@ -387,7 +388,7 @@ actions.registerPack = async (payload) => {
       && cardsPerPack !== undefined && typeof cardsPerPack === 'number' && Number.isInteger(cardsPerPack) && cardsPerPack >= 1 && cardsPerPack <= MAX_CARDS_PER_PACK, 'invalid params')) {
     // make sure registration fee can be paid
     const params = await api.db.findOne('params', {});
-    const hasEnoughBalance = await verifyUtilityTokenBalance(params.registerFee, api.sender);
+    const hasEnoughBalance = await verifyTokenBalance(params.registerFee, UTILITY_TOKEN_SYMBOL, api.sender);
 
     if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the registration fee')) {
       // verify pack & NFT symbols exist, and NFT was created through this contract
@@ -467,7 +468,7 @@ actions.createNft = async (payload) => {
     // TODO: can remove the below if not more than 3 data properties
     //const propertyFee = api.BigNumber(dataPropertyCreationFee).multipliedBy(1); // first 3 data properties are free
     //const totalFeeAmount = api.BigNumber(nftCreationFee).plus(propertyFee);
-    const hasEnoughBalance = await verifyUtilityTokenBalance(nftCreationFee, api.sender);
+    const hasEnoughBalance = await verifyTokenBalance(nftCreationFee, UTILITY_TOKEN_SYMBOL, api.sender);
 
     if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the NFT creation')) {
       // verify nft doesn't already exist
@@ -560,8 +561,9 @@ actions.createNft = async (payload) => {
   }
 };
 
-// generate issuance data for a random critter of the given edition
-const generateRandomCritter = (edition, to) => {
+// TODO: refactor this routine
+// generate issuance data for a random NFT instance
+const generateRandomInstance = (settings, nftSymbol, to) => {
   // each rarity has 10 types of critters
   const type = Math.floor(api.random() * 10) + 1;
 
@@ -584,17 +586,13 @@ const generateRandomCritter = (edition, to) => {
   }
 
   const properties = {
-    edition,
-    type,
-    rarity,
-    isGoldFoil,
-    name: '',
-    xp: 0,
-    hp: 100,
+    edition: settings.edition,
+    foil: 0,
+    type: 0,
   };
 
   const instance = {
-    symbol: 'CRITTER',
+    symbol: nftSymbol,
     fromType: 'contract',
     to,
     feeSymbol: UTILITY_TOKEN_SYMBOL,
@@ -604,57 +602,59 @@ const generateRandomCritter = (edition, to) => {
   return instance;
 };
 
-// open some packs
-// TODO: when opening, need to specify both a pack symbol and nft symbol
+// TODO: finish me
 actions.open = async (payload) => {
-  // this action requires active key authorization
   const {
-    packSymbol, // the token we want to buy with determines which edition to issue
-    packs, // how many critters to hatch (1 pack = 5 critters)
+    packSymbol,
+    nftSymbol,
+    packs,
     isSignedWithActiveKey,
   } = payload;
 
-  // get contract params
-  const params = await api.db.findOne('params', {});
-  const { editionMapping } = params;
-
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(packSymbol && typeof packSymbol === 'string' && packSymbol in editionMapping, 'invalid pack symbol')
-    && api.assert(packs && typeof packs === 'number' && packs >= 1 && packs <= 10 && Number.isInteger(packs), 'packs must be an integer between 1 and 10')) {
-    // verify user has enough balance to pay for all the packs
-    const paymentTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: packSymbol });
-    const authorized = paymentTokenBalance && api.BigNumber(paymentTokenBalance.balance).gte(packs);
-    if (api.assert(authorized, 'you must have enough pack tokens')) {
-      // verify this contract has enough balance to pay the NFT issuance fees
-      const crittersToHatch = packs * CRITTERS_PER_PACK;
-      const nftParams = await api.db.findOneInTable('nft', 'params', {});
-      const { nftIssuanceFee } = nftParams;
-      const oneTokenIssuanceFee = api.BigNumber(nftIssuanceFee[UTILITY_TOKEN_SYMBOL]).multipliedBy(8); // base fee + 7 data properties
-      const totalIssuanceFee = oneTokenIssuanceFee.multipliedBy(crittersToHatch);
-      const utilityTokenBalance = await api.db.findOneInTable('tokens', 'contractsBalances', { account: CONTRACT_NAME, symbol: UTILITY_TOKEN_SYMBOL });
-      const canAffordIssuance = utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(totalIssuanceFee);
-      if (api.assert(canAffordIssuance, 'contract cannot afford issuance')) {
-        // burn the pack tokens
-        const res = await api.executeSmartContract('tokens', 'transfer', {
-          to: 'null', symbol: packSymbol, quantity: packs.toString(), isSignedWithActiveKey,
-        });
-        if (!api.assert(isTokenTransferVerified(res, api.sender, 'null', packSymbol, packs.toString(), 'transfer'), 'unable to transfer pack tokens')) {
-          return false;
-        }
+    && api.assert(packSymbol && typeof packSymbol === 'string'
+      && nftSymbol && typeof nftSymbol === 'string'
+      && packs !== undefined && typeof packs === 'number' && Number.isInteger(packs) && packs >= 1 && packs <= MAX_PACKS_AT_ONCE, 'invalid params')) {
+    const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
+    if (api.assert(settings !== null, 'pack does not open this NFT')) {
+      // verify user actually has the desired number of packs to open
+      const hasEnoughPacks = await verifyTokenBalance(packs, packSymbol, api.sender);
+      if (api.assert(hasEnoughPacks, 'you must have enough packs')) {
+        const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+        const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+        if (api.assert(nft !== null, 'NFT symbol must exist')
+          && api.assert(underManagement !== null, 'NFT not under management')) {
+          // verify this contract has enough in the fee pool to pay the NFT issuance fees
+          const numNfts = packs * settings.cardsPerPack;
+          const nftParams = await api.db.findOneInTable('nft', 'params', {});
+          const { nftIssuanceFee } = nftParams;
+          const propertyCount = Object.keys(nft.properties).length;
+          const oneTokenIssuanceFee = api.BigNumber(nftIssuanceFee[UTILITY_TOKEN_SYMBOL]).multipliedBy(propertyCount + 1);
+          const totalIssuanceFee = oneTokenIssuanceFee.multipliedBy(numNfts);
+          const canAffordIssuance = api.BigNumber(underManagement.feePool).gte(totalIssuanceFee);
+          if (api.assert(canAffordIssuance, 'contract cannot afford issuance')) {
+            // burn the pack tokens
+            const res = await api.executeSmartContract('tokens', 'transfer', {
+              to: 'null', symbol: packSymbol, quantity: packs.toString(), isSignedWithActiveKey,
+            });
+            if (!api.assert(isTokenTransferVerified(res, api.sender, 'null', packSymbol, packs.toString(), 'transfer'), 'unable to transfer pack tokens')) {
+              return false;
+            }
 
-        // we will issue critters in packs of 5 at once
-        for (let i = 0; i < packs; i += 1) {
-          const instances = [];
-          for (let j = 0; j < CRITTERS_PER_PACK; j += 1) {
-            instances.push(generateRandomCritter(editionMapping[packSymbol], api.sender));
+            // issue the NFT instances
+            for (let i = 0; i < numNfts; i += 1) {
+              const instances = [];
+              instances.push(generateRandomInstance(settings, api.sender));
+
+              // TODO: break this up into batches
+              await api.executeSmartContract('nft', 'issueMultiple', {
+                instances,
+                isSignedWithActiveKey,
+              });
+            }
+            return true;
           }
-
-          await api.executeSmartContract('nft', 'issueMultiple', {
-            instances,
-            isSignedWithActiveKey,
-          });
         }
-        return true;
       }
     }
   }

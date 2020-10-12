@@ -12,6 +12,9 @@ const MAX_NAME_LENGTH = 100;
 const MAX_CARDS_PER_PACK = 30; // how many NFT instances can a single pack generate?
 const MAX_PACKS_AT_ONCE = 10; // how many packs can we open in one action?
 
+// cannot issue more than this number of NFT instances in one call to issueMultiple
+const MAX_NUM_NFTS_ISSUABLE = 10;
+
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('packs');
   if (tableExists === false) {
@@ -602,7 +605,6 @@ const generateRandomInstance = (settings, nftSymbol, to) => {
   return instance;
 };
 
-// TODO: finish me
 actions.open = async (payload) => {
   const {
     packSymbol,
@@ -642,16 +644,33 @@ actions.open = async (payload) => {
             }
 
             // issue the NFT instances
-            for (let i = 0; i < numNfts; i += 1) {
-              const instances = [];
-              instances.push(generateRandomInstance(settings, api.sender));
-
-              // TODO: break this up into batches
+            let issueCounter = 0;
+            let instances = [];
+            while (issueCounter < numNfts) {
+              instances.push(generateRandomInstance(settings, nftSymbol, api.sender));
+              issueCounter++;
+              if (instances.length === MAX_NUM_NFTS_ISSUABLE) {
+                await api.executeSmartContract('nft', 'issueMultiple', {
+                  instances,
+                  isSignedWithActiveKey,
+                });
+                instances = [];
+              }
+            }
+            // take care of any leftover instances
+            if (instances.length > 0) {
               await api.executeSmartContract('nft', 'issueMultiple', {
                 instances,
                 isSignedWithActiveKey,
               });
             }
+
+            // TODO: sanity check to make sure proper number of NFTs were issued
+
+            // update fee pool balance
+            underManagement.feePool = calculateBalance(underManagement.feePool, totalIssuanceFee, UTILITY_TOKEN_PRECISION, false);
+            await api.db.update('managedNfts', underManagement);
+
             return true;
           }
         }

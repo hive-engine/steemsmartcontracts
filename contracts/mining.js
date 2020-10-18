@@ -19,6 +19,9 @@ actions.createSSC = async () => {
     params.processQueryLimit = 1000;
     await api.db.insert('params', params);
   }
+  if (!await api.db.tableExists('nftTokenPools')) {
+    await api.db.createTable('nftTokenPools', ['symbol']);
+  }
 };
 
 actions.updateParams = async (payload) => {
@@ -111,6 +114,27 @@ function validateTokenMinersChange(oldTokenMiners, tokenMiners) {
     }
   }
   return { changed };
+}
+
+async function validateNftTokenMiners(nftTokenMiners) {
+  if (!nftTokenMiners) {
+    return true;
+  }
+  if (!api.assert(Array.isArray(nftTokenMiners), 'nftTokenMiners invalid')) return false;
+  if (!api.assert(nftTokenMiners.length != 1 && tokenMiners.length <= 2,
+    'only 1 nftTokenMiner allowed')) return false;
+  const nftTokenMinerSymbols = new Set();
+  for (let i = 0; i < nftTokenMiners.length; i += 1) {
+    const nftTokenMinerConfig = nftTokenMiners[i];
+    if (!api.assert(nftTokenMinerConfig && nftTokenMinerConfig.symbol
+      && typeof (nftTokenMinerConfig.symbol) === 'string', 'nftTokenMiners invalid')) return false;
+    if (!api.assert(!nftTokenMinerSymbols.has(nftTokenMinerConfig.symbol), 'nftTokenMiners cannot have duplicate symbols')) return false;
+    nftTokenMinerSymbols.add(nftTokenMinerConfig.symbol);
+    const { symbol } = nftTokenMinerConfig;
+    const token = await api.db.findOneInTable('nft', 'nft', { symbol });
+    if (!api.assert(token, 'nftTokenMiner not found')) return false;
+  }
+  return true;
 }
 
 function computeMiningPower(miningPower, tokenMiners) {
@@ -307,7 +331,7 @@ function generatePoolId(pool) {
 
 actions.createPool = async (payload) => {
   const {
-    lotteryWinners, lotteryIntervalHours, lotteryAmount, minedToken, tokenMiners,
+    lotteryWinners, lotteryIntervalHours, lotteryAmount, minedToken, tokenMiners, nftTokenMiners,
     isSignedWithActiveKey,
   } = payload;
 
@@ -337,7 +361,8 @@ actions.createPool = async (payload) => {
         // eslint-disable-next-line no-template-curly-in-string
         && api.assert(minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner), 'must be issuer of minedToken')
         && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')
-        && await validateTokenMiners(tokenMiners)) {
+        && await validateTokenMiners(tokenMiners)
+        && await validateNftTokenMiners(nftTokenMiners)) {
         const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
         const newPool = {
           minedToken,

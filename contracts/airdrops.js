@@ -25,9 +25,18 @@ actions.updateParams = async (payload) => {
 
     const params = await api.db.findOne('params', {});
 
-    params.feePerTransaction = feePerTransaction;
-    params.maxTransactionsPerBlock = maxTransactionsPerBlock;
-    params.maxAirdropsPerBlock = maxAirdropsPerBlock;
+    if (feePerTransaction) {
+      if (!api.assert(typeof feePerTransaction === 'string' && !api.BigNumber(feePerTransaction).isNaN() && api.BigNumber(feePerTransaction).gte(0), 'invalid feePerTransaction')) return;
+      params.feePerTransaction = feePerTransaction;
+    }
+    if (maxTransactionsPerBlock) {
+      if (!api.assert(Number.isInteger(maxTransactionsPerBlock) && maxTransactionsPerBlock >= 1, 'invalid maxTransactionsPerBlock')) return;
+      params.maxTransactionsPerBlock = maxTransactionsPerBlock;
+    }
+    if (maxAirdropsPerBlock) {
+      if (!api.assert(Number.isInteger(maxAirdropsPerBlock) && maxAirdropsPerBlock >= 1, 'invalid maxAirdropsPerBlock')) return;
+      params.maxAirdropsPerBlock = maxAirdropsPerBlock;
+    }
 
     await api.db.update('params', params);
   }

@@ -15,14 +15,9 @@ actions.issueNewTokens = async () => {
 
   // issue tokens to HIVE_ENGINE_ACCOUNT
   // 100k tokens per year = 11.41552511 tokens per hour (an hour = 1200 blocks)
-  let nbTokens = '11.41552511';
+  const nbTokens = '11.41552511';
   await api.executeSmartContract('tokens', 'issue',
     { symbol: UTILITY_TOKEN_SYMBOL, quantity: nbTokens, to: HIVE_ENGINE_ACCOUNT });
-
-  // issue tokens to engpool
-  // 100k tokens per year = 11.41552511 tokens per hour (an hour = 1200 blocks)
-  nbTokens = '11.41552511';
-  await api.executeSmartContract('tokens', 'issue', { symbol: UTILITY_TOKEN_SYMBOL, quantity: nbTokens, to: 'hive-miner' });
 
   // issue tokens to "witnesses" contract
   // 200k tokens per year = 22.83105022 tokens per hour (an hour = 1200 blocks)

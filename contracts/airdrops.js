@@ -89,7 +89,7 @@ const transferIsSuccesfull = (result, action, from, to, symbol, quantity) => {
   return false;
 }
 
-actions.airdrop = async (payload) => {
+actions.initAirdrop = async (payload) => {
   const {
     symbol,
     type,

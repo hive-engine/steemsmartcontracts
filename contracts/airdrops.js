@@ -8,7 +8,6 @@ actions.createSSC = async () => {
     await api.db.createTable('params');
 
     const params = {};
-    params.listGenerationFee = '500';
     params.feePerTransaction = '0.1';
     params.maxTransactionsPerBlock = 50;
     params.maxAirdropsPerBlock = 1;
@@ -19,7 +18,6 @@ actions.createSSC = async () => {
 actions.updateParams = async (payload) => {
   if (api.assert(api.sender === api.owner, 'not authorized')) {
     const {
-      listGenerationFee,
       feePerTransaction,
       maxTransactionsPerBlock,
       maxAirdropsPerBlock,
@@ -27,7 +25,6 @@ actions.updateParams = async (payload) => {
 
     const params = await api.db.findOne('params', {});
 
-    params.listGenerationFee = listGenerationFee;
     params.feePerTransaction = feePerTransaction;
     params.maxTransactionsPerBlock = maxTransactionsPerBlock;
     params.maxAirdropsPerBlock = maxAirdropsPerBlock;
@@ -71,11 +68,24 @@ const parseAirdrop = async (list, precision) => {
     airdrop.isValid = true;
   }
   return airdrop;
+};
+
+const transferIsSuccesfull = (result, action, from, to, symbol, quantity) => {
+  if (result.errors === undefined
+    && result.events && result.events.find(el => el.contract === 'tokens' && el.event === action
+    && el.data.from === from && el.data.to === to && el.data.quantity === quantity && el.data.symbol === symbol) !== undefined) {
+    return true;
+  }
+
+  return false;
 }
 
 actions.airdrop = async (payload) => {
   const {
-    symbol, type, list, isSignedWithActiveKey,
+    symbol,
+    type,
+    list,
+    isSignedWithActiveKey,
   } = payload;
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
@@ -87,7 +97,7 @@ actions.airdrop = async (payload) => {
     
     // get api.sender's utility and airdrop token balances
     const { balance: utilityTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
-    const { balance: nativeBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol });
+    const { balance: nativeTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol });
     
     if (api.assert(token !== null, 'symbol does not exist')) {
       const airdrop = await parseAirdrop(list, token.precision);
@@ -95,25 +105,33 @@ actions.airdrop = async (payload) => {
       if (api.assert(airdrop.list.length > 0 && airdrop.isValid, 'invalid list')
         && api.assert(utilityTokenBalance
           && api.BigNumber(utilityTokenBalance).gte(airdrop.fee), 'you must have enough tokens to cover the airdrop fee')
-        && api.assert(nativeBalance
-          && api.BigNumber(nativeBalance).gte(airdrop.quantity), 'you must have enough tokens to do the airdrop')) {
+        && api.assert(nativeTokenBalance
+          && api.BigNumber(nativeTokenBalance).gte(airdrop.quantity), 'you must have enough tokens to do the airdrop')) {
         // validations completed
-        // deduct fee from sender's utility token balance
-        await api.executeSmartContract('tokens', 'transfer', {
-          to: 'null', symbol: UTILITY_TOKEN_SYMBOL, quantity: airdrop.fee, isSignedWithActiveKey,
-        });
-
         // lock airdrop tokens by transfering them to contract
-        await api.executeSmartContract('tokens', 'transferToContract', {
+        const tokenTransfer = await api.executeSmartContract('tokens', 'transferToContract', {
           to: CONTRACT_NAME, symbol, quantity: airdrop.quantity,
         });
-        
-        await api.db.insert('pendingAirdrops', {
-          txId: api.transactionId,
-          symbol,
-          type,
-          list: airdrop.list,
-        });
+
+        if (transferIsSuccesfull(tokenTransfer, 'transferToContract', api.sender, 'airdrops', symbol, airdrop.quantity)) {
+          // deduct fee from sender's utility token balance
+          const feeTransfer = await api.executeSmartContract('tokens', 'transfer', {
+            to: 'null', symbol: UTILITY_TOKEN_SYMBOL, quantity: airdrop.fee, isSignedWithActiveKey,
+          });
+
+          if (transferIsSuccesfull(feeTransfer, 'transfer', api.sender, 'null', symbol, airdrop.fee)) {
+            await api.db.insert('pendingAirdrops', {
+              txId: api.transactionId,
+              symbol,
+              type,
+              list: airdrop.list,
+            });
+          }
+          else {
+            // if fee transfer was failed, return native balance to api.sender
+            await api.transferTokens(api.sender, symbol, airdrop.quantity, 'user');
+          }
+        }
       }
     }
   }
@@ -165,14 +183,15 @@ const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
         // if no other transactions are remaining, delete airdrop
         await api.db.remove('pendingAirdrops', airdrop);
       }
+
       airdropIsPending = false;
     }
   }
-}
+};
 
 actions.checkPendingAirdrops = async () => {
   if (api.assert(api.sender === 'null', 'not authorized')) {
-    const params = await api.db.findOne('params', {})
+    const params = await api.db.findOne('params', {});
     const pendingAirdrops = await api.db.find('pendingAirdrops',
       {},
       params.maxAirdropsPerBlock,

@@ -120,16 +120,16 @@ function getNextTxId() {
     return `TXID${txId.toString().padStart(8, "0")}`;
 }
 
-async function assertPendingAirdrop(id) {
+async function assertPendingAirdrop(airdropId) {
   let res = await database1.findOne({
       contract: 'airdrops',
       table: 'pendingAirdrops',
       query: {
-        id,
+        airdropId,
       }
     });
 
-  assert.ok(res, `pendingAirdrop ${id} not found.`);
+  assert.ok(res, `pendingAirdrop ${airdropId} not found.`);
 }
 
 function assertError(tx, message) {
@@ -285,11 +285,45 @@ describe('Airdrops Smart Contract', function () {
 
       await assertNoErrorInLastBlock();
 
-      await assertPendingAirdrop(txs[6].transactionId);
-
       let eventLog = JSON.parse(res.transactions[6].logs);
       let initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
-      assert.equal(initAirdropEvent.data.id, txs[6].transactionId);
+      assert.equal(initAirdropEvent.data.airdropId, txs[6].transactionId);
+
+      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should not run airdrop distribution', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let res = await database1.getLatestBlockInfo();
+      let virtualTransactions = res.virtualTransactions;
+
+      assert.ok(!virtualTransactions[0]);
 
       resolve();
     })

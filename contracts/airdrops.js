@@ -8,7 +8,7 @@ const CONTRACT_NAME = 'airdrops';
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('pendingAirdrops');
   if (tableExists === false) {
-    await api.db.createTable('pendingAirdrops', ['txId', 'symbol']);
+    await api.db.createTable('pendingAirdrops', ['id', 'symbol']);
     await api.db.createTable('params');
 
     const params = {};
@@ -152,11 +152,13 @@ actions.initAirdrop = async (payload) => {
 
           if (transferIsSuccesfull(feeTransfer, 'transfer', api.sender, 'null', symbol, airdrop.fee)) {
             await api.db.insert('pendingAirdrops', {
-              txId: api.transactionId,
+              id: api.transactionId,
               symbol,
               type,
               list: airdrop.list,
             });
+
+            api.emit('initAirdrop', { id: api.transactionId });
           } else {
             // if fee transfer was failed, return native balance to api.sender
             await api.transferTokens(api.sender, symbol, airdrop.quantity, 'user');

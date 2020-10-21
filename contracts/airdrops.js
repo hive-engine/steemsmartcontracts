@@ -126,8 +126,8 @@ actions.initAirdrop = async (payload) => {
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
 
     // get api.sender's utility and airdrop token balances
-    const { balance: utilityTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
-    const { balance: nativeTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol });
+    const { balance: utilityTokenBalance } = { ...await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL }) };
+    const { balance: nativeTokenBalance } = { ...await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol }) };
 
     if (api.assert(token !== null, 'symbol does not exist')
       && hasValidType(token, type)) {

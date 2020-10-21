@@ -62,7 +62,7 @@ const parseAirdrop = async (list, precision) => {
 
     if (to && api.isValidAccountName(to)
       && quantity && !api.BigNumber(quantity).isNaN()
-      && api.BigNumber(quantity).gt(0) && api.BigNumber(quantity).dp().lte(precision)) {
+      && api.BigNumber(quantity).gt(0) && api.BigNumber(quantity).dp() <= precision) {
       airdrop.list.push({
         to,
         quantity,

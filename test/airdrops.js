@@ -534,7 +534,6 @@ describe('Airdrops Smart Contract', function () {
         assert.ok(airdropDistributionEvent, 'Expected to find airdropDistribution event');
         assert.equal(airdropDistributionEvent.data.list.length, 2);
         assert.equal(transferFromContractEvents.length, 2);
-        console.log(airdropDistributionEvent.data.list)
 
         if (i === 4)
           await assertPendingAirdrop(initAirdropEvent.data.airdropId, true);

@@ -156,6 +156,7 @@ actions.initAirdrop = async (payload) => {
               symbol,
               type,
               list: airdrop.list,
+              blockNumber: api.blockNumber,
             });
 
             api.emit('initAirdrop', { airdropId: res.airdropId });
@@ -199,32 +200,28 @@ const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
 
         completedDrops.push(list[count]);
 
-        // remove this object from airdrop
-        airdrop.list.shift();
-
         count += 1;
       } else {
         // if list[count] is undefined, airdrop is finished
-        await api.db.remove('pendingAirdrops', airdrop);
         airdropIsPending = false;
       }
     } else {
-      if (airdrop.list.length > 0) {
-        // if limit has been reached & transactions are still remaining, update airdrop
-        await api.db.update('pendingAirdrops', airdrop);
-      } else {
-        // if no other transactions are remaining, delete airdrop
-        await api.db.remove('pendingAirdrops', airdrop);
-      }
-
       airdropIsPending = false;
     }
   }
 
+  airdrop.list.splice(0, completedDrops.length)
+
+  if (airdrop.list.length > 0) {
+    // if limit has been reached & transactions are still remaining, update airdrop
+    await api.db.update('pendingAirdrops', airdrop);
+  } else {
+    // if no other transactions are remaining, delete airdrop
+    await api.db.remove('pendingAirdrops', airdrop);
+  }
+
   api.emit('airdropDistribution', {
     airdropId,
-    symbol,
-    type,
     list: completedDrops,
   });
 };
@@ -233,10 +230,12 @@ actions.checkPendingAirdrops = async () => {
   if (api.assert(api.sender === 'null', 'not authorized')) {
     const params = await api.db.findOne('params', {});
     const pendingAirdrops = await api.db.find('pendingAirdrops',
-      {},
+      {
+        blockNumber: { $lt: api.blockNumber }
+      },
       params.maxAirdropsPerBlock,
       0,
-      [{ index: 'id', descending: false }]);
+      [{ index: '_id', descending: false }]);
 
     for (let i = 0; i < pendingAirdrops.length; i += 1) {
       const airdrop = pendingAirdrops[i];

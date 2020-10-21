@@ -79,6 +79,15 @@ const parseAirdrop = async (list, precision) => {
   return airdrop;
 };
 
+const stakingEnabledIfRequired = async (token, type) => {
+  // check if token staking is enabled
+  if (type === 'stake' && api.assert(token.stakingEnabled === true), 'staking not enabled') {
+    return true;
+  }
+
+  return false;
+};
+
 const transferIsSuccesfull = (result, action, from, to, symbol, quantity) => {
   if (result.errors === undefined
     && result.events && result.events.find(el => el.contract === 'tokens' && el.event === action
@@ -87,7 +96,7 @@ const transferIsSuccesfull = (result, action, from, to, symbol, quantity) => {
   }
 
   return false;
-}
+};
 
 actions.initAirdrop = async (payload) => {
   const {
@@ -108,7 +117,8 @@ actions.initAirdrop = async (payload) => {
     const { balance: utilityTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
     const { balance: nativeTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol });
     
-    if (api.assert(token !== null, 'symbol does not exist')) {
+    if (api.assert(token !== null, 'symbol does not exist')
+      && stakingEnabledIfRequired(token, type)) {
       const airdrop = await parseAirdrop(list, token.precision);
 
       if (api.assert(airdrop.list.length > 0 && airdrop.isValid, 'invalid list')

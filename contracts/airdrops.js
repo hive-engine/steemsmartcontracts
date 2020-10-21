@@ -79,8 +79,12 @@ const parseAirdrop = async (list, precision) => {
   return airdrop;
 };
 
-const stakingEnabledIfRequired = async (token, type) => {
-  // check if token staking is enabled
+const hasValidType = async (token, type) => {
+  if (type === 'transfer') {
+    return true;
+  }
+
+  // check if staking is enabled
   if (type === 'stake' && api.assert(token.stakingEnabled === true), 'staking not enabled') {
     return true;
   }
@@ -118,7 +122,7 @@ actions.initAirdrop = async (payload) => {
     const { balance: nativeTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol });
     
     if (api.assert(token !== null, 'symbol does not exist')
-      && stakingEnabledIfRequired(token, type)) {
+      && hasValidType(token, type)) {
       const airdrop = await parseAirdrop(list, token.precision);
 
       if (api.assert(airdrop.list.length > 0 && airdrop.isValid, 'invalid list')

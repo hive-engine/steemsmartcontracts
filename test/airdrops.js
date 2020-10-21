@@ -120,7 +120,7 @@ function getNextTxId() {
     return `TXID${txId.toString().padStart(8, "0")}`;
 }
 
-async function assertPendingAirdrop(airdropId) {
+async function assertPendingAirdrop(airdropId, reverse = false) {
   let res = await database1.findOne({
       contract: 'airdrops',
       table: 'pendingAirdrops',
@@ -129,7 +129,10 @@ async function assertPendingAirdrop(airdropId) {
       }
     });
 
-  assert.ok(res, `pendingAirdrop ${airdropId} not found.`);
+  if (!reverse)
+    assert.ok(res, `pendingAirdrop ${airdropId} not found.`);
+  else
+    assert.ok(!res, `pendingAirdrop ${airdropId} is unexpected.`);
 }
 
 function assertError(tx, message) {
@@ -264,11 +267,10 @@ describe('Airdrops Smart Contract', function () {
       let transactions = [];
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "101", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', `{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "0.8", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": "harpagon:100,satoshi:100,theguruasia:100,roger:20,hiveio:20,guest123:10,theycallmedan:50,aggroed:100" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": "harpagon:100,satoshi:100,theguruasia:100,roger:20,hiveio:20,guest123:10,theycallmedan:50,aggroed:50,eonwarped:30,leo.voter:20" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -285,9 +287,9 @@ describe('Airdrops Smart Contract', function () {
 
       await assertNoErrorInLastBlock();
 
-      let eventLog = JSON.parse(res.transactions[6].logs);
+      let eventLog = JSON.parse(res.transactions[5].logs);
       let initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
-      assert.equal(initAirdropEvent.data.airdropId, txs[6].transactionId);
+      assert.equal(initAirdropEvent.data.airdropId, txs[5].transactionId);
 
       await assertPendingAirdrop(initAirdropEvent.data.airdropId);
 
@@ -324,6 +326,221 @@ describe('Airdrops Smart Contract', function () {
       let virtualTransactions = res.virtualTransactions;
 
       assert.ok(!virtualTransactions[0]);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should run airdrop distribution with transfer method', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "101", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', `{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": "harpagon:100,satoshi:100,theguruasia:100,roger:20,hiveio:20,guest123:10,theycallmedan:50,aggroed:50,eonwarped:30,leo.voter:20" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      let eventLog = JSON.parse(res.transactions[5].logs);
+      let initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
+      assert.equal(initAirdropEvent.data.airdropId, txs[5].transactionId);
+
+      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.getLatestBlockInfo();
+      let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      let airdropDistributionEvent = virtualEventLog.events.find(x => x.event === 'airdropDistribution');
+      let transferFromContractEvents = virtualEventLog.events.filter(x => x.event === 'transferFromContract');
+
+      assert.ok(airdropDistributionEvent, 'Expected to find airdropDistribution event');
+      assert.equal(airdropDistributionEvent.data.list.length, 10);
+      assert.equal(transferFromContractEvents.length, 10);
+
+      await assertPendingAirdrop(initAirdropEvent.data.airdropId, true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should run airdrop distribution with stake method', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "1101", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'enableStaking', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', `{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "stake", "list": "harpagon:100,satoshi:100,theguruasia:100,roger:20,hiveio:20,guest123:10,theycallmedan:50,aggroed:50,eonwarped:30,leo.voter:20" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      let eventLog = JSON.parse(res.transactions[6].logs);
+      let initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
+      assert.equal(initAirdropEvent.data.airdropId, txs[6].transactionId);
+
+      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.getLatestBlockInfo();
+      let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      let airdropDistributionEvent = virtualEventLog.events.find(x => x.event === 'airdropDistribution');
+      let stakeFromContractEvents = virtualEventLog.events.filter(x => x.event === 'stakeFromContract');
+
+      assert.ok(airdropDistributionEvent, 'Expected to find airdropDistribution event');
+      assert.equal(airdropDistributionEvent.data.list.length, 10);
+      assert.equal(stakeFromContractEvents.length, 10);
+
+      await assertPendingAirdrop(initAirdropEvent.data.airdropId, true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should run airdrop distribution seperated between multiple blocks', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "101", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'airdrops', 'updateParams', '{ "maxTransactionsPerBlock": 2 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', `{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": "harpagon:100,satoshi:100,theguruasia:100,roger:20,hiveio:20,guest123:10,theycallmedan:50,aggroed:50,eonwarped:30,leo.voter:20" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      let eventLog = JSON.parse(res.transactions[6].logs);
+      let initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
+      assert.equal(initAirdropEvent.data.airdropId, txs[6].transactionId);
+
+      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+
+      for (let i = 0; i < 5; i += 1) {
+        transactions = [];
+        transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
+
+        block = {
+          refHiveBlockNumber: 12345678902 + i,
+          refHiveBlockId: 'ABCD1',
+          prevRefHiveBlockId: 'ABCD2',
+          timestamp: '2018-06-01T00:00:00',
+          transactions,
+        };
+
+        await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+        res = await database1.getLatestBlockInfo();
+        let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+        let airdropDistributionEvent = virtualEventLog.events.find(x => x.event === 'airdropDistribution');
+        let transferFromContractEvents = virtualEventLog.events.filter(x => x.event === 'transferFromContract');
+
+        assert.ok(airdropDistributionEvent, 'Expected to find airdropDistribution event');
+        assert.equal(airdropDistributionEvent.data.list.length, 2);
+        assert.equal(transferFromContractEvents.length, 2);
+        console.log(airdropDistributionEvent.data.list)
+
+        if (i === 4)
+          await assertPendingAirdrop(initAirdropEvent.data.airdropId, true);
+        else
+          await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+      }
 
       resolve();
     })

@@ -102,7 +102,7 @@ const transferIsSuccesfull = (result, action, from, to, symbol, quantity) => {
     && el.event === action
     && el.data.from === from
     && el.data.to === to
-    && el.data.quantity === quantity
+    && api.BigNumber(el.data.quantity).eq(quantity)
     && el.data.symbol === symbol) !== undefined) {
     return true;
   }
@@ -144,13 +144,13 @@ actions.initAirdrop = async (payload) => {
           to: CONTRACT_NAME, symbol, quantity: airdrop.quantity,
         });
 
-        if (transferIsSuccesfull(tokenTransfer, 'transferToContract', api.sender, 'airdrops', symbol, airdrop.quantity)) {
+        if (transferIsSuccesfull(tokenTransfer, 'transferToContract', api.sender, CONTRACT_NAME, symbol, airdrop.quantity)) {
           // deduct fee from sender's utility token balance
           const feeTransfer = await api.executeSmartContract('tokens', 'transfer', {
             to: 'null', symbol: UTILITY_TOKEN_SYMBOL, quantity: airdrop.fee, isSignedWithActiveKey,
           });
 
-          if (transferIsSuccesfull(feeTransfer, 'transfer', api.sender, 'null', symbol, airdrop.fee)) {
+          if (transferIsSuccesfull(feeTransfer, 'transfer', api.sender, 'null', UTILITY_TOKEN_SYMBOL, airdrop.fee)) {
             await api.db.insert('pendingAirdrops', {
               id: api.transactionId,
               symbol,

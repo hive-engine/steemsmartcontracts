@@ -79,7 +79,7 @@ const parseAirdrop = async (list, precision) => {
   return airdrop;
 };
 
-const hasValidType = async (token, type) => {
+const hasValidType = (token, type) => {
   if (type === 'transfer') {
     return true;
   }

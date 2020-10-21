@@ -8,7 +8,7 @@ const CONTRACT_NAME = 'airdrops';
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('pendingAirdrops');
   if (tableExists === false) {
-    await api.db.createTable('pendingAirdrops', ['id', 'symbol']);
+    await api.db.createTable('pendingAirdrops', ['airdropId', 'symbol']);
     await api.db.createTable('params');
 
     const params = {};
@@ -151,14 +151,14 @@ actions.initAirdrop = async (payload) => {
           });
 
           if (transferIsSuccesfull(feeTransfer, 'transfer', api.sender, 'null', UTILITY_TOKEN_SYMBOL, airdrop.fee)) {
-            await api.db.insert('pendingAirdrops', {
-              id: api.transactionId,
+            const res = await api.db.insert('pendingAirdrops', {
+              airdropId: api.transactionId,
               symbol,
               type,
               list: airdrop.list,
             });
 
-            api.emit('initAirdrop', { id: api.transactionId });
+            api.emit('initAirdrop', { airdropId: res.airdropId });
           } else {
             // if fee transfer was failed, return native balance to api.sender
             await api.transferTokens(api.sender, symbol, airdrop.quantity, 'user');
@@ -171,6 +171,7 @@ actions.initAirdrop = async (payload) => {
 
 const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
   const {
+    airdropId,
     list,
     symbol,
     type,
@@ -178,6 +179,8 @@ const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
 
   let airdropIsPending = true;
   let count = 0;
+
+  const completedDrops = [];
 
   while (airdropIsPending) {
     if (count < maxTransactionsPerBlock) {
@@ -193,6 +196,8 @@ const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
             to, symbol, quantity,
           });
         }
+
+        completedDrops.push(list[count]);
 
         // remove this object from airdrop
         airdrop.list.shift();
@@ -215,6 +220,13 @@ const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
       airdropIsPending = false;
     }
   }
+
+  api.emit('airdropDistribution', {
+    airdropId,
+    symbol,
+    type,
+    list: completedDrops,
+  });
 };
 
 actions.checkPendingAirdrops = async () => {

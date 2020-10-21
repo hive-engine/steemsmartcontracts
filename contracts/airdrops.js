@@ -1,3 +1,7 @@
+/* eslint-disable no-await-in-loop */
+/* global actions, api */
+
+// eslint-disable-next-line no-template-curly-in-string
 const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
 const CONTRACT_NAME = 'airdrops';
 
@@ -49,12 +53,12 @@ const parseAirdrop = async (list, precision) => {
   airdrop.fee = '0';
   airdrop.quantity = '0';
   airdrop.isValid = false;
-  
+
   // convert csv to an array & then loop through it
   const listArray = list.split(',');
   for (let i = 0; i < listArray.length; i += 1) {
     // get to & quantity from raw value
-    const { [0]:to, [1]:quantity } = listArray[i].split(':');
+    const { 0: to, 1: quantity } = listArray[i].split(':');
 
     if (to && api.isValidAccountName(to)
       && quantity && !api.BigNumber(quantity).isNaN()
@@ -68,7 +72,7 @@ const parseAirdrop = async (list, precision) => {
       airdrop.quantity = api.BigNumber(airdrop.quantity).plus(quantity);
     }
   }
-  
+
   // calculate total fee
   airdrop.fee = api.BigNumber(params.feePerTransaction).times(airdrop.list.length);
 
@@ -85,7 +89,7 @@ const hasValidType = (token, type) => {
   }
 
   // check if staking is enabled
-  if (type === 'stake' && api.assert(token.stakingEnabled === true), 'staking not enabled') {
+  if (type === 'stake' && api.assert(token.stakingEnabled === true, 'staking not enabled')) {
     return true;
   }
 
@@ -94,8 +98,12 @@ const hasValidType = (token, type) => {
 
 const transferIsSuccesfull = (result, action, from, to, symbol, quantity) => {
   if (result.errors === undefined
-    && result.events && result.events.find(el => el.contract === 'tokens' && el.event === action
-    && el.data.from === from && el.data.to === to && el.data.quantity === quantity && el.data.symbol === symbol) !== undefined) {
+    && result.events && result.events.find(el => el.contract === 'tokens'
+    && el.event === action
+    && el.data.from === from
+    && el.data.to === to
+    && el.data.quantity === quantity
+    && el.data.symbol === symbol) !== undefined) {
     return true;
   }
 
@@ -116,11 +124,11 @@ actions.initAirdrop = async (payload) => {
       && type && typeof type === 'string', 'invalid params')
     && api.assert(type === 'transfer' || type === 'stake', 'invalid type')) {
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
-    
+
     // get api.sender's utility and airdrop token balances
     const { balance: utilityTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
     const { balance: nativeTokenBalance } = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol });
-    
+
     if (api.assert(token !== null, 'symbol does not exist')
       && hasValidType(token, type)) {
       const airdrop = await parseAirdrop(list, token.precision);
@@ -149,8 +157,7 @@ actions.initAirdrop = async (payload) => {
               type,
               list: airdrop.list,
             });
-          }
-          else {
+          } else {
             // if fee transfer was failed, return native balance to api.sender
             await api.transferTokens(api.sender, symbol, airdrop.quantity, 'user');
           }
@@ -166,43 +173,39 @@ const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
     symbol,
     type,
   } = airdrop;
-  
+
   let airdropIsPending = true;
   let count = 0;
-  
-  while(airdropIsPending) {
+
+  while (airdropIsPending) {
     if (count < maxTransactionsPerBlock) {
-      if(list[count] !== undefined) {
-        const { to, quantity } = list[i];
-        
+      if (list[count] !== undefined) {
+        const { to, quantity } = list[count];
+
         if (type === 'transfer') {
           // transfer tokens
           await api.transferTokens(to, symbol, quantity, 'user');
-        }
-        else if (type === 'stake') {
+        } else if (type === 'stake') {
           // stake tokens
           await api.executeSmartContract('tokens', 'stakeFromContract', {
-            to, symbol, quantity
+            to, symbol, quantity,
           });
         }
-  
+
         // remove this object from airdrop
         airdrop.list.shift();
-  
+
         count += 1;
-      }
-      else {
+      } else {
         // if list[count] is undefined, airdrop is finished
         await api.db.remove('pendingAirdrops', airdrop);
         airdropIsPending = false;
       }
-    }
-    else {
+    } else {
       if (airdrop.list.length > 0) {
         // if limit has been reached & transactions are still remaining, update airdrop
         await api.db.update('pendingAirdrops', airdrop);
-      }
-      else {
+      } else {
         // if no other transactions are remaining, delete airdrop
         await api.db.remove('pendingAirdrops', airdrop);
       }
@@ -220,8 +223,8 @@ actions.checkPendingAirdrops = async () => {
       params.maxAirdropsPerBlock,
       0,
       [{ index: 'id', descending: false }]);
-    
-    for(let i = 0; i < pendingAirdrops.length; i += 1) {
+
+    for (let i = 0; i < pendingAirdrops.length; i += 1) {
       const airdrop = pendingAirdrops[i];
       await processAirdrop(airdrop, params.maxTransactionsPerBlock);
     }

@@ -54,11 +54,9 @@ const parseAirdrop = async (list, precision) => {
   airdrop.quantity = '0';
   airdrop.isValid = false;
 
-  // convert csv to an array & then loop through it
-  const listArray = list.split(',');
-  for (let i = 0; i < listArray.length; i += 1) {
-    // get to & quantity from raw value
-    const { 0: to, 1: quantity } = listArray[i].split(':');
+  // loop through list and validate
+  for (let i = 0; i < list.length; i += 1) {
+    const { 0: to, 1: quantity } = list[i];
 
     if (to && api.isValidAccountName(to)
       && quantity && !api.BigNumber(quantity).isNaN()
@@ -76,10 +74,11 @@ const parseAirdrop = async (list, precision) => {
   // calculate total fee
   airdrop.fee = api.BigNumber(params.feePerTransaction).times(airdrop.list.length);
 
-  // list validation, check if all values from listArray are valid & pushed into airdrop.list
-  if (listArray.length > 0 && listArray.length === airdrop.list.length) {
+  // list validation, check if all values from list are valid & pushed into airdrop.list
+  if (list.length > 0 && list.length === airdrop.list.length) {
     airdrop.isValid = true;
   }
+
   return airdrop;
 };
 
@@ -120,8 +119,8 @@ actions.initAirdrop = async (payload) => {
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(symbol && typeof symbol === 'string'
-      && list && typeof list === 'string'
-      && type && typeof type === 'string', 'invalid params')
+      && type && typeof type === 'string'
+      && list && typeof list === 'object' && list.length, 'invalid params')
     && api.assert(type === 'transfer' || type === 'stake', 'invalid type')) {
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
 
@@ -210,7 +209,7 @@ const processAirdrop = async (airdrop, maxTransactionsPerBlock) => {
     }
   }
 
-  airdrop.list.splice(0, completedDrops.length)
+  airdrop.list.splice(0, completedDrops.length);
 
   if (airdrop.list.length > 0) {
     // if limit has been reached & transactions are still remaining, update airdrop
@@ -231,7 +230,7 @@ actions.checkPendingAirdrops = async () => {
     const params = await api.db.findOne('params', {});
     const pendingAirdrops = await api.db.find('pendingAirdrops',
       {
-        blockNumber: { $lt: api.blockNumber }
+        blockNumber: { $lt: api.blockNumber },
       },
       params.maxAirdropsPerBlock,
       0,

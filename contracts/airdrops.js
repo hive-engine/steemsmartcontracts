@@ -109,7 +109,7 @@ const transferIsSuccesfull = (result, action, from, to, symbol, quantity) => {
   return false;
 };
 
-actions.initAirdrop = async (payload) => {
+actions.newAirdrop = async (payload) => {
   const {
     symbol,
     type,
@@ -158,7 +158,7 @@ actions.initAirdrop = async (payload) => {
               blockNumber: api.blockNumber,
             });
 
-            api.emit('initAirdrop', { airdropId: res.airdropId });
+            api.emit('newAirdrop', { airdropId: res.airdropId });
           } else {
             // if fee transfer was failed, return native balance to api.sender
             await api.transferTokens(api.sender, symbol, airdrop.quantity, 'user');

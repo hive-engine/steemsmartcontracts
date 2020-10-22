@@ -211,20 +211,20 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "100", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": false, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": 1, "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": 1, "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": 1 }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "liquid_transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN.TEST", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "stake", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100.000000001"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi**a", "100"],["theg__ruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", 100],["satoshi:100"],["100", "theguruasia"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": false, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": 1, "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": 1, "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": 1 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "liquid_transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN.TEST", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "stake", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100.000000001"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi**a", "100"],["theg__ruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", 100],["satoshi:100"],["100", "theguruasia"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "0.3", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -275,7 +275,7 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "101", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -293,10 +293,10 @@ describe('Airdrops Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       const eventLog = JSON.parse(res.transactions[5].logs);
-      const initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
-      assert.equal(initAirdropEvent.data.airdropId, txs[5].transactionId);
+      const newAirdropEvent = eventLog.events.find(x => x.event === 'newAirdrop');
+      assert.equal(newAirdropEvent.data.airdropId, txs[5].transactionId);
 
-      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+      await assertPendingAirdrop(newAirdropEvent.data.airdropId);
 
       resolve();
     })
@@ -354,7 +354,7 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "101", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -372,10 +372,10 @@ describe('Airdrops Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       const eventLog = JSON.parse(res.transactions[5].logs);
-      const initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
-      assert.equal(initAirdropEvent.data.airdropId, txs[5].transactionId);
+      const newAirdropEvent = eventLog.events.find(x => x.event === 'newAirdrop');
+      assert.equal(newAirdropEvent.data.airdropId, txs[5].transactionId);
 
-      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+      await assertPendingAirdrop(newAirdropEvent.data.airdropId);
 
       transactions = [];
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
@@ -399,7 +399,7 @@ describe('Airdrops Smart Contract', function () {
       assert.equal(airdropDistributionEvent.data.list.length, 8);
       assert.equal(transferFromContractEvents.length, 8);
 
-      await assertPendingAirdrop(initAirdropEvent.data.airdropId, true);
+      await assertPendingAirdrop(newAirdropEvent.data.airdropId, true);
 
       resolve();
     })
@@ -424,7 +424,7 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'enableStaking', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "unstakingCooldown": 7, "numberTransactions": 1 }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "stake", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "stake", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -442,10 +442,10 @@ describe('Airdrops Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       const eventLog = JSON.parse(res.transactions[6].logs);
-      const initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
-      assert.equal(initAirdropEvent.data.airdropId, txs[6].transactionId);
+      const newAirdropEvent = eventLog.events.find(x => x.event === 'newAirdrop');
+      assert.equal(newAirdropEvent.data.airdropId, txs[6].transactionId);
 
-      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+      await assertPendingAirdrop(newAirdropEvent.data.airdropId);
 
       transactions = [];
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
@@ -469,7 +469,7 @@ describe('Airdrops Smart Contract', function () {
       assert.equal(airdropDistributionEvent.data.list.length, 8);
       assert.equal(stakeFromContractEvents.length, 8);
 
-      await assertPendingAirdrop(initAirdropEvent.data.airdropId, true);
+      await assertPendingAirdrop(newAirdropEvent.data.airdropId, true);
 
       resolve();
     })
@@ -494,7 +494,7 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'airdrops', 'updateParams', '{ "maxTransactionsPerBlock": 2 }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "500", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'initAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"],["leo.voter", "50"],["aggroed", "50"],["cryptomancer", "30"],["token-raindrops", "20"],["hive-engine", "50"]] }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -512,10 +512,10 @@ describe('Airdrops Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       const eventLog = JSON.parse(res.transactions[6].logs);
-      const initAirdropEvent = eventLog.events.find(x => x.event === 'initAirdrop');
-      assert.equal(initAirdropEvent.data.airdropId, txs[6].transactionId);
+      const newAirdropEvent = eventLog.events.find(x => x.event === 'newAirdrop');
+      assert.equal(newAirdropEvent.data.airdropId, txs[6].transactionId);
 
-      await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+      await assertPendingAirdrop(newAirdropEvent.data.airdropId);
 
       for (let i = 0; i < 4; i += 1) {
         transactions = [];
@@ -540,8 +540,8 @@ describe('Airdrops Smart Contract', function () {
         assert.equal(airdropDistributionEvent.data.list.length, 2);
         assert.equal(transferFromContractEvents.length, 2);
 
-        if (i === 3) await assertPendingAirdrop(initAirdropEvent.data.airdropId, true);
-        else await assertPendingAirdrop(initAirdropEvent.data.airdropId);
+        if (i === 3) await assertPendingAirdrop(newAirdropEvent.data.airdropId, true);
+        else await assertPendingAirdrop(newAirdropEvent.data.airdropId);
       }
 
       resolve();

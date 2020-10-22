@@ -104,7 +104,6 @@ class Block {
     if (this.refHiveBlockNumber >= 47746850) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'mining', 'checkPendingLotteries', ''));
     }
-
     if (this.refHiveBlockNumber >= 48077200) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
     }

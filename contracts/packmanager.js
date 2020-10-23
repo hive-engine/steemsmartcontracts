@@ -10,7 +10,7 @@ const UTILITY_TOKEN_PRECISION = 8;
 
 const MAX_NAME_LENGTH = 100;
 const MAX_CARDS_PER_PACK = 30; // how many NFT instances can a single pack generate?
-const MAX_CARDS_AT_ONCE = 60;  // how many NFT instances can be generated in one open action?
+const MAX_CARDS_AT_ONCE = 60; // how many NFT instances can be generated in one open action?
 
 // cannot issue more than this number of NFT instances in one call to issueMultiple
 const MAX_NUM_NFTS_ISSUABLE = 10;
@@ -157,12 +157,12 @@ actions.deleteType = async (payload) => {
         && api.assert(nft.circulatingSupply === 0, 'NFT instances must not be in circulation')) {
         const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
         if (api.assert(underManagement !== null, 'NFT not under management')) {
-          const theType = await api.db.findOne('types', { nft: nftSymbol, edition: edition, typeId: typeId });
+          const theType = await api.db.findOne('types', { nft: nftSymbol, edition, typeId });
           if (theType !== null) {
             // all checks have passed, now remove the type
             await api.db.remove('types', theType);
 
-            api.emit('deleteType', { nft: nftSymbol, edition: edition, typeId: typeId });
+            api.emit('deleteType', { nft: nftSymbol, edition, typeId });
 
             return true;
           }
@@ -209,12 +209,12 @@ actions.updateType = async (payload) => {
             && (rarity === undefined || !underManagement.rarityRO)
             && (team === undefined || !underManagement.teamRO)
             && (name === undefined || !underManagement.nameRO)), 'cannot edit read-only properties')) {
-            const theType = await api.db.findOne('types', { nft: nftSymbol, edition: edition, typeId: typeId });
+            const theType = await api.db.findOne('types', { nft: nftSymbol, edition, typeId });
             if (api.assert(theType !== null, 'type does not exist')) {
               const update = {
                 nft: nftSymbol,
-                edition: edition,
-                typeId: typeId,
+                edition,
+                typeId,
               };
 
               // all checks have passed, now we can update stuff
@@ -293,12 +293,12 @@ actions.addType = async (payload) => {
 
               const newType = {
                 nft: nftSymbol,
-                edition: edition,
+                edition,
                 typeId: newTypeId,
-                category: category,
-                rarity: rarity,
-                team: team,
-                name: name,
+                category,
+                rarity,
+                team,
+                name,
               };
               const result = await api.db.insert('types', newType);
 
@@ -306,7 +306,8 @@ actions.addType = async (payload) => {
               await api.db.update('managedNfts', underManagement);
 
               api.emit('addType', {
-                nft: nftSymbol, edition: edition, typeId: newTypeId, rowId: result._id,
+                // eslint-disable-next-line no-underscore-dangle
+                nft: nftSymbol, edition, typeId: newTypeId, rowId: result._id,
               });
 
               return true;
@@ -425,15 +426,15 @@ actions.registerPack = async (payload) => {
                 account: api.sender,
                 symbol: packSymbol,
                 nft: nftSymbol,
-                edition: edition,
-                cardsPerPack: cardsPerPack,
+                edition,
+                cardsPerPack,
               };
 
               // if this is a registration for a new edition, we need
               // to start a new edition mapping
               if (!(edition.toString() in underManagement.editionMapping)) {
                 const newMapping = {
-                  nextTypeId: 0
+                  nextTypeId: 0,
                 };
                 underManagement.editionMapping[edition.toString()] = newMapping;
                 await api.db.update('managedNfts', underManagement);
@@ -476,33 +477,29 @@ actions.createNft = async (payload) => {
     const nftParams = await api.db.findOneInTable('nft', 'params', {});
     const {
       nftCreationFee,
-      dataPropertyCreationFee,
     } = nftParams;
-    // TODO: can remove the below if not more than 3 data properties
-    //const propertyFee = api.BigNumber(dataPropertyCreationFee).multipliedBy(1); // first 3 data properties are free
-    //const totalFeeAmount = api.BigNumber(nftCreationFee).plus(propertyFee);
     const hasEnoughBalance = await verifyTokenBalance(nftCreationFee, UTILITY_TOKEN_SYMBOL, api.sender);
 
     if (api.assert(hasEnoughBalance, 'you must have enough tokens to cover the NFT creation')) {
       // verify nft doesn't already exist
-      let nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+      let nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
       if (api.assert(nft === null, 'symbol already exists')) {
         // We don't specify maxSupply, which means the supply
         // will be unlimited. But indirectly the supply is limited by the
         // supply of the pack tokens.
         await api.executeSmartContract('nft', 'create', {
-          name: name,
-          symbol: symbol,
-          orgName: orgName,
-          productName: productName,
-          url: url,
+          name,
+          symbol,
+          orgName,
+          productName,
+          url,
           authorizedIssuingAccounts: [],
           authorizedIssuingContracts: [CONTRACT_NAME],
           isSignedWithActiveKey,
         });
 
         // verify nft was created OK
-        nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+        nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
         if (api.assert(nft !== null, 'error creating NFT')) {
           const finalIsFoilReadOnly = isFoilReadOnly === undefined ? true : isFoilReadOnly;
           const finalIsTypeReadOnly = isTypeReadOnly === undefined ? true : isTypeReadOnly;
@@ -510,7 +507,7 @@ actions.createNft = async (payload) => {
           // Edition only gets set once at issuance and never changes, so we
           // can make it read only.
           await api.executeSmartContract('nft', 'addProperty', {
-            symbol: symbol,
+            symbol,
             name: 'edition',
             type: 'number',
             isReadOnly: true,
@@ -520,7 +517,7 @@ actions.createNft = async (payload) => {
           });
 
           await api.executeSmartContract('nft', 'addProperty', {
-            symbol: symbol,
+            symbol,
             name: 'foil',
             type: 'number',
             isReadOnly: finalIsFoilReadOnly,
@@ -529,7 +526,7 @@ actions.createNft = async (payload) => {
           });
 
           await api.executeSmartContract('nft', 'addProperty', {
-            symbol: symbol,
+            symbol,
             name: 'type',
             type: 'number',
             isReadOnly: finalIsTypeReadOnly,
@@ -538,11 +535,11 @@ actions.createNft = async (payload) => {
           });
 
           // now verify data properties were added OK
-          nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+          nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
           const propertyCount = Object.keys(nft.properties).length;
           if (api.assert(propertyCount === 3, 'NFT created but error adding data properties')) {
             await api.executeSmartContract('nft', 'setGroupBy', {
-              symbol: symbol,
+              symbol,
               properties: ['edition', 'foil', 'type'],
               isSignedWithActiveKey,
             });
@@ -560,11 +557,11 @@ actions.createNft = async (payload) => {
             await api.db.insert('managedNfts', newRecord);
 
             // finally, verify groupBy was set OK
-            nft = await api.db.findOneInTable('nft', 'nfts', { symbol: symbol });
+            nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
             const groupByCount = nft.groupBy.length;
             if (api.assert(groupByCount === 3, 'NFT created with data properties, but error setting groupBy')) {
               api.emit('createNft', {
-                symbol
+                symbol,
               });
             }
           }
@@ -663,7 +660,7 @@ actions.open = async (payload) => {
             let instances = [];
             while (issueCounter < numNfts) {
               instances.push(generateRandomInstance(settings, nftSymbol, api.sender));
-              issueCounter++;
+              issueCounter += 1;
               if (instances.length === MAX_NUM_NFTS_ISSUABLE) {
                 res = await api.executeSmartContract('nft', 'issueMultiple', {
                   instances,

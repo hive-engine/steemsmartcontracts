@@ -154,7 +154,7 @@ async function assertNoErrorInLastBlock() {
 
 // smart contract
 describe('Airdrops Smart Contract', function () {
-  this.timeout(10000);
+  this.timeout(20000);
 
   before((done) => {
     new Promise(async (resolve) => {
@@ -215,13 +215,16 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": 1, "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": 1, "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": 1 }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "liquid_transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN.TEST", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "stake", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100.000000001"],["satoshi", "100"],["theguruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi**a", "100"],["theg__ruasia", "100"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", 100],["satoshi:100"],["100", "theguruasia"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [[]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "harpagon"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "-100"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100.000000001"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "0.3", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'airdrops', 'newAirdrop', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "type": "transfer", "list": [["harpagon", "100"],["satoshi", "100"],["theguruasia", "100"]] }'));
@@ -243,15 +246,18 @@ describe('Airdrops Smart Contract', function () {
       assertError(txs[5], 'invalid params'); // invalid symbol
       assertError(txs[6], 'invalid params'); // invalid type
       assertError(txs[7], 'invalid params'); // invalid list
-      assertError(txs[8], 'invalid params'); // invalid empty list
-      assertError(txs[9], 'invalid type');
-      assertError(txs[10], 'symbol does not exist');
-      assertError(txs[11], 'staking not enabled');
-      assertError(txs[12], 'invalid list'); // by invalid precision
-      assertError(txs[13], 'invalid list'); // by invalid account name
-      assertError(txs[14], 'invalid list'); // by invalid format
-      assertError(txs[15], 'you must have enough tokens to cover the airdrop fee');
-      assertError(txs[17], 'you must have enough tokens to do the airdrop');
+      assertError(txs[8], 'invalid type');
+      assertError(txs[9], 'symbol does not exist');
+      assertError(txs[10], 'staking not enabled');
+      assertError(txs[11], 'list[0]: account name cannot be undefined');
+      assertError(txs[12], 'list[0]: invalid account name');
+      assertError(txs[13], 'list[0]: quantity cannot be undefined');
+      assertError(txs[14], 'list[0]: invalid quantity');
+      assertError(txs[15], 'list[0]: quantity must be positive');
+      assertError(txs[16], 'list[0]: quantity precision mismatch');
+      assertError(txs[17], 'list cannot be empty');
+      assertError(txs[18], 'you must have enough tokens to cover the airdrop fee');
+      assertError(txs[20], 'you must have enough tokens to do the airdrop');
 
       resolve();
     })
@@ -396,7 +402,7 @@ describe('Airdrops Smart Contract', function () {
       const transferFromContractEvents = virtualEventLog.events.filter(x => x.event === 'transferFromContract');
 
       assert.ok(airdropDistributionEvent, 'Expected to find airdropDistribution event');
-      assert.equal(airdropDistributionEvent.data.list.length, 8);
+      assert.equal(airdropDistributionEvent.data.transactions, 8);
       assert.equal(transferFromContractEvents.length, 8);
 
       await assertPendingAirdrop(newAirdropEvent.data.airdropId, true);
@@ -466,7 +472,7 @@ describe('Airdrops Smart Contract', function () {
       const stakeFromContractEvents = virtualEventLog.events.filter(x => x.event === 'stakeFromContract');
 
       assert.ok(airdropDistributionEvent, 'Expected to find airdropDistribution event');
-      assert.equal(airdropDistributionEvent.data.list.length, 8);
+      assert.equal(airdropDistributionEvent.data.transactions, 8);
       assert.equal(stakeFromContractEvents.length, 8);
 
       await assertPendingAirdrop(newAirdropEvent.data.airdropId, true);
@@ -537,7 +543,7 @@ describe('Airdrops Smart Contract', function () {
         const transferFromContractEvents = virtualEventLog.events.filter(x => x.event === 'transferFromContract');
 
         assert.ok(airdropDistributionEvent, 'Expected to find airdropDistribution event');
-        assert.equal(airdropDistributionEvent.data.list.length, 2);
+        assert.equal(airdropDistributionEvent.data.transactions, 2);
         assert.equal(transferFromContractEvents.length, 2);
 
         if (i === 3) await assertPendingAirdrop(newAirdropEvent.data.airdropId, true);

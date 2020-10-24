@@ -203,6 +203,11 @@ describe('packmanager', function() {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
+      // uncomment to check errors with contract deployment
+      //const block1 = await database1.getBlockInfo(1);
+      //const transactionsBlock1 = block1.transactions;
+      //console.log(JSON.parse(transactionsBlock1[0].logs).errors[0]);
+
       // check if the params updated OK
       const params = await database1.findOne({
         contract: 'packmanager',
@@ -285,7 +290,7 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1239', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol":"PACK", "to":"cryptomancer", "quantity":"50", "isSignedWithActiveKey":true }'));
       transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
 
       // add some types
       transactions.push(new Transaction(38145386, 'TXID1242', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 0, "category": 1, "rarity": 1, "team": 3, "name": "Tank", "isSignedWithActiveKey": true }'));

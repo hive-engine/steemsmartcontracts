@@ -11,6 +11,7 @@ const UTILITY_TOKEN_PRECISION = 8;
 const MAX_NAME_LENGTH = 100;
 const MAX_CARDS_PER_PACK = 30; // how many NFT instances can a single pack generate?
 const MAX_CARDS_AT_ONCE = 60; // how many NFT instances can be generated in one open action?
+const MAX_PARTITIONS = 100; // how many ways can a random roll be divided for category, rarity, team, and foil?
 
 // cannot issue more than this number of NFT instances in one call to issueMultiple
 const MAX_NUM_NFTS_ISSUABLE = 10;
@@ -31,6 +32,21 @@ actions.createSSC = async () => {
 };
 
 // ----- START UTILITY FUNCTIONS -----
+
+const isValidPartition = (partition) => {
+  if (partition && typeof partition === 'object' && Array.isArray(partition) && partition.length >= 1 && partition.length <= MAX_PARTITIONS) {
+    let prevNum = 0;
+    for (let i = 0; i < partition.length; i += 1) {
+      let val = partition[i];
+      if (!(typeof val === 'number' && Number.isInteger(val) && val > prevNum)) {
+        return false;
+      }
+      prevNum = val;
+    }
+    return true;
+  }
+  return false;
+};
 
 const isTokenTransferVerified = (result, from, to, symbol, quantity, eventStr) => {
   if (result.errors === undefined
@@ -327,11 +343,15 @@ actions.updateSettings = async (payload) => {
     nftSymbol,
     edition,
     cardsPerPack,
+    foilChance,
+    categoryChance,
+    rarityChance,
+    teamChance,
     isSignedWithActiveKey,
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (edition === undefined && cardsPerPack === undefined) {
+  if (edition === undefined && cardsPerPack === undefined && foilChance === undefined && categoryChance === undefined && rarityChance === undefined && teamChance === undefined) {
     return false;
   }
 
@@ -339,6 +359,10 @@ actions.updateSettings = async (payload) => {
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
       && (edition === undefined || (typeof edition === 'number' && Number.isInteger(edition) && edition >= 0))
+      && (foilChance === undefined || isValidPartition(foilChance))
+      && (categoryChance === undefined || isValidPartition(categoryChance))
+      && (rarityChance === undefined || isValidPartition(rarityChance))
+      && (teamChance === undefined || isValidPartition(teamChance))
       && (cardsPerPack === undefined || (typeof cardsPerPack === 'number' && Number.isInteger(cardsPerPack) && cardsPerPack >= 1 && cardsPerPack <= MAX_CARDS_PER_PACK)), 'invalid params')) {
     const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
     if (api.assert(settings !== null, 'pack not registered for this NFT')) {
@@ -372,6 +396,26 @@ actions.updateSettings = async (payload) => {
             settings.cardsPerPack = cardsPerPack;
             update.newCardsPerPack = cardsPerPack;
           }
+          if (foilChance !== undefined) {
+            update.oldFoilChance = settings.foilChance;
+            settings.foilChance = foilChance;
+            update.newFoilChance = foilChance;
+          }
+          if (categoryChance !== undefined) {
+            update.oldCategoryChance = settings.categoryChance;
+            settings.categoryChance = categoryChance;
+            update.newCategoryChance = categoryChance;
+          }
+          if (rarityChance !== undefined) {
+            update.oldRarityChance = settings.rarityChance;
+            settings.rarityChance = rarityChance;
+            update.newRarityChance = rarityChance;
+          }
+          if (teamChance !== undefined) {
+            update.oldTeamChance = settings.teamChance;
+            settings.teamChance = teamChance;
+            update.newTeamChance = teamChance;
+          }
 
           await api.db.update('packs', settings);
 
@@ -392,6 +436,10 @@ actions.registerPack = async (payload) => {
     nftSymbol,
     edition,
     cardsPerPack,
+    foilChance,
+    categoryChance,
+    rarityChance,
+    teamChance,
     isSignedWithActiveKey,
   } = payload;
 
@@ -399,6 +447,7 @@ actions.registerPack = async (payload) => {
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
       && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0
+      && isValidPartition(foilChance) && isValidPartition(categoryChance) && isValidPartition(rarityChance) && isValidPartition(teamChance)
       && cardsPerPack !== undefined && typeof cardsPerPack === 'number' && Number.isInteger(cardsPerPack) && cardsPerPack >= 1 && cardsPerPack <= MAX_CARDS_PER_PACK, 'invalid params')) {
     // make sure registration fee can be paid
     const params = await api.db.findOne('params', {});
@@ -428,6 +477,10 @@ actions.registerPack = async (payload) => {
                 nft: nftSymbol,
                 edition,
                 cardsPerPack,
+                foilChance,
+                categoryChance,
+                rarityChance,
+                teamChance,
               };
 
               // if this is a registration for a new edition, we need

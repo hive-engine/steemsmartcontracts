@@ -33,6 +33,27 @@ actions.createSSC = async () => {
 
 // ----- START UTILITY FUNCTIONS -----
 
+const doRandomRoll = (partition) => {
+  let result = 0;
+
+  let roll = Math.floor(api.random() * partition[partition.length - 1]) + 1;
+  for (let i = 0; i < partition.length; i += 1) {
+    if (roll > partition[i]) {
+      result += 1;
+    } else {
+      break;
+    }
+  }
+
+  // sanity check to ensure result is properly capped
+  // (this should never actually happen)
+  if (result >= partition.length) {
+    result -= 1;
+  }
+
+  return result;
+};
+
 const isValidPartition = (partition) => {
   if (partition && typeof partition === 'object' && Array.isArray(partition) && partition.length >= 1 && partition.length <= MAX_PARTITIONS) {
     let prevNum = 0;
@@ -641,16 +662,11 @@ const generateRandomInstance = (settings, nftSymbol, to) => {
     rarity = 1;
   }
 
-  // determine gold foil
-  let isGoldFoil = false;
-  rarityRoll = Math.floor(api.random() * 100) + 1;
-  if (rarityRoll > 95) { // 5% chance of being gold
-    isGoldFoil = true;
-  }
+  let foil = doRandomRoll(settings.foilChance);
 
   const properties = {
     edition: settings.edition,
-    foil: 0,
+    foil,
     type: 0,
   };
 

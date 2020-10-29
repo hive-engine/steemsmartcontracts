@@ -48,7 +48,7 @@ const doRandomRoll = (partition) => {
   // sanity check to ensure result is properly capped
   // (this should never actually happen)
   if (result >= partition.length) {
-    result -= 1;
+    result = partition.length - 1;
   }
 
   return result;
@@ -647,27 +647,21 @@ actions.createNft = async (payload) => {
 
 // TODO: refactor this routine
 // generate issuance data for a random NFT instance
-const generateRandomInstance = (settings, nftSymbol, to) => {
-  // each rarity has 10 types of critters
-  const type = Math.floor(api.random() * 10) + 1;
+const generateRandomInstance = (settings, nftSymbol, to, types) => {
+  const foil = doRandomRoll(settings.foilChance);
+  const category = doRandomRoll(settings.categoryChance);
+  const rarity = doRandomRoll(settings.rarityChance);
+  const team = doRandomRoll(settings.teamChance);
 
-  // determine rarity
-  let rarity = 0;
-  let rarityRoll = Math.floor(api.random() * 1000) + 1;
-  if (rarityRoll > 995) { // 0.5% chance of legendary
-    rarity = 3;
-  } else if (rarityRoll > 900) { // 10% chance of rare or higher
-    rarity = 2;
-  } else if (rarityRoll > 700) { // 30% of uncommon or higher
-    rarity = 1;
-  }
-
-  let foil = doRandomRoll(settings.foilChance);
+  // filter types by the chosen category / rarity / team and select
+  // one at random
+  const candidateTypes = types.filter(t => t.category === category && t.rarity === rarity && t.team === team);
+  const type = candidateTypes.length > 0 ? candidateTypes[Math.floor(api.random() * candidateTypes.length)].typeId : 0;
 
   const properties = {
     edition: settings.edition,
     foil,
-    type: 0,
+    type,
   };
 
   const instance = {
@@ -715,6 +709,18 @@ actions.open = async (payload) => {
           const totalIssuanceFee = oneTokenIssuanceFee.multipliedBy(numNfts);
           const canAffordIssuance = api.BigNumber(underManagement.feePool).gte(totalIssuanceFee);
           if (api.assert(canAffordIssuance, 'contract cannot afford issuance')) {
+            // fetch all our instance types
+            const types = await api.db.find(
+              'types',
+              { nft: nftSymbol, edition: settings.edition },
+              0,
+              0,
+              [{ index: 'typeId', descending: false }, { index: '_id', descending: false }],
+            );
+            if (!api.assert(types.length >= 1, 'NFT must have at least 1 instance type')) {
+              return false;
+            }
+
             // burn the pack tokens
             let res = await api.executeSmartContract('tokens', 'transfer', {
               to: 'null', symbol: packSymbol, quantity: packs.toString(), isSignedWithActiveKey,
@@ -728,7 +734,7 @@ actions.open = async (payload) => {
             let verifiedCount = 0;
             let instances = [];
             while (issueCounter < numNfts) {
-              instances.push(generateRandomInstance(settings, nftSymbol, api.sender));
+              instances.push(generateRandomInstance(settings, nftSymbol, api.sender, types));
               issueCounter += 1;
               if (instances.length === MAX_NUM_NFTS_ISSUABLE) {
                 res = await api.executeSmartContract('nft', 'issueMultiple', {

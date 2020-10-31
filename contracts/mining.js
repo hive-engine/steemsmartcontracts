@@ -2,6 +2,20 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_id"] }] */
 /* global actions, api */
 
+const PROPERTY_OPS = {
+  ADD: {
+    add: (x, y) => api.BigNumber(x).plus(y),
+    remove: (x, y) => api.BigNumber(x).minus(y),
+    defaultValue: 0,
+  },
+  MULTIPLY: {
+    add: (x, y) => api.BigNumber(x).multipliedBy(y),
+    remove: (x, y) => api.BigNumber(x).dividedBy(y),
+    defaultValue: 1,
+  },
+};
+
+
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('miningPower');
   if (tableExists === false) {
@@ -80,11 +94,47 @@ const findAndProcessAll = async (contractName, table, query, callback) => {
   }
 };
 
+function validateNftProperties(properties) {
+  if (!api.assert(properties && Array.isArray(properties), 'invalid nftTokenMiner properties')) return false;
+  if (!api.assert(properties.length > 0 && properties.length <= 4, 'nftTokenMiner properties size must be between 1 and 4')) return false;
+
+  for (let i = 0; i < properties.length; i += 1) {
+    const prop = properties[i];
+    const propKeys = Object.keys(prop);
+    for (let j = 0; j < propKeys.length; j += 1) {
+      const propKey = propKeys[j];
+      if (propKey === 'op') {
+        if (!api.assert(typeof prop.op === 'string' && PROPERTY_OPS[prop.op], 'nftTokenMiner properties op should be ADD or MULTIPLY')) return false;
+      } else if (propKey === 'name') {
+        if (!api.assert(typeof prop.name === 'string' && prop.name.length <= 16, 'nftTokenMiner properties name should be a string of length <= 16')) return false;
+      } else {
+        api.assert(false, 'nftTokenMiner properties field invalid');
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function validateNftTypeMap(typeMap, properties) {
+  if (!api.assert(typeMap && typeof typeMap === 'object', 'invalid nftTokenMiner typeMap')) return false;
+  const types = Object.keys(typeMap);
+  for (let j = 0; j < types.length; j += 1) {
+    const type = types[j];
+    const typeConfig = typeMap[type];
+    if (!api.assert(Array.isArray(typeConfig) && typeConfig.length === properties.length, 'nftTokenMiner typeConfig length mismatch')) return false;
+    for (let k = 0; k < typeConfig.length; k += 1) {
+      if (!api.assert(!api.BigNumber(typeConfig[k]).isNaN(), 'nftTokenMiner typeConfig invalid')) return false;
+    }
+  }
+  return true;
+}
+
 async function validateTokenMiners(tokenMiners, nftTokenMiner) {
   if (!api.assert(tokenMiners && Array.isArray(tokenMiners), 'tokenMiners invalid')) return false;
   if (!api.assert((tokenMiners.length >= 1 && tokenMiners.length <= 2)
       || (nftTokenMiner && tokenMiners.length === 0),
-    'only 1 or 2 tokenMiners allowed')) return false;
+  'only 1 or 2 tokenMiners allowed')) return false;
   const tokenMinerSymbols = new Set();
   for (let i = 0; i < tokenMiners.length; i += 1) {
     const tokenMinerConfig = tokenMiners[i];
@@ -100,34 +150,19 @@ async function validateTokenMiners(tokenMiners, nftTokenMiner) {
     'tokenMiner multiplier must be an integer from 1 to 100')) return false;
   }
   if (nftTokenMiner) {
-      if (!api.assert(nftTokenMiner.symbol
+    if (!api.assert(nftTokenMiner.symbol
         && typeof (nftTokenMiner.symbol) === 'string', 'nftTokenMiner invalid')) return false;
-      const { symbol, typeMap, properties } = nftTokenMiner;
-      const nft = await api.db.findOneInTable('nft', 'nft', { symbol });
-      if (!api.assert(nft && nft.delegationEnabled, 'nftTokenMiners must have delegation enabled')) return false;
-      if (!api.assert(typeMap && typeof(typeMap) === 'object', 'invalid nftTokenMiners typeMap')) return false;
-      if (!api.assert(properties && Array.isArray(properties), 'invalid nftTokenMiners properties')) return false;
-      if (!api.assert(properties.length > 0 && properties.length <= 4, 'nftTokenMiners properties size must be between 1 and 4')) return false;
-     
-      for (let j = 0; j < properties.length; j += 1) {
-          const prop = properties[j];
-          if (!api.assert(typeof prop.op === 'string' && PROPERTY_OPS[prop.op], 'nftTokenMiners properties op invalid')) return false;
-      }
-      const types = Object.keys(typeMap);
-      for (let j = 0; j < types.length; j += 1) {
-          const type = types[i];
-          const typeConfig = typeMap[type];
-          if (!api.assert(Array.isArray(typeConfig) && typeConfig length === properties.length, 'nftTokenMiners typeConfig invalid')) return false;
-          for (let k = 0; k < typeConfig.length; k += 1) {
-            if (!api.assert(!api.BigNumber(typeConfig[k]).isNaN(), 'nftTokenConfig typeConfig invalid')) return false;
-          }
-      }
-    }
+    const { symbol, typeMap, properties } = nftTokenMiner;
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
+    if (!api.assert(nft && nft.delegationEnabled, 'nftTokenMiner must have delegation enabled')) return false;
+    if (!api.assert(nft.properties.type && nft.properties.type.type === 'string', 'nftTokenMiner must have string type property')) return false;
+    if (!validateNftProperties(properties)) return false;
+    if (!validateNftTypeMap(typeMap, properties)) return false;
   }
   return true;
 }
 
-function validateTokenMinersChange(oldTokenMiners, tokenMiners) {
+function validateTokenMinersChange(oldTokenMiners, tokenMiners, oldNftTokenMiner, nftTokenMiner) {
   if (!api.assert(tokenMiners.length === oldTokenMiners.length, 'cannot change which tokens are in tokenMiners')) return false;
   let changed = false;
   for (let i = 0; i < tokenMiners.length; i += 1) {
@@ -139,20 +174,34 @@ function validateTokenMinersChange(oldTokenMiners, tokenMiners) {
       changed = true;
     }
   }
+  if (!api.assert(!!oldNftTokenMiner === !!nftTokenMiner, 'cannot change nftTokenMiner token')) return false;
+  if (nftTokenMiner) {
+    if (!api.assert(oldNftTokenMiner.symbol === nftTokenMiner.symbol, 'cannot change nftTokenMiner token')) return false;
+    const { typeMap, properties } = nftTokenMiner;
+    if (!api.assert(typeMap && typeof typeMap === 'object', 'invalid nftTokenMiner typeMap')) return false;
+    if (!validateNftProperties(properties)) return false;
+    if (properties.length !== oldNftTokenMiner.properties.length) {
+      changed = true;
+    } else {
+      for (let i = 0; i < properties.length; i += 1) {
+        const prop = properties[i];
+        const oldProp = oldNftTokenMiner.properties[i];
+        if (prop.op !== oldProp.op) changed = true;
+      }
+    }
+    if (!validateNftTypeMap(typeMap, properties)) return false;
+    const oldTypes = Object.keys(oldNftTokenMiner.typeMap);
+    for (let i = 0; i < oldTypes.length; i += 1) {
+      const oldType = oldTypes[i];
+      const oldTypeConfig = oldNftTokenMiner.typeMap[oldType];
+      const typeConfig = typeMap[oldType];
+      if (!api.assert(typeConfig, 'typeConfig types must be a superset of old typeConfig types')) return false;
+      for (let j = 0; j < typeConfig.length; j += 1) {
+        if (oldTypeConfig[j] !== typeConfig[j]) changed = true;
+      }
+    }
+  }
   return { changed };
-}
-
-const PROPERTY_OPS = {
-    'ADD': {
-        add: (x,y) => api.BigNumber(x).plus(y),
-        remove: (x,y) => api.BigNumber(x).minus(y),
-        defaultValue: 0,
-    },
-    'MULTIPLY': {
-        add: (x,y) => api.BigNumber(x).multipliedBy(y),
-        remove: (x,y) => api.BigNumber(x).dividedBy(y),
-        defaultValue: 1,
-    },
 }
 
 function computeMiningPower(miningPower, tokenMiners, nftTokenMiner) {
@@ -165,6 +214,8 @@ function computeMiningPower(miningPower, tokenMiners, nftTokenMiner) {
   }
   if (nftTokenMiner && miningPower.nftBalances) {
     let nftPower = api.BigNumber(1);
+    api.emit('debug', miningPower);
+    // Note nftBalances is object type.
     for (let i = 0; i < nftTokenMiner.properties.length; i += 1) {
       nftPower = nftPower.multipliedBy(miningPower.nftBalances[i]);
     }
@@ -205,12 +256,25 @@ async function updateMiningPower(pool, token, account, stakedQuantity, delegated
   return newMiningPower.minus(oldMiningPower);
 }
 
+function getNftAccount(nft) {
+  if (nft.delegatedTo.account === 'mining' && nft.delegatedTo.ownedBy === 'c') {
+    return nft.account;
+  } if (nft.delegatedTo.ownedBy === 'u') {
+    return nft.delegatedTo.account;
+  }
+  return null;
+}
+
 async function updateNftMiningPower(pool, nft, typeProperties, add, updatePoolTimestamp) {
+  const account = getNftAccount(nft);
+
+  if (!account) return 0;
+
   let miningPower = await api.db.findOne('miningPower', { id: pool.id, account });
   let oldMiningPower = api.BigNumber(0);
   if (!miningPower) {
     const nftBalances = {};
-    for (let i = 0; i < typeProperties.length; i += 1) {
+    for (let i = 0; i < pool.nftTokenMiner.properties.length; i += 1) {
       const property = pool.nftTokenMiner.properties[i];
       const opInfo = PROPERTY_OPS[property.op];
       if (add) {
@@ -228,7 +292,11 @@ async function updateNftMiningPower(pool, nft, typeProperties, add, updatePoolTi
     };
     miningPower = await api.db.insert('miningPower', miningPower);
   } else {
-    for (let i = 0; i < typeProperties.length; i += 1) {
+    if (!miningPower.nftBalances) {
+      miningPower.nftBalances = {};
+    }
+    const { nftBalances } = miningPower;
+    for (let i = 0; i < pool.nftTokenMiner.properties.length; i += 1) {
       const property = pool.nftTokenMiner.properties[i];
       const opInfo = PROPERTY_OPS[property.op];
       if (!nftBalances[i] || miningPower.updatePoolTimestamp !== updatePoolTimestamp) {
@@ -246,6 +314,7 @@ async function updateNftMiningPower(pool, nft, typeProperties, add, updatePoolTi
   miningPower.power = { $numberDecimal: newMiningPower };
   miningPower.updatePoolTimestamp = updatePoolTimestamp;
   await api.db.update('miningPower', miningPower);
+
   return newMiningPower.minus(oldMiningPower);
 }
 
@@ -256,7 +325,7 @@ async function initMiningPower(pool, params, token, lastId) {
   let complete = false;
   let balances;
   while (!complete && offset < params.maxBalancesProcessedPerBlock) {
-    balances = await api.db.findInTable('tokens', 'balances', { symbol: token, _id: { $gt: lastId} }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
+    balances = await api.db.findInTable('tokens', 'balances', { symbol: token, _id: { $gt: lastId } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
     for (let i = 0; i < balances.length; i += 1) {
       const balance = balances[i];
       if (api.BigNumber(balance.stake).gt(0) || api.BigNumber(balance.delegationsIn).gt(0)) {
@@ -275,18 +344,24 @@ async function initMiningPower(pool, params, token, lastId) {
   return { adjustedPower, nextId: lastIdProcessed, complete };
 }
 
-async function initNftMiningPower(pool, updatePoolTimestamp, params, nftTokenConfig, lastId) {
+async function initNftMiningPower(pool, updatePoolTimestamp, params, nftTokenMiner, lastId) {
   let adjustedPower = api.BigNumber(0);
   let offset = 0;
   let lastIdProcessed = lastId;
   let complete = false;
   let nfts;
   while (!complete && offset < params.maxBalancesProcessedPerBlock) {
-    nfts = await api.db.findInTable('nft', `${nftTokenConfig.symbol}instances`, { _id: { $gt: lastId, delegatedTo: { $ne: null } } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
+    nfts = await api.db.findInTable('nft', `${nftTokenMiner.symbol}instances`, { _id: { $gt: lastId }, delegatedTo: { $ne: null } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
     for (let i = 0; i < nfts.length; i += 1) {
       const nft = nfts[i];
-      if (nftTokenConfig.typeMap[nft.properties.type]) {
-        const adjusted = updateNftMiningPower(pool, nft, nftTokenConfig.typeMap[nft.properties.type], /* add */ true, updatePoolTimestamp);
+      if (nftTokenMiner.typeMap[nft.properties.type]) {
+        const adjusted = await updateNftMiningPower(
+          pool,
+          nft,
+          nftTokenMiner.typeMap[nft.properties.type],
+          /* add */ true,
+          updatePoolTimestamp,
+        );
         adjustedPower = adjustedPower.plus(adjusted);
       }
       lastIdProcessed = nft._id;
@@ -300,13 +375,16 @@ async function initNftMiningPower(pool, updatePoolTimestamp, params, nftTokenCon
 }
 
 async function resumePowerUpdate(pool, params) {
-  let { inProgress, updatePoolTimestamp, tokenIndex, nftTokenIndex, lastId } = pool.updating;
+  let {
+    inProgress, tokenIndex, nftTokenIndex, lastId,
+  } = pool.updating;
+  const { updatePoolTimestamp } = pool.updating;
   if (!inProgress) {
     return;
   }
 
-  const tokenConfig = pool.tokenMiners[tokenIndex];
   if (tokenIndex < pool.tokenMiners.length) {
+    const tokenConfig = pool.tokenMiners[tokenIndex];
     const { adjustedPower, nextId, complete } = await initMiningPower(
       pool, params, tokenConfig.symbol, lastId,
     );
@@ -319,10 +397,10 @@ async function resumePowerUpdate(pool, params) {
     } else {
       lastId = nextId;
     }
-  } else if (pool.nftTokenMiners && nftTokenIndex < pool.nftTokenMiners.length) {
-    const nftTokenConfig = pool.nftTokenMiners[nftTokenIndex];
+  } else if (pool.nftTokenMiner && nftTokenIndex < 1) {
+    const { nftTokenMiner } = pool;
     const { adjustedPower, nextId, complete } = await initNftMiningPower(
-      pool, updatePoolTimestamp, params, nftTokenConfig, lastId,
+      pool, updatePoolTimestamp, params, nftTokenMiner, lastId,
     );
     // eslint-disable-next-line no-param-reassign
     pool.totalPower = api.BigNumber(pool.totalPower)
@@ -333,12 +411,15 @@ async function resumePowerUpdate(pool, params) {
     } else {
       lastId = nextId;
     }
-  } else {
+  }
+
+  if (tokenIndex === pool.tokenMiners.length
+      && (!pool.nftTokenMiner || nftTokenIndex === 1)) {
     inProgress = false;
     tokenIndex = 0;
     nftTokenIndex = 0;
   }
-  
+
   const { updating } = pool;
   updating.inProgress = inProgress;
   updating.tokenIndex = tokenIndex;
@@ -376,7 +457,7 @@ actions.setActive = async (payload) => {
 actions.updatePool = async (payload) => {
   const {
     id, lotteryWinners, lotteryIntervalHours, lotteryAmount, tokenMiners,
-    isSignedWithActiveKey,
+    nftTokenMiner, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
@@ -402,12 +483,15 @@ actions.updatePool = async (payload) => {
         // eslint-disable-next-line no-template-curly-in-string
         if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')
           && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')) {
-          const validMinersChange = validateTokenMinersChange(pool.tokenMiners, tokenMiners);
+          const validMinersChange = validateTokenMinersChange(
+            pool.tokenMiners, tokenMiners, pool.nftTokenMiner, nftTokenMiner,
+          );
           if (validMinersChange) {
             pool.lotteryWinners = lotteryWinners;
             pool.lotteryIntervalHours = lotteryIntervalHours;
             pool.lotteryAmount = lotteryAmount;
             pool.tokenMiners = tokenMiners;
+            pool.nftTokenMiner = nftTokenMiner;
 
             const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
 
@@ -440,7 +524,8 @@ actions.updatePool = async (payload) => {
 
 function generatePoolId(pool) {
   const tokenMinerString = pool.tokenMiners.map(t => t.symbol.replace('.', '-')).sort().join(',');
-  return `${pool.minedToken.replace('.', '-')}:${tokenMinerString}`;
+  const nftTokenMinerString = pool.nftTokenMiner ? `:${pool.nftTokenMiner.symbol}` : '';
+  return `${pool.minedToken.replace('.', '-')}:${tokenMinerString}${nftTokenMinerString}`;
 }
 
 actions.createPool = async (payload) => {
@@ -498,11 +583,11 @@ actions.createPool = async (payload) => {
             await api.db.insert('tokenPools', { symbol: tokenConfig.symbol, id: newPool.id });
           }
           if (nftTokenMiner) {
-            await api.db.insert('nftTokenPools', { symbol: nftTokenConfig.symbol, id: newPool.id });
+            await api.db.insert('nftTokenPools', { symbol: nftTokenMiner.symbol, id: newPool.id });
           }
           newPool.updating = {
             inProgress: true,
-            updatePoolTimestamp = api.BigNumber(blockDate.getTime()).toNumber(),
+            updatePoolTimestamp: api.BigNumber(blockDate.getTime()).toNumber(),
             tokenIndex: 0,
             nftTokenIndex: 0,
             lastId: 0,
@@ -636,17 +721,25 @@ actions.handleStakeChange = async (payload) => {
 
 actions.handleNftChange = async (payload) => {
   const {
-    account, symbol, nft, add, callingContractInfo,
+    symbol, nft, add, callingContractInfo,
   } = payload;
   if (api.assert(callingContractInfo && callingContractInfo.name === 'nft',
     'must be called from nft contract')) {
     await findAndProcessAll('mining', 'nftTokenPools', { symbol }, async (tokenPool) => {
       const pool = await api.db.findOne('pools', { id: tokenPool.id });
-      if (pool.updating.inProgress && pool.updating.lastId < nft._id) {
+      if (pool.updating.inProgress
+          && pool.updating.tokenIndex === pool.tokenMiners.length
+          && pool.updating.lastId < nft._id) {
         return;
       }
       const typeProperties = pool.nftTokenMiner.typeMap[nft.properties.type];
-      const adjusted = await updateNftMiningPower(pool, nft, typeProperties, add, pool.updating.updatePoolTimestamp);
+      const adjusted = await updateNftMiningPower(
+        pool,
+        nft,
+        typeProperties,
+        add,
+        pool.updating.updatePoolTimestamp,
+      );
       pool.totalPower = adjusted.plus(pool.totalPower);
       await api.db.update('pools', pool);
     });

@@ -214,7 +214,6 @@ function computeMiningPower(miningPower, tokenMiners, nftTokenMiner) {
   }
   if (nftTokenMiner && miningPower.nftBalances) {
     let nftPower = api.BigNumber(1);
-    api.emit('debug', miningPower);
     // Note nftBalances is object type.
     for (let i = 0; i < nftTokenMiner.properties.length; i += 1) {
       nftPower = nftPower.multipliedBy(miningPower.nftBalances[i]);
@@ -280,7 +279,7 @@ async function updateNftMiningPower(pool, nft, typeProperties, add, updatePoolTi
       if (add) {
         nftBalances[i] = opInfo.add(opInfo.defaultValue, typeProperties[i]);
       } else {
-        api.debug('unexpected condition: remove without previous miningPower');
+        api.assert(false, 'unexpected condition: remove without previous miningPower');
       }
     }
     miningPower = {
@@ -733,15 +732,17 @@ actions.handleNftChange = async (payload) => {
         return;
       }
       const typeProperties = pool.nftTokenMiner.typeMap[nft.properties.type];
-      const adjusted = await updateNftMiningPower(
-        pool,
-        nft,
-        typeProperties,
-        add,
-        pool.updating.updatePoolTimestamp,
-      );
-      pool.totalPower = adjusted.plus(pool.totalPower);
-      await api.db.update('pools', pool);
+      if (typeProperties) {
+        const adjusted = await updateNftMiningPower(
+          pool,
+          nft,
+          typeProperties,
+          add,
+          pool.updating.updatePoolTimestamp,
+        );
+        pool.totalPower = adjusted.plus(pool.totalPower);
+        await api.db.update('pools', pool);
+      }
     });
   }
 };

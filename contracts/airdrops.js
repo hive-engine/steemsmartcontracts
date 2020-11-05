@@ -1,10 +1,8 @@
 /* eslint-disable no-await-in-loop */
 /* global actions, api */
 
-// eslint-disable-next-line no-template-curly-in-string
-const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
-// eslint-disable-next-line no-template-curly-in-string
-const UTILITY_TOKEN_PRECISION = '${CONSTANTS.UTILITY_TOKEN_PRECISION}$';
+const UTILITY_TOKEN_SYMBOL = 'BEE';
+const UTILITY_TOKEN_PRECISION = 8;
 const CONTRACT_NAME = 'airdrops';
 
 actions.createSSC = async () => {

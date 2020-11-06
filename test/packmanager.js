@@ -290,7 +290,7 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1239', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol":"PACK", "to":"cryptomancer", "quantity":"50", "isSignedWithActiveKey":true }'));
       transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [33, 66, 100], "rarityChance": [300, 1000], "teamChance": [1, 3], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [33, 66, 100], "rarityChance": [300, 1000], "teamChance": [1, 3], "isSignedWithActiveKey": true }'));
 
       // add some types
       transactions.push(new Transaction(38145386, 'TXID1242', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 0, "category": 0, "rarity": 0, "team": 0, "name": "Tank", "isSignedWithActiveKey": true }'));
@@ -558,8 +558,8 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACK", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 1, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 1, "editionName": "War Modern Expansion", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
 
       // add some types
       transactions.push(new Transaction(38145386, 'TXID1242', 'cryptomancer', 'packmanager', 'addType', '{ "nftSymbol": "WAR", "edition": 0, "category": 1, "rarity": 1, "team": 3, "name": "Tank", "isSignedWithActiveKey": true }'));
@@ -663,7 +663,7 @@ describe('packmanager', function() {
       console.log(underManagement[0].editionMapping);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
-      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":3},"1":{"nextTypeId":2}}');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":3,"editionName":"Ultimate War Edition"},"1":{"nextTypeId":2,"editionName":"War Modern Expansion"}}');
 
       resolve();
     })
@@ -692,7 +692,7 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACK", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 5, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 5, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -750,15 +750,16 @@ describe('packmanager', function() {
 
       // test failure cases
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1241', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": false }'));
       transactions.push(new Transaction(38145387, 'TXID1242', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1243', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "BAD", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1245', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "BAD", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1246', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1243', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1244', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "BAD", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1245', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "BAD", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1246', 'aggroed', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145387, 'TXID1247', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"500", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145387, 'TXID1248', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 1, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1249', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 500, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1248', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 1, "editionName": "Next War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1249', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 500, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 1, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -781,6 +782,7 @@ describe('packmanager', function() {
       console.log(JSON.parse(transactionsBlock2[5].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock2[7].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock2[8].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock2[9].logs).errors[0]);
 
       assert.equal(JSON.parse(transactionsBlock2[0].logs).errors[0], 'you must use a custom_json signed with your active key');
       assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'invalid params');
@@ -790,6 +792,7 @@ describe('packmanager', function() {
       assert.equal(JSON.parse(transactionsBlock2[5].logs).errors[0], 'not authorized to register');
       assert.equal(JSON.parse(transactionsBlock2[7].logs).errors[0], 'pack already registered for WAR');
       assert.equal(JSON.parse(transactionsBlock2[8].logs).errors[0], 'invalid params');
+      assert.equal(JSON.parse(transactionsBlock2[9].logs).errors[0], 'must provide a name for the new edition');
 
       // verify contract now manages the new NFT
       const underManagement = await database1.find({
@@ -803,15 +806,15 @@ describe('packmanager', function() {
       console.log(underManagement[0].editionMapping);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
-      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0}}');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0,"editionName":"Ultimate War Edition"}}');
 
       // update some settings
       transactions = [];
       // this should fail as edition 3 hasn't been registered
-      transactions.push(new Transaction(38145388, 'TXID1250', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1251', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
 
       // this should succeed
-      transactions.push(new Transaction(38145388, 'TXID1251', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1252', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145388,

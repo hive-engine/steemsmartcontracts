@@ -357,12 +357,13 @@ actions.addType = async (payload) => {
   return false;
 };
 
-// TODO: add other creation settings
+// TODO: handle editionName
 actions.updateSettings = async (payload) => {
   const {
     packSymbol,
     nftSymbol,
     edition,
+    editionName,
     cardsPerPack,
     foilChance,
     categoryChance,
@@ -450,12 +451,12 @@ actions.updateSettings = async (payload) => {
   return false;
 };
 
-// TODO: add other creation settings
 actions.registerPack = async (payload) => {
   const {
     packSymbol,
     nftSymbol,
     edition,
+    editionName,
     cardsPerPack,
     foilChance,
     categoryChance,
@@ -465,6 +466,8 @@ actions.registerPack = async (payload) => {
   } = payload;
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(editionName === undefined || (editionName && typeof editionName === 'string'
+      && api.validator.isAlphanumeric(api.validator.blacklist(editionName, ' ')) && editionName.length > 0 && editionName.length <= MAX_NAME_LENGTH), `invalid edition name: letters, numbers, whitespaces only, max length of ${MAX_NAME_LENGTH}`)
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
       && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0
@@ -487,6 +490,11 @@ actions.registerPack = async (payload) => {
             // make sure this pack / NFT combo  hasn't been registered yet
             const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
             if (api.assert(settings === null, `pack already registered for ${nftSymbol}`)) {
+              // verify editionName has been provided if we are defining a new edition
+              if (!api.assert((edition.toString() in underManagement.editionMapping) || (editionName && !(edition.toString() in underManagement.editionMapping)), 'must provide a name for the new edition')) {
+                return false;
+              }
+
               // burn the registration fee
               if (!(await transferFee(params.registerFee, 'null', isSignedWithActiveKey))) {
                 return false;
@@ -509,6 +517,7 @@ actions.registerPack = async (payload) => {
               if (!(edition.toString() in underManagement.editionMapping)) {
                 const newMapping = {
                   nextTypeId: 0,
+                  editionName,
                 };
                 underManagement.editionMapping[edition.toString()] = newMapping;
                 await api.db.update('managedNfts', underManagement);
@@ -645,7 +654,6 @@ actions.createNft = async (payload) => {
   }
 };
 
-// TODO: refactor this routine
 // generate issuance data for a random NFT instance
 const generateRandomInstance = (settings, nftSymbol, to, types) => {
   const foil = doRandomRoll(settings.foilChance);
@@ -655,6 +663,7 @@ const generateRandomInstance = (settings, nftSymbol, to, types) => {
 
   // filter types by the chosen category / rarity / team and select
   // one at random
+  // TODO: come up with some better way of handling the case where candidateTypes.length == 0
   const candidateTypes = types.filter(t => t.category === category && t.rarity === rarity && t.team === team);
   const type = candidateTypes.length > 0 ? candidateTypes[Math.floor(api.random() * candidateTypes.length)].typeId : 0;
 

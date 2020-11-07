@@ -357,13 +357,38 @@ actions.addType = async (payload) => {
   return false;
 };
 
-// TODO: handle editionName
+actions.updateEditionName = async (payload) => {
+  const {
+    nftSymbol,
+    edition,
+    editionName,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(editionName && typeof editionName === 'string' && api.validator.isAlphanumeric(api.validator.blacklist(editionName, ' '))
+      && editionName.length > 0 && editionName.length <= MAX_NAME_LENGTH, `invalid edition name: letters, numbers, whitespaces only, max length of ${MAX_NAME_LENGTH}`)
+    && api.assert(nftSymbol && typeof nftSymbol === 'string'
+      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0, 'invalid params')) {
+    // make sure user is authorized for this NFT
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+    if (api.assert(nft !== null, 'NFT symbol must exist')) {
+      if (api.assert(nft.issuer === api.sender, 'not authorized for updates')) {
+        const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+        if (api.assert(underManagement !== null, 'NFT not under management')) {
+          if(api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+          }
+        }
+      }
+    }
+  }
+};
+
 actions.updateSettings = async (payload) => {
   const {
     packSymbol,
     nftSymbol,
     edition,
-    editionName,
     cardsPerPack,
     foilChance,
     categoryChance,

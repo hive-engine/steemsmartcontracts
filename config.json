@@ -1,15 +1,12 @@
 {
-    "chainId": "mainnet1",
+    "chainId": "mainnet-hive",
     "rpcNodePort": 5000,
     "p2pPort": 5001,
-    "databaseURL": "mongodb://localhost:27017",
-    "databaseName": "ssc",
+    "databaseURL": "mongodb://localhost:31337",
+    "databaseName": "hsc",
     "blocksLogFilePath": "./blocks.log",
     "javascriptVMTimeout": 10000,
-    "streamNodes": [
-        "https://api.steemit.com",
-        "https://anyx.io"
-    ],
+    "streamNodes": ["http://185.130.44.165:8091"],
     "steemAddressPrefix": "STM",
     "steemChainId": "0000000000000000000000000000000000000000000000000000000000000000",
     "startSteemBlock": 29862600,

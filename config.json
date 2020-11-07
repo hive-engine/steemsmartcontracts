@@ -1,9 +1,9 @@
 {
-    "chainId": "mainnet-hive",
+    "chainId": "mainnet1",
     "rpcNodePort": 5000,
     "p2pPort": 5001,
     "databaseURL": "mongodb://localhost:31337",
-    "databaseName": "hsc",
+    "databaseName": "ssc",
     "blocksLogFilePath": "./blocks.log",
     "javascriptVMTimeout": 10000,
     "streamNodes": ["http://185.130.44.165:8091"],

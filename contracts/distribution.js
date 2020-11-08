@@ -273,7 +273,7 @@ actions.deposit = async (payload) => {
       // update token balances
       if (dist.tokenBalances) {
         let hasBalance = false;
-        for (let i = 0; i <= dist.tokenBalances.length; i += 1) {
+        for (let i = 0; i < dist.tokenBalances.length; i += 1) {
           if (dist.tokenBalances[i].symbol === symbol) {
             dist.tokenBalances[i].quantity += quantity;
             hasBalance = true;

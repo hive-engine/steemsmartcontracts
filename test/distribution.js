@@ -117,13 +117,10 @@ const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens
 const contractPayload = setupContractPayload('distribution', './contracts/distribution.js');
 
 async function assertUserBalance(account, symbol, balance) {
-  let res = await database1.findOne({
+  const res = await database1.findOne({
       contract: 'tokens',
       table: 'balances',
-      query: {
-        account,
-        symbol,
-      }
+      query: { account, symbol }
     });
 
   if (!balance) {
@@ -132,6 +129,21 @@ async function assertUserBalance(account, symbol, balance) {
   }
   assert.ok(res, `No balance for ${account}, ${symbol}`);
   assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
+}
+
+async function assertContractBalance(account, symbol, balance) {
+  const res = await database1.findOne({
+    contract: 'tokens',
+    table: 'contractsBalances',
+    query: { account, symbol }
+  });
+
+  if (!balance) {
+    assert(!res, `Balance found for ${account}, ${symbol}, expected none.`);
+    return;
+  }
+  assert.ok(res, `No balance for ${account}, ${symbol}`);
+  assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);  
 }
 
 async function assertTokenBalance(id, symbol, balance) {
@@ -161,7 +173,6 @@ async function assertTokenBalance(id, symbol, balance) {
 
 async function assertNoErrorInLastBlock() {
   const transactions = (await database1.getLatestBlockInfo()).transactions;
-  // console.log(transactions);
   for (let i = 0; i < transactions.length; i++) {
     const logs = JSON.parse(transactions[i].logs);
     assert(!logs.errors, `Tx #${i} had unexpected error ${logs.errors}`);
@@ -732,6 +743,72 @@ describe('distribution', function () {
       // should be redistributed
       await assertUserBalance('donchate', 'TKN', 497.5);
       await assertUserBalance('dantheman', 'TKN', 2.5);
+
+      // contract should be flushed
+      await assertTokenBalance(id, 'TKN', 0);
+      
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should distribute payments to both users and contracts for multiple tokens', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10},{"symbol": "TKNA", "quantity": 5}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 25},{"account": "airdrops", "type": "contract", "pct": 25}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKNA", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      const id = await getLastDistributionId();
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKNA", "quantity": "100", "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T01:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // should be no errors
+      await assertNoErrorInLastBlock();
+
+      // should be redistributed
+      await assertUserBalance('donchate', 'TKN', 450);
+      await assertUserBalance('donchate', 'TKNA', 450);
+      await assertUserBalance('dantheman', 'TKN', 25);
+      await assertUserBalance('dantheman', 'TKNA', 25);
+      await assertContractBalance('airdrops', 'TKN', 25);
+      await assertContractBalance('airdrops', 'TKNA', 25);
 
       // contract should be flushed
       await assertTokenBalance(id, 'TKN', 0);

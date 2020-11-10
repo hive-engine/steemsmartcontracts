@@ -795,7 +795,7 @@ describe('packmanager', function() {
       assert.equal(JSON.parse(transactionsBlock2[9].logs).errors[0], 'must provide a name for the new edition');
 
       // verify contract now manages the new NFT
-      const underManagement = await database1.find({
+      let underManagement = await database1.find({
         contract: 'packmanager',
         table: 'managedNfts',
         query: {},
@@ -815,6 +815,7 @@ describe('packmanager', function() {
 
       // this should succeed
       transactions.push(new Transaction(38145388, 'TXID1252', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1253', 'cryptomancer', 'packmanager', 'updateEditionName', '{ "nftSymbol": "WAR", "edition": 0, "editionName": "Mega Uber War Edition", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145388,
@@ -830,6 +831,7 @@ describe('packmanager', function() {
       const transactionsBlock3 = block3.transactions;
       console.log(transactionsBlock3[0].logs);
       console.log(transactionsBlock3[1].logs);
+      console.log(transactionsBlock3[2].logs);
       assert.equal(JSON.parse(transactionsBlock3[0].logs).errors[0], 'edition not registered');
 
       // check if the pack settings were updated OK
@@ -851,6 +853,20 @@ describe('packmanager', function() {
       assert.equal(JSON.stringify(settings[0].categoryChance), '[70,90,95,100]');
       assert.equal(JSON.stringify(settings[0].rarityChance), '[600,800,900,975,1000,1200]');
       assert.equal(JSON.stringify(settings[0].teamChance), '[2800,3000]');
+
+      // check if edition name was updated OK
+      underManagement = await database1.find({
+        contract: 'packmanager',
+        table: 'managedNfts',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+
+      console.log(underManagement);
+      console.log(underManagement[0].editionMapping);
+      assert.equal(underManagement[0].nft, 'WAR');
+      assert.equal(underManagement[0].feePool, '0');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0,"editionName":"Mega Uber War Edition"}}');
 
       resolve();
     })

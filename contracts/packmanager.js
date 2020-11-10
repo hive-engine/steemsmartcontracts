@@ -21,6 +21,10 @@ actions.createSSC = async () => {
   if (tableExists === false) {
     await api.db.createTable('packs', ['account', 'symbol', 'nft']);
     await api.db.createTable('types', ['nft', 'edition', 'typeId']);
+    await api.db.createTable('foils', ['nft', 'edition', 'index']);
+    await api.db.createTable('categories', ['nft', 'edition', 'index']);
+    await api.db.createTable('rarities', ['nft', 'edition', 'index']);
+    await api.db.createTable('teams', ['nft', 'edition', 'index']);
     await api.db.createTable('managedNfts', ['nft']);
     await api.db.createTable('params');
 
@@ -357,6 +361,81 @@ actions.addType = async (payload) => {
   return false;
 };
 
+actions.setTraitName = async (payload) => {
+  const {
+    nftSymbol,
+    edition,
+    trait,
+    index,
+    name,
+    isSignedWithActiveKey,
+  } = payload;
+  const validTraits = ['foil', 'category', 'rarity', 'team'];
+  const tableMapping = {
+    foil: 'foils',
+    category: 'categories',
+    rarity: 'rarities',
+    team: 'teams',
+  };
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(name && typeof name === 'string' && api.validator.isAlphanumeric(api.validator.blacklist(name, ' '))
+      && name.length > 0 && name.length <= MAX_NAME_LENGTH, `invalid trait name: letters, numbers, whitespaces only, max length of ${MAX_NAME_LENGTH}`)
+    && api.assert(nftSymbol && typeof nftSymbol === 'string'
+      && trait && typeof trait === 'string' && validTraits.includes(trait)
+      && index !== undefined && typeof index === 'number' && Number.isInteger(index) && index >= 0 && index < MAX_PARTITIONS
+      && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0, 'invalid params')) {
+    // make sure user is authorized for this NFT
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
+    if (api.assert(nft !== null, 'NFT symbol must exist')) {
+      if (api.assert(nft.issuer === api.sender, 'not authorized for updates')) {
+        const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+        if (api.assert(underManagement !== null, 'NFT not under management')) {
+          if (api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+            const currentTrait = await api.db.findOne(tableMapping[trait], { nft: nftSymbol, edition, index });
+            if (currentTrait !== null) {
+              // do an update
+              if (name !== currentTrait.name) {
+                const oldName = currentTrait.name;
+                currentTrait.name = name;
+
+                await api.db.update(tableMapping[trait], currentTrait);
+
+                api.emit('updateTraitName', {
+                  nft: nftSymbol,
+                  edition,
+                  trait,
+                  index,
+                  oldName,
+                  newName: name,
+                });
+              }
+            } else {
+              // insert a new entry
+              const newTrait = {
+                nft: nftSymbol,
+                edition,
+                index,
+                name,
+              };
+
+              await api.db.insert(tableMapping[trait], newTrait);
+
+              api.emit('setTraitName', {
+                nft: nftSymbol,
+                edition,
+                trait,
+                index,
+                name,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
 actions.updateEditionName = async (payload) => {
   const {
     nftSymbol,
@@ -376,7 +455,20 @@ actions.updateEditionName = async (payload) => {
       if (api.assert(nft.issuer === api.sender, 'not authorized for updates')) {
         const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
         if (api.assert(underManagement !== null, 'NFT not under management')) {
-          if(api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+          if (api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+            const oldEditionName = underManagement.editionMapping[edition.toString()].editionName;
+            if (oldEditionName !== editionName) {
+              underManagement.editionMapping[edition.toString()].editionName = editionName;
+
+              await api.db.update('managedNfts', underManagement);
+
+              api.emit('updateEditionName', {
+                nft: nftSymbol,
+                edition,
+                oldEditionName,
+                newEditionName: editionName,
+              });
+            }
           }
         }
       }

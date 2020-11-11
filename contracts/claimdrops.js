@@ -68,27 +68,25 @@ const getTimestamp = (value) => {
 
 const validateList = (list, precision) => {
   const parsedList = [];
-  if (list.length > 0) {
-    for (let i = 0; i < list.length; i += 1) {
-      const { 0: account, 1: limit } = list[i];
+  for (let i = 0; i < list.length; i += 1) {
+    const { 0: account, 1: limit } = list[i];
 
-      // account & limit validation
-      if (api.assert(account, `list[${i}]: account name cannot be undefined`)
-        && api.assert(api.isValidAccountName(account), `list[${i}]: invalid account name`)
-        && api.assert(limit, `list[${i}]: limit cannot be undefined`)
-        && api.assert(!api.BigNumber(limit).isNaN(), `list[${i}]: invalid limit`)
-        && api.assert(api.BigNumber(limit).gt(0), `list[${i}]: limit must be positive`)
-        && api.assert(api.BigNumber(limit).dp() <= precision, `list[${i}]: limit precision mismatch`)) {
-        parsedList.push({
-          account,
-          limit,
-        });
-      } else break;
-    }
-  } else return false;
+    // account & limit validation
+    if (api.assert(account, `list[${i}]: account name cannot be undefined`)
+      && api.assert(api.isValidAccountName(account), `list[${i}]: invalid account name`)
+      && api.assert(limit, `list[${i}]: limit cannot be undefined`)
+      && api.assert(!api.BigNumber(limit).isNaN(), `list[${i}]: invalid limit`)
+      && api.assert(api.BigNumber(limit).gt(0), `list[${i}]: limit must be positive`)
+      && api.assert(api.BigNumber(limit).dp() <= precision, `list[${i}]: limit precision mismatch`)) {
+      parsedList.push({
+        account,
+        limit,
+      });
+    } else break;
+  }
 
   // list validation, check if all values from list are valid & pushed into parsedList
-  if (parsedList.length === list.length) return parsedList;
+  if (api.assert(list.length > 0, 'list cannot be empty') && parsedList.length === list.length) return parsedList;
   return false;
 };
 
@@ -100,7 +98,7 @@ actions.create = async (payload) => {
     maxClaims,
     expiry,
     list,
-    maxClaimEach,
+    limit,
     isSignedWithActiveKey,
   } = payload;
 
@@ -110,9 +108,9 @@ actions.create = async (payload) => {
       && pool && typeof pool === 'string' && !api.BigNumber(pool).isNaN()
       && maxClaims && Number.isInteger(maxClaims)
       && expiry && typeof expiry === 'string'
-      // max claim for everyone -OR- list with max claim for selected users
-      && ((!maxClaimEach && list && Array.isArray(list))
-        || (!list && maxClaimEach && typeof maxClaimEach === 'string' && !api.BigNumber(maxClaimEach).isNaN())), 'invalid params')) {
+      // limit for everyone -OR- list with limit for selected users
+      && ((!limit && list && Array.isArray(list))
+        || (!list && limit && typeof limit === 'string' && !api.BigNumber(limit).isNaN())), 'invalid params')) {
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
     const params = await api.db.findOne('params', {});
     const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
@@ -153,16 +151,16 @@ actions.create = async (payload) => {
           expiry,
         };
 
-        // add list or maxClaimEach to final claimdrop object
+        // add list or limit to final claimdrop object
         if (list) {
           const parsedList = validateList(list, token.precision);
           if (parsedList) {
             claimdrop.list = parsedList;
           } else return;
-        } else if (maxClaimEach) {
-          if (api.assert(api.BigNumber(maxClaimEach).gt(0), 'maxClaimEach must be positive')
-            && api.assert(hasValidPrecision(maxClaimEach, token.precision), 'maxClaimEach precision mismatch')) {
-            claimdrop.maxClaimEach = maxClaimEach;
+        } else if (limit) {
+          if (api.assert(api.BigNumber(limit).gt(0), 'limit must be positive')
+            && api.assert(hasValidPrecision(limit, token.precision), 'limit precision mismatch')) {
+            claimdrop.limit = limit;
           } else return;
         }
 

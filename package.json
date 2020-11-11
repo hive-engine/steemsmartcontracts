@@ -16,7 +16,8 @@
     "test6": "./node_modules/mocha/bin/mocha ./test/crittermanager.js",
     "test7": "./node_modules/mocha/bin/mocha ./test/market.js",
     "test8": "./node_modules/mocha/bin/mocha ./test/airdrops.js",
-    "test9": "./node_modules/mocha/bin/mocha ./test/mining.js"
+    "test9": "./node_modules/mocha/bin/mocha ./test/mining.js",
+    "test10": "./node_modules/mocha/bin/mocha ./test/claimdrops.js"
   },
   "engines": {
     "node": ">=13.7.0",

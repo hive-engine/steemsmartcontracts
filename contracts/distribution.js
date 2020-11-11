@@ -1,4 +1,4 @@
-/* eslint-disable no-await-in-loop */
+/* eslint-disable no-await-in-loop, max-len */
 /* eslint no-underscore-dangle: ["error", { "allow": ["_id"] }] */
 /* global actions, api */
 
@@ -41,39 +41,25 @@ actions.updateParams = async (payload) => {
 };
 
 async function processBatch(batch, symbol, isFlush = false) {
-  let balance;
-  let balanceInd;
-  let payout;
-
-  for (let i = 0; i < batch.tokenBalances.length; i += 1) {
-    const curBalance = batch.tokenBalances[i];
-    if (curBalance.symbol === symbol) {
-      balanceInd = i;
-      balance = curBalance.quantity;
-      break;
-    }
-  }
-
-  for (let i = 0; i < batch.tokenMinPayout.length; i += 1) {
-    const minPayout = batch.tokenMinPayout[i];
-    if (minPayout.symbol === symbol) {
-      payout = minPayout.quantity;
-      break;
-    }
-  }
+  const balance = batch.tokenBalances.find(b => b.symbol === symbol);
+  const balanceStart = balance.quantity;
+  const payout = batch.tokenMinPayout.find(p => p.symbol === symbol);
 
   if (balance !== undefined && payout !== undefined
-    && (api.BigNumber(balance).gt(api.BigNumber(payout)) || isFlush === true)) {
+    && (api.BigNumber(balanceStart).gt(api.BigNumber(payout.quantity)) || isFlush === true)) {
     // pay out token balance to recipients by configured share percentage
     for (let i = 0; i < batch.tokenRecipients.length; i += 1) {
       const recipient = batch.tokenRecipients[i];
-      const recipientShare = api.BigNumber(balance).multipliedBy(recipient.pct / 100).toFixed(3);
-      if (await api.transferTokens(recipient.account, symbol, recipientShare, recipient.type)) {
-        // eslint-disable-next-line no-param-reassign, max-len
-        batch.tokenBalances[balanceInd].quantity = api.BigNumber(batch.tokenBalances[balanceInd].quantity).minus(recipientShare);
-        await api.db.update('batches', batch);
+      const recipientShare = api.BigNumber(balanceStart).multipliedBy(recipient.pct).dividedBy(100).toFixed(3);
+      const tx = await api.transferTokens(recipient.account, symbol, recipientShare, recipient.type);
+
+      // In the unlikely condition where the transfer fails we will keep the share leftover for the next run
+      if (api.assert(tx.errors === undefined, `unable to send ${recipientShare} ${symbol} to ${recipient.account}`)) {
+        // eslint-disable-next-line no-param-reassign
+        balance.quantity = api.BigNumber(balance.quantity).minus(recipientShare);
       }
     }
+    await api.db.update('batches', batch);
     return true;
   }
   return false;

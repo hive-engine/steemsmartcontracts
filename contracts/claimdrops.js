@@ -15,6 +15,8 @@ actions.createSSC = async () => {
     const params = {};
     params.creationFee = '50';
     params.feePerClaim = '0.1';
+    // 90 days (in milliseconds)
+    params.maxExpiryTime = 7776000000;
     await api.db.insert('params', params);
   }
 };
@@ -24,6 +26,7 @@ actions.updateParams = async (payload) => {
     const {
       creationFee,
       feePerClaim,
+      maxExpiryTime,
     } = payload;
 
     const params = await api.db.findOne('params', {});
@@ -35,6 +38,10 @@ actions.updateParams = async (payload) => {
     if (feePerClaim) {
       if (!api.assert(typeof feePerClaim === 'string' && !api.BigNumber(feePerClaim).isNaN() && api.BigNumber(feePerClaim).gte(0), 'invalid feePerClaim')) return;
       params.feePerClaim = feePerClaim;
+    }
+    if (maxExpiryTime) {
+      if (!api.assert(Number.isInteger(maxExpiryTime) && maxExpiryTime > 0, 'invalid maxExpiryTime')) return;
+      params.maxExpiryTime = maxExpiryTime;
     }
 
     await api.db.update('params', params);
@@ -77,7 +84,7 @@ const validateList = (list, precision) => {
       && api.assert(limit, `list[${i}]: limit cannot be undefined`)
       && api.assert(!api.BigNumber(limit).isNaN(), `list[${i}]: invalid limit`)
       && api.assert(api.BigNumber(limit).gt(0), `list[${i}]: limit must be positive`)
-      && api.assert(api.BigNumber(limit).dp() <= precision, `list[${i}]: limit precision mismatch`)) {
+      && api.assert(hasValidPrecision(limit, precision), `list[${i}]: limit precision mismatch`)) {
       parsedList.push({
         account,
         limit,
@@ -90,6 +97,17 @@ const validateList = (list, precision) => {
   return false;
 };
 
+const isValidBeneficiary = async (name, type) => {
+  if (type === 'u') {
+    if (api.isValidAccountName(name)) return true;
+  } else if (type === 'c') {
+    const contract = await api.db.findContract(name);
+    if (contract) return true;
+  }
+
+  return false;
+};
+
 actions.create = async (payload) => {
   const {
     symbol,
@@ -97,6 +115,8 @@ actions.create = async (payload) => {
     pool,
     maxClaims,
     expiry,
+    beneficiary,
+    beneficiaryType,
     list,
     limit,
     isSignedWithActiveKey,
@@ -108,14 +128,19 @@ actions.create = async (payload) => {
       && pool && typeof pool === 'string' && !api.BigNumber(pool).isNaN()
       && maxClaims && Number.isInteger(maxClaims)
       && expiry && typeof expiry === 'string'
+      && beneficiary && typeof beneficiary === 'string'
+      && beneficiaryType && typeof beneficiaryType === 'string'
       // limit for everyone -OR- list with limit for selected users
       && ((!limit && list && Array.isArray(list))
         || (!list && limit && typeof limit === 'string' && !api.BigNumber(limit).isNaN())), 'invalid params')) {
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
     const params = await api.db.findOne('params', {});
+
     const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
     const timestamp = blockDate.getTime();
     const expiryTimestamp = getTimestamp(expiry);
+    const maxExpiryTimestamp = api.BigNumber(timestamp)
+      .plus(params.maxExpiryTime).toNumber();
 
     // get api.sender's utility and airdrop token balances
     const utilityToken = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
@@ -131,7 +156,10 @@ actions.create = async (payload) => {
       // maxClaims check
       && api.assert(api.BigNumber(maxClaims).gt(0), 'maxClaims must be positive number')
       // expiry check
-      && api.assert(expiryTimestamp && expiryTimestamp > timestamp, 'invalid expiry')) {
+      && api.assert(expiryTimestamp && expiryTimestamp > timestamp, 'invalid expiry')
+      && api.assert(expiryTimestamp <= maxExpiryTimestamp, 'expiry exceeds limit')
+      && api.assert(beneficiaryType === 'u' || beneficiaryType === 'c', 'invalid beneficiaryType')
+      && api.assert(await isValidBeneficiary(beneficiary, beneficiaryType), 'invalid beneficiary')) {
       const fee = api.BigNumber(params.feePerClaim).times(maxClaims)
         .plus(params.creationFee)
         .toFixed(UTILITY_TOKEN_PRECISION);
@@ -148,7 +176,9 @@ actions.create = async (payload) => {
           remainingPool: pool,
           remainingClaims: maxClaims,
           claims: [],
-          expiry,
+          expiry: expiryTimestamp,
+          beneficiary,
+          beneficiaryType,
         };
 
         // add list or limit to final claimdrop object
@@ -182,6 +212,84 @@ actions.create = async (payload) => {
           } else {
             // if fee transfer was failed, return native balance to api.sender
             await api.transferTokens(api.sender, symbol, pool, 'user');
+          }
+        }
+      }
+    }
+  }
+};
+
+actions.claim = async (payload) => {
+  const {
+    claimdropId,
+    quantity,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(claimdropId && typeof claimdropId === 'string'
+      && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
+    const claimdrop = await api.db.findOne('claimdrops', { claimdropId });
+
+    if (api.assert(claimdrop, 'claimdrop does not exist or has been expired')) {
+      const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: claimdrop.symbol });
+
+      if (api.assert(claimdrop.remainingClaims > 0, 'maximum claims limit has been reached')
+        && api.assert(api.BigNumber(quantity).gt(0), 'quantity must be positive')
+        && api.assert(hasValidPrecision(quantity, token.precision), 'quantity precision mismatch')
+        && api.assert(api.BigNumber(claimdrop.remainingPool).gt(0), 'pool limit has been reached')
+        && api.assert(api.BigNumber(claimdrop.remainingPool).minus(quantity).gt(0), 'quantity exceeds pool')) {
+        const price = api.BigNumber(claimdrop.price)
+          .times(quantity)
+          .toFixed(HIVE_PEGGED_SYMBOL_PRECISION);
+        const hivePeggedToken = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: HIVE_PEGGED_SYMBOL });
+
+        const previousClaimIndex = claimdrop.claims.findIndex(el => el.account === api.sender);
+        const previousClaim = claimdrop.claims[previousClaimIndex];
+        const claim = (previousClaim) ? {
+          account: previousClaim.account,
+          quantity: api.BigNumber(previousClaim.quantity).plus(quantity),
+        } : {
+          account: api.sender,
+          quantity,
+        };
+
+        // get limit for api.sender from list or global limit
+        let limit;
+        if (claimdrop.list) {
+          const accountInList = claimdrop.list.find(el => el.account === claim.account);
+          // assert if list exist but account is not in it
+          if (!api.assert(accountInList, 'you are not eligible')) return;
+          ({ limit } = accountInList);
+        } else ({ limit } = claimdrop);
+
+        if (api.assert(hivePeggedToken && hivePeggedToken.balance
+          && api.BigNumber(hivePeggedToken.balance).gte(price), 'you must have enough tokens to cover the price')
+          && api.assert(api.BigNumber(previousClaim.quantity).eq(limit), 'you have reached your limit')
+          && api.assert(api.BigNumber(claim.quantity).lte(limit), 'quantity exceeds your limit')) {
+          // deduct price
+          const transferType = (claimdrop.beneficiaryType === 'u') ? 'transfer' : 'transferToContract';
+          const transfer = await api.executeSmartContract('tokens', transferType, {
+            to: claimdrop.beneficiary, symbol: HIVE_PEGGED_SYMBOL, quantity: price,
+          });
+
+          if (transferIsSuccessful(transfer,
+            transferType, api.sender, claimdrop.beneficiary, HIVE_PEGGED_SYMBOL, price)) {
+            // transfer tokens to claimant
+            await api.transferTokens(api.sender, claimdrop.symbol, quantity, 'user');
+
+            if (previousClaim) claimdrop.claims[previousClaimIndex] = claim;
+            else claimdrop.claims.push(claim);
+
+            claimdrop.remainingPool = api.BigNumber(claimdrop.remainingPool)
+              .minus(quantity);
+            claimdrop.remainingClaims -= 1;
+
+            const res = await api.db.update('claimdrops', claimdrop);
+            api.emit('claim', {
+              claimdropId: res.claimdropId,
+              quantity,
+            });
           }
         }
       }

@@ -693,12 +693,13 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(pmContractPayload)));
       transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "50", "dataPropertyCreationFee": "5" }'));
       transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'packmanager', 'updateParams', '{ "registerFee": "500", "typeAddFee": "2" }'));
-      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1050", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(38145386, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"550", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(38145386, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACK", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTWO", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1238A', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "url": "https://token.com", "symbol": "PACKTHREE", "precision": 3, "maxSupply": "2000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1239', 'cryptomancer', 'packmanager', 'createNft', '{ "name": "War Game Military Units", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WAR", "url": "https://mywargame.com", "isFoilReadOnly": false, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1239B', 'cryptomancer', 'nft', 'create', '{ "name": "Dummy Test NFT", "orgName": "Wars R Us Inc", "productName": "War Game", "symbol": "WARPED", "url": "https://mywargame.com", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1240', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 5, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
 
       // verify that editionName doesn't need to be provided if the edition has previously been
@@ -840,7 +841,7 @@ describe('packmanager', function() {
 
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[0].balance, 1350);
+      assert.equal(balances[0].balance, 1400);
       assert.equal(balances[1].account, 'cryptomancer');
       assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
       assert.equal(balances[1].balance, 0);
@@ -857,6 +858,14 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145387, 'TXID1248', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 1, "editionName": "Next War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145387, 'TXID1249', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 0, "editionName": "Ultimate War Edition", "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 500, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145387, 'TXID1250', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTWO", "nftSymbol": "WAR", "edition": 1, "cardsPerPack": 3, "foilChance": [50, 100], "categoryChance": [70, 90, 100], "rarityChance": [600, 800, 900, 975, 1000], "teamChance": [1000, 2800, 3000], "isSignedWithActiveKey": true }'));
+
+      transactions.push(new Transaction(38145387, 'TXID1250A', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "foil", "index": 0, "name": "Standard", "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(38145387, 'TXID1250B', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "foil", "index": 0, "name": "StandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandardStandard", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250C', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "foil", "index": 1.12345, "name": "Standard", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250D', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WARBOY", "edition": 0, "trait": "foil", "index": 0, "name": "Standard", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250E', 'aggroed', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "foil", "index": 0, "name": "Standard", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250F', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WARPED", "edition": 0, "trait": "foil", "index": 0, "name": "Standard", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145387, 'TXID1250G', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 5, "trait": "foil", "index": 0, "name": "Standard", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -881,6 +890,14 @@ describe('packmanager', function() {
       console.log(JSON.parse(transactionsBlock2[8].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock2[9].logs).errors[0]);
 
+      console.log(JSON.parse(transactionsBlock2[10].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock2[11].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock2[12].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock2[13].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock2[14].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock2[15].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock2[16].logs).errors[0]);
+
       assert.equal(JSON.parse(transactionsBlock2[0].logs).errors[0], 'you must use a custom_json signed with your active key');
       assert.equal(JSON.parse(transactionsBlock2[1].logs).errors[0], 'invalid params');
       assert.equal(JSON.parse(transactionsBlock2[2].logs).errors[0], 'you must have enough tokens to cover the registration fee');
@@ -890,6 +907,14 @@ describe('packmanager', function() {
       assert.equal(JSON.parse(transactionsBlock2[7].logs).errors[0], 'pack already registered for WAR');
       assert.equal(JSON.parse(transactionsBlock2[8].logs).errors[0], 'invalid params');
       assert.equal(JSON.parse(transactionsBlock2[9].logs).errors[0], 'must provide a name for the new edition');
+
+      assert.equal(JSON.parse(transactionsBlock2[10].logs).errors[0], 'you must use a custom_json signed with your active key');
+      assert.equal(JSON.parse(transactionsBlock2[11].logs).errors[0], 'invalid trait name: letters, numbers, whitespaces only, max length of 100');
+      assert.equal(JSON.parse(transactionsBlock2[12].logs).errors[0], 'invalid params');
+      assert.equal(JSON.parse(transactionsBlock2[13].logs).errors[0], 'NFT symbol must exist');
+      assert.equal(JSON.parse(transactionsBlock2[14].logs).errors[0], 'not authorized for updates');
+      assert.equal(JSON.parse(transactionsBlock2[15].logs).errors[0], 'NFT not under management');
+      assert.equal(JSON.parse(transactionsBlock2[16].logs).errors[0], 'edition not registered');
 
       // verify contract now manages the new NFT
       let underManagement = await database1.find({
@@ -913,6 +938,7 @@ describe('packmanager', function() {
       // this should succeed
       transactions.push(new Transaction(38145388, 'TXID1252', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145388, 'TXID1253', 'cryptomancer', 'packmanager', 'updateEditionName', '{ "nftSymbol": "WAR", "edition": 0, "editionName": "Mega Uber War Edition", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1254', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "rarity", "index": 1, "name": "Less Common", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 38145388,
@@ -929,6 +955,7 @@ describe('packmanager', function() {
       console.log(transactionsBlock3[0].logs);
       console.log(transactionsBlock3[1].logs);
       console.log(transactionsBlock3[2].logs);
+      console.log(transactionsBlock3[3].logs);
       assert.equal(JSON.parse(transactionsBlock3[0].logs).errors[0], 'edition not registered');
 
       // check if the pack settings were updated OK
@@ -964,6 +991,52 @@ describe('packmanager', function() {
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
       assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0,"editionName":"Mega Uber War Edition"}}');
+
+      // check if trait names were updated OK
+      traits = await database1.find({
+        contract: 'packmanager',
+        table: 'foils',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(traits);
+      assertTrait(traits[0], 'WAR', 0, 0, 'Standard');
+      assertTrait(traits[1], 'WAR', 0, 1, 'Gold');
+
+      traits = await database1.find({
+        contract: 'packmanager',
+        table: 'categories',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(traits);
+      assertTrait(traits[0], 'WAR', 0, 0, 'Air');
+      assertTrait(traits[1], 'WAR', 0, 1, 'Ground');
+      assertTrait(traits[2], 'WAR', 0, 2, 'Naval');
+
+      traits = await database1.find({
+        contract: 'packmanager',
+        table: 'rarities',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(traits);
+      assertTrait(traits[0], 'WAR', 0, 0, 'Common');
+      assertTrait(traits[1], 'WAR', 0, 1, 'Less Common');
+      assertTrait(traits[2], 'WAR', 0, 2, 'Rare');
+      assertTrait(traits[3], 'WAR', 0, 3, 'Legendary');
+
+      traits = await database1.find({
+        contract: 'packmanager',
+        table: 'teams',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(traits);
+      assertTrait(traits[0], 'WAR', 0, 0, 'Marines');
+      assertTrait(traits[1], 'WAR', 0, 1, 'Rogue Squadron');
+      assertTrait(traits[2], 'WAR', 0, 2, 'Naval Strike Group');
+      assertTrait(traits[3], 'WAR', 0, 3, 'Light Brigade');
 
       resolve();
     })

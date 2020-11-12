@@ -12,6 +12,7 @@ const MAX_NAME_LENGTH = 100;
 const MAX_CARDS_PER_PACK = 30; // how many NFT instances can a single pack generate?
 const MAX_CARDS_AT_ONCE = 60; // how many NFT instances can be generated in one open action?
 const MAX_PARTITIONS = 100; // how many ways can a random roll be divided for category, rarity, team, and foil?
+const MAX_ROLLS = 10; // maximum possible number of re-rolls if a random category / rarity / team throw results in no NFT instance types to choose from
 
 // cannot issue more than this number of NFT instances in one call to issueMultiple
 const MAX_NUM_NFTS_ISSUABLE = 10;
@@ -486,11 +487,12 @@ actions.updateSettings = async (payload) => {
     categoryChance,
     rarityChance,
     teamChance,
+    numRolls,
     isSignedWithActiveKey,
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (edition === undefined && cardsPerPack === undefined && foilChance === undefined && categoryChance === undefined && rarityChance === undefined && teamChance === undefined) {
+  if (edition === undefined && cardsPerPack === undefined && foilChance === undefined && categoryChance === undefined && rarityChance === undefined && teamChance === undefined && numRolls === undefined) {
     return false;
   }
 
@@ -498,6 +500,7 @@ actions.updateSettings = async (payload) => {
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
       && (edition === undefined || (typeof edition === 'number' && Number.isInteger(edition) && edition >= 0))
+      && (numRolls === undefined || (typeof numRolls === 'number' && Number.isInteger(numRolls) && numRolls >= 1 && numRolls <= MAX_ROLLS))
       && (foilChance === undefined || isValidPartition(foilChance))
       && (categoryChance === undefined || isValidPartition(categoryChance))
       && (rarityChance === undefined || isValidPartition(rarityChance))
@@ -555,6 +558,11 @@ actions.updateSettings = async (payload) => {
             settings.teamChance = teamChance;
             update.newTeamChance = teamChance;
           }
+          if (numRolls !== undefined) {
+            update.oldNumRolls = settings.numRolls;
+            settings.numRolls = numRolls;
+            update.newNumRolls = numRolls;
+          }
 
           await api.db.update('packs', settings);
 
@@ -579,6 +587,7 @@ actions.registerPack = async (payload) => {
     categoryChance,
     rarityChance,
     teamChance,
+    numRolls,
     isSignedWithActiveKey,
   } = payload;
 
@@ -588,6 +597,7 @@ actions.registerPack = async (payload) => {
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
       && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0
+      && numRolls !== undefined && typeof numRolls === 'number' && Number.isInteger(numRolls) && numRolls >= 1 && numRolls <= MAX_ROLLS
       && isValidPartition(foilChance) && isValidPartition(categoryChance) && isValidPartition(rarityChance) && isValidPartition(teamChance)
       && cardsPerPack !== undefined && typeof cardsPerPack === 'number' && Number.isInteger(cardsPerPack) && cardsPerPack >= 1 && cardsPerPack <= MAX_CARDS_PER_PACK, 'invalid params')) {
     // make sure registration fee can be paid
@@ -627,6 +637,7 @@ actions.registerPack = async (payload) => {
                 categoryChance,
                 rarityChance,
                 teamChance,
+                numRolls,
               };
 
               // if this is a registration for a new edition, we need
@@ -774,14 +785,21 @@ actions.createNft = async (payload) => {
 // generate issuance data for a random NFT instance
 const generateRandomInstance = (settings, nftSymbol, to, types) => {
   const foil = doRandomRoll(settings.foilChance);
-  const category = doRandomRoll(settings.categoryChance);
-  const rarity = doRandomRoll(settings.rarityChance);
-  const team = doRandomRoll(settings.teamChance);
+
+  let candidateTypes = [];
+  let rollCount = 0;
 
   // filter types by the chosen category / rarity / team and select
-  // one at random
-  // TODO: come up with some better way of handling the case where candidateTypes.length == 0
-  const candidateTypes = types.filter(t => t.category === category && t.rarity === rarity && t.team === team);
+  // one at random, re-rolling if there are no types available for the
+  // chosen combination
+  while (candidateTypes.length === 0 && rollCount < settings.numRolls) {
+    const category = doRandomRoll(settings.categoryChance);
+    const rarity = doRandomRoll(settings.rarityChance);
+    const team = doRandomRoll(settings.teamChance);
+
+    candidateTypes = types.filter(t => t.category === category && t.rarity === rarity && t.team === team);
+    rollCount += 1;
+  }
   const type = candidateTypes.length > 0 ? candidateTypes[Math.floor(api.random() * candidateTypes.length)].typeId : 0;
 
   const properties = {

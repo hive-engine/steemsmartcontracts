@@ -159,10 +159,13 @@ async function validateTokenMiners(tokenMiners, nftTokenMiner) {
   if (nftTokenMiner) {
     if (!api.assert(nftTokenMiner.symbol
         && typeof (nftTokenMiner.symbol) === 'string', 'nftTokenMiner invalid')) return false;
-    const { symbol, typeMap, properties } = nftTokenMiner;
+    const {
+      symbol, typeMap, properties, typeField,
+    } = nftTokenMiner;
     const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
     if (!api.assert(nft && nft.delegationEnabled, 'nftTokenMiner must have delegation enabled')) return false;
-    if (!api.assert(nft.properties.type && nft.properties.type.type === 'string', 'nftTokenMiner must have string type property')) return false;
+    if (!api.assert(typeField && typeof typeField === 'string', 'typeField must be a string')) return false;
+    if (!api.assert(nft.properties[typeField] && nft.properties[typeField].type === 'string', 'nftTokenMiner must have string type property')) return false;
     if (!(await validateNftProperties(properties))) return false;
     if (!validateNftTypeMap(typeMap, properties)) return false;
   }
@@ -185,7 +188,9 @@ async function validateTokenMinersChange(oldTokenMiners, tokenMiners, oldNftToke
   if (!api.assert(!!oldNftTokenMiner === !!nftTokenMiner, 'cannot change nftTokenMiner token')) return false;
   if (nftTokenMiner) {
     if (!api.assert(oldNftTokenMiner.symbol === nftTokenMiner.symbol, 'cannot change nftTokenMiner token')) return false;
-    const { typeMap, properties } = nftTokenMiner;
+    const { typeMap, properties, typeField } = nftTokenMiner;
+    if (!api.assert(typeField && typeof typeField === 'string'
+        && typeField === oldNftTokenMiner.typeField, 'cannot change nftTokenMiner typeField')) return false;
     if (!api.assert(typeMap && typeof typeMap === 'object', 'invalid nftTokenMiner typeMap')) return false;
     if (!(await validateNftProperties(properties))) return false;
     if (properties.length !== oldNftTokenMiner.properties.length) {
@@ -361,11 +366,11 @@ async function initNftMiningPower(pool, updatePoolTimestamp, params, nftTokenMin
     nfts = await api.db.findInTable('nft', `${nftTokenMiner.symbol}instances`, { _id: { $gt: lastId }, delegatedTo: { $ne: null } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
     for (let i = 0; i < nfts.length; i += 1) {
       const nft = nfts[i];
-      if (nftTokenMiner.typeMap[nft.properties.type]) {
+      if (nftTokenMiner.typeMap[nft.properties[nftTokenMiner.typeField]]) {
         const adjusted = await updateNftMiningPower(
           pool,
           nft,
-          nftTokenMiner.typeMap[nft.properties.type],
+          nftTokenMiner.typeMap[nft.properties[nftTokenMiner.typeField]],
           /* add */ true,
           updatePoolTimestamp,
         );
@@ -794,7 +799,8 @@ actions.handleNftChange = async (payload) => {
           && pool.updating.lastId < nft._id) {
         return;
       }
-      const typeProperties = pool.nftTokenMiner.typeMap[nft.properties.type];
+      const typeProperties = pool.nftTokenMiner.typeMap[
+        nft.properties[pool.nftTokenMiner.typeField]];
       if (typeProperties) {
         const adjusted = await updateNftMiningPower(
           pool,

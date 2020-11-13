@@ -812,6 +812,7 @@ describe('packmanager', function() {
       assert.equal(settings[0].nft, 'WAR');
       assert.equal(settings[0].edition, 0);
       assert.equal(settings[0].cardsPerPack, 5);
+      assert.equal(settings[0].numRolls, 10);
       assert.equal(JSON.stringify(settings[0].foilChance), '[50,100]');
       assert.equal(JSON.stringify(settings[0].categoryChance), '[70,90,100]');
       assert.equal(JSON.stringify(settings[0].rarityChance), '[600,800,900,975,1000]');
@@ -821,6 +822,7 @@ describe('packmanager', function() {
       assert.equal(settings[1].nft, 'WAR');
       assert.equal(settings[1].edition, 0);
       assert.equal(settings[1].cardsPerPack, 6);
+      assert.equal(settings[1].numRolls, 10);
       assert.equal(JSON.stringify(settings[1].foilChance), '[51,101]');
       assert.equal(JSON.stringify(settings[1].categoryChance), '[71,91,101]');
       assert.equal(JSON.stringify(settings[1].rarityChance), '[601,801,901,976,1001]');
@@ -936,7 +938,7 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145388, 'TXID1251', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
 
       // this should succeed
-      transactions.push(new Transaction(38145388, 'TXID1252', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1252', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "numRolls": 4, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145388, 'TXID1253', 'cryptomancer', 'packmanager', 'updateEditionName', '{ "nftSymbol": "WAR", "edition": 0, "editionName": "Mega Uber War Edition", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145388, 'TXID1254', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "rarity", "index": 1, "name": "Less Common", "isSignedWithActiveKey": true }'));
 
@@ -973,6 +975,7 @@ describe('packmanager', function() {
       assert.equal(settings[0].nft, 'WAR');
       assert.equal(settings[0].edition, 0);
       assert.equal(settings[0].cardsPerPack, 7);
+      assert.equal(settings[0].numRolls, 4);
       assert.equal(JSON.stringify(settings[0].foilChance), '[51,101]');
       assert.equal(JSON.stringify(settings[0].categoryChance), '[70,90,95,100]');
       assert.equal(JSON.stringify(settings[0].rarityChance), '[600,800,900,975,1000,1200]');

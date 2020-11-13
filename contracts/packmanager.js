@@ -247,45 +247,48 @@ actions.updateType = async (payload) => {
       if (api.assert(nft.issuer === api.sender, 'not authorized to update types')) {
         const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
         if (api.assert(underManagement !== null, 'NFT not under management')) {
-          if (api.assert(nft.circulatingSupply === 0 || ((category === undefined || !underManagement.categoryRO)
-            && (rarity === undefined || !underManagement.rarityRO)
-            && (team === undefined || !underManagement.teamRO)
-            && (name === undefined || !underManagement.nameRO)), 'cannot edit read-only properties')) {
-            const theType = await api.db.findOne('types', { nft: nftSymbol, edition, typeId });
-            if (api.assert(theType !== null, 'type does not exist')) {
-              const update = {
-                nft: nftSymbol,
-                edition,
-                typeId,
-              };
+          if (api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+            const editionMapping = underManagement.editionMapping[edition.toString()];
+            if (api.assert((category === undefined || !editionMapping.categoryRO)
+              && (rarity === undefined || !editionMapping.rarityRO)
+              && (team === undefined || !editionMapping.teamRO)
+              && (name === undefined || !editionMapping.nameRO), 'cannot edit read-only properties')) {
+              const theType = await api.db.findOne('types', { nft: nftSymbol, edition, typeId });
+              if (api.assert(theType !== null, 'type does not exist')) {
+                const update = {
+                  nft: nftSymbol,
+                  edition,
+                  typeId,
+                };
 
-              // all checks have passed, now we can update stuff
-              if (name !== undefined) {
-                update.oldName = theType.name;
-                theType.name = name;
-                update.newName = name;
-              }
-              if (category !== undefined) {
-                update.oldCategory = theType.category;
-                theType.category = category;
-                update.newCategory = category;
-              }
-              if (rarity !== undefined) {
-                update.oldRarity = theType.rarity;
-                theType.rarity = rarity;
-                update.newRarity = rarity;
-              }
-              if (team !== undefined) {
-                update.oldTeam = theType.team;
-                theType.team = team;
-                update.newTeam = team;
-              }
+                // all checks have passed, now we can update stuff
+                if (name !== undefined) {
+                  update.oldName = theType.name;
+                  theType.name = name;
+                  update.newName = name;
+                }
+                if (category !== undefined) {
+                  update.oldCategory = theType.category;
+                  theType.category = category;
+                  update.newCategory = category;
+                }
+                if (rarity !== undefined) {
+                  update.oldRarity = theType.rarity;
+                  theType.rarity = rarity;
+                  update.newRarity = rarity;
+                }
+                if (team !== undefined) {
+                  update.oldTeam = theType.team;
+                  theType.team = team;
+                  update.newTeam = team;
+                }
 
-              await api.db.update('types', theType);
+                await api.db.update('types', theType);
 
-              api.emit('updateType', update);
+                api.emit('updateType', update);
 
-              return true;
+                return true;
+              }
             }
           }
         }
@@ -488,17 +491,19 @@ actions.updateSettings = async (payload) => {
     rarityChance,
     teamChance,
     numRolls,
+    isFinalized,
     isSignedWithActiveKey,
   } = payload;
 
   // nothing to do if there's not at least one field to update
-  if (edition === undefined && cardsPerPack === undefined && foilChance === undefined && categoryChance === undefined && rarityChance === undefined && teamChance === undefined && numRolls === undefined) {
+  if (edition === undefined && cardsPerPack === undefined && foilChance === undefined && categoryChance === undefined && rarityChance === undefined && teamChance === undefined && numRolls === undefined && isFinalized === undefined) {
     return false;
   }
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(packSymbol && typeof packSymbol === 'string'
       && nftSymbol && typeof nftSymbol === 'string'
+      && (isFinalized === undefined || (isFinalized && typeof isFinalized === 'boolean'))
       && (edition === undefined || (typeof edition === 'number' && Number.isInteger(edition) && edition >= 0))
       && (numRolls === undefined || (typeof numRolls === 'number' && Number.isInteger(numRolls) && numRolls >= 1 && numRolls <= MAX_ROLLS))
       && (foilChance === undefined || isValidPartition(foilChance))
@@ -508,68 +513,69 @@ actions.updateSettings = async (payload) => {
       && (cardsPerPack === undefined || (typeof cardsPerPack === 'number' && Number.isInteger(cardsPerPack) && cardsPerPack >= 1 && cardsPerPack <= MAX_CARDS_PER_PACK)), 'invalid params')) {
     const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
     if (api.assert(settings !== null, 'pack not registered for this NFT')) {
-      if (api.assert(settings.account === api.sender, 'not authorized to update settings')) {
-        const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
-        if (api.assert(nft !== null, 'NFT symbol must exist')
-          && api.assert(nft.circulatingSupply === 0, 'NFT instances must not be in circulation')) {
-          // if edition is being updated, a registration for the new edition must
-          // already have been made
-          if (edition !== undefined) {
-            const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
-            if (!api.assert(underManagement !== null && edition.toString() in underManagement.editionMapping, 'edition not registered')) {
-              return false;
-            }
+      if (api.assert(settings.account === api.sender, 'not authorized to update settings')
+        && api.assert(!settings.isFinalized, 'pack settings already finalized')) {
+        // if edition is being updated, a registration for the new edition must
+        // already have been made
+        if (edition !== undefined) {
+          const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
+          if (!api.assert(underManagement !== null && edition.toString() in underManagement.editionMapping, 'edition not registered')) {
+            return false;
           }
-
-          const update = {
-            account: api.sender,
-            symbol: packSymbol,
-            nft: nftSymbol,
-          };
-
-          // all checks have passed, now we can update stuff
-          if (edition !== undefined) {
-            update.oldEdition = settings.edition;
-            settings.edition = edition;
-            update.newEdition = edition;
-          }
-          if (cardsPerPack !== undefined) {
-            update.oldCardsPerPack = settings.cardsPerPack;
-            settings.cardsPerPack = cardsPerPack;
-            update.newCardsPerPack = cardsPerPack;
-          }
-          if (foilChance !== undefined) {
-            update.oldFoilChance = settings.foilChance;
-            settings.foilChance = foilChance;
-            update.newFoilChance = foilChance;
-          }
-          if (categoryChance !== undefined) {
-            update.oldCategoryChance = settings.categoryChance;
-            settings.categoryChance = categoryChance;
-            update.newCategoryChance = categoryChance;
-          }
-          if (rarityChance !== undefined) {
-            update.oldRarityChance = settings.rarityChance;
-            settings.rarityChance = rarityChance;
-            update.newRarityChance = rarityChance;
-          }
-          if (teamChance !== undefined) {
-            update.oldTeamChance = settings.teamChance;
-            settings.teamChance = teamChance;
-            update.newTeamChance = teamChance;
-          }
-          if (numRolls !== undefined) {
-            update.oldNumRolls = settings.numRolls;
-            settings.numRolls = numRolls;
-            update.newNumRolls = numRolls;
-          }
-
-          await api.db.update('packs', settings);
-
-          api.emit('updateSettings', update);
-
-          return true;
         }
+
+        const update = {
+          account: api.sender,
+          symbol: packSymbol,
+          nft: nftSymbol,
+        };
+
+        // all checks have passed, now we can update stuff
+        if (edition !== undefined) {
+          update.oldEdition = settings.edition;
+          settings.edition = edition;
+          update.newEdition = edition;
+        }
+        if (cardsPerPack !== undefined) {
+          update.oldCardsPerPack = settings.cardsPerPack;
+          settings.cardsPerPack = cardsPerPack;
+          update.newCardsPerPack = cardsPerPack;
+        }
+        if (foilChance !== undefined) {
+          update.oldFoilChance = settings.foilChance;
+          settings.foilChance = foilChance;
+          update.newFoilChance = foilChance;
+        }
+        if (categoryChance !== undefined) {
+          update.oldCategoryChance = settings.categoryChance;
+          settings.categoryChance = categoryChance;
+          update.newCategoryChance = categoryChance;
+        }
+        if (rarityChance !== undefined) {
+          update.oldRarityChance = settings.rarityChance;
+          settings.rarityChance = rarityChance;
+          update.newRarityChance = rarityChance;
+        }
+        if (teamChance !== undefined) {
+          update.oldTeamChance = settings.teamChance;
+          settings.teamChance = teamChance;
+          update.newTeamChance = teamChance;
+        }
+        if (numRolls !== undefined) {
+          update.oldNumRolls = settings.numRolls;
+          settings.numRolls = numRolls;
+          update.newNumRolls = numRolls;
+        }
+        if (isFinalized) {
+          settings.isFinalized = true;
+          update.isFinalized = true;
+        }
+
+        await api.db.update('packs', settings);
+
+        api.emit('updateSettings', update);
+
+        return true;
       }
     }
   }
@@ -612,8 +618,7 @@ actions.registerPack = async (payload) => {
         if (api.assert(underManagement !== null, 'NFT not under management')) {
           const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
           if (api.assert(nft !== null, 'NFT symbol must exist')
-            && api.assert(nft.issuer === api.sender, 'not authorized to register')
-            && api.assert(nft.circulatingSupply === 0, 'unable to register; NFT instances already issued')) {
+            && api.assert(nft.issuer === api.sender, 'not authorized to register')) {
             // make sure this pack / NFT combo  hasn't been registered yet
             const settings = await api.db.findOne('packs', { symbol: packSymbol, nft: nftSymbol });
             if (api.assert(settings === null, `pack already registered for ${nftSymbol}`)) {
@@ -638,6 +643,7 @@ actions.registerPack = async (payload) => {
                 rarityChance,
                 teamChance,
                 numRolls,
+                isFinalized: false,
               };
 
               // if this is a registration for a new edition, we need
@@ -646,6 +652,10 @@ actions.registerPack = async (payload) => {
                 const newMapping = {
                   nextTypeId: 0,
                   editionName,
+                  categoryRO: false,
+                  rarityRO: false,
+                  teamRO: false,
+                  nameRO: false,
                 };
                 underManagement.editionMapping[edition.toString()] = newMapping;
                 await api.db.update('managedNfts', underManagement);
@@ -759,10 +769,6 @@ actions.createNft = async (payload) => {
             const newRecord = {
               nft: symbol,
               feePool: '0',
-              categoryRO: false,
-              rarityRO: false,
-              teamRO: false,
-              nameRO: false,
               editionMapping: {},
             };
             await api.db.insert('managedNfts', newRecord);

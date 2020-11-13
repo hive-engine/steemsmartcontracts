@@ -94,7 +94,7 @@ const findAndProcessAll = async (contractName, table, query, callback) => {
   }
 };
 
-function validateNftProperties(properties) {
+async function validateNftProperties(properties) {
   if (!api.assert(properties && Array.isArray(properties), 'invalid nftTokenMiner properties')) return false;
   if (!api.assert(properties.length > 0 && properties.length <= 4, 'nftTokenMiner properties size must be between 1 and 4')) return false;
 
@@ -107,6 +107,13 @@ function validateNftProperties(properties) {
         if (!api.assert(typeof prop.op === 'string' && PROPERTY_OPS[prop.op], 'nftTokenMiner properties op should be ADD or MULTIPLY')) return false;
       } else if (propKey === 'name') {
         if (!api.assert(typeof prop.name === 'string' && prop.name.length <= 16, 'nftTokenMiner properties name should be a string of length <= 16')) return false;
+      } else if (propKey === 'burnChange') {
+        if (!api.assert(typeof prop.burnChange === 'object'
+            && typeof prop.burnChange.symbol === 'string'
+            && api.BigNumber(prop.burnChange.quantity).isFinite()
+            && api.BigNumber(prop.burnChange.quantity).isPositive(), 'nftTokenMiner properties burnChange invalid')) return false;
+        const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: prop.burnChange.symbol });
+        if (!api.assert(token, 'nftTokenMiner properties burnChange symbol not found')) return false;
       } else {
         api.assert(false, 'nftTokenMiner properties field invalid');
         return false;
@@ -156,13 +163,14 @@ async function validateTokenMiners(tokenMiners, nftTokenMiner) {
     const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
     if (!api.assert(nft && nft.delegationEnabled, 'nftTokenMiner must have delegation enabled')) return false;
     if (!api.assert(nft.properties.type && nft.properties.type.type === 'string', 'nftTokenMiner must have string type property')) return false;
-    if (!validateNftProperties(properties)) return false;
+    if (!(await validateNftProperties(properties))) return false;
     if (!validateNftTypeMap(typeMap, properties)) return false;
   }
   return true;
 }
 
-function validateTokenMinersChange(oldTokenMiners, tokenMiners, oldNftTokenMiner, nftTokenMiner) {
+async function validateTokenMinersChange(oldTokenMiners, tokenMiners, oldNftTokenMiner,
+  nftTokenMiner) {
   if (!api.assert(tokenMiners.length === oldTokenMiners.length, 'cannot change which tokens are in tokenMiners')) return false;
   let changed = false;
   for (let i = 0; i < tokenMiners.length; i += 1) {
@@ -179,7 +187,7 @@ function validateTokenMinersChange(oldTokenMiners, tokenMiners, oldNftTokenMiner
     if (!api.assert(oldNftTokenMiner.symbol === nftTokenMiner.symbol, 'cannot change nftTokenMiner token')) return false;
     const { typeMap, properties } = nftTokenMiner;
     if (!api.assert(typeMap && typeof typeMap === 'object', 'invalid nftTokenMiner typeMap')) return false;
-    if (!validateNftProperties(properties)) return false;
+    if (!(await validateNftProperties(properties))) return false;
     if (properties.length !== oldNftTokenMiner.properties.length) {
       changed = true;
     } else {
@@ -482,7 +490,7 @@ actions.updatePool = async (payload) => {
         // eslint-disable-next-line no-template-curly-in-string
         if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')
           && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')) {
-          const validMinersChange = validateTokenMinersChange(
+          const validMinersChange = await validateTokenMinersChange(
             pool.tokenMiners, tokenMiners, pool.nftTokenMiner, nftTokenMiner,
           );
           if (validMinersChange) {
@@ -518,6 +526,61 @@ actions.updatePool = async (payload) => {
         }
       }
     }
+  }
+};
+
+actions.changeNftProperty = async (payload) => {
+  const {
+    id, type, propertyName, changeAmount,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(id && typeof id === 'string'
+      && type && typeof type === 'string'
+      && propertyName && typeof propertyName === 'string'
+      && changeAmount && typeof changeAmount === 'string'
+      && !api.BigNumber(changeAmount).isNaN()
+      && api.BigNumber(changeAmount).isFinite(), 'invalid params')) return;
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
+
+  const pool = await api.db.findOne('pools', { id });
+  if (!api.assert(pool, 'pool id not found')) return;
+
+  const propertyIndex = pool.nftTokenMiner.properties.findIndex(p => p.name === propertyName);
+  const property = pool.nftTokenMiner.properties[propertyIndex];
+  if (!api.assert(property && property.burnChange, 'property not enabled for burn change')) return;
+
+  const typeProperties = pool.nftTokenMiner.typeMap[type];
+  if (!api.assert(typeProperties, 'type not found')) return;
+
+  const burnSymbol = property.burnChange.symbol;
+  const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: burnSymbol });
+
+  const fee = api.BigNumber(changeAmount).abs().multipliedBy(property.burnChange.quantity);
+
+  if (!api.assert(fee.dp() <= token.precision, `fee precision mismatch for amount ${fee}`)) return;
+
+  const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: burnSymbol });
+  const authorized = api.BigNumber(fee).lte(0) || (balance && api.BigNumber(balance.balance).gte(fee));
+
+  if (!api.assert(authorized, `you must have enough tokens to cover the update fee of ${fee} ${burnSymbol}`)) return;
+
+  typeProperties[propertyIndex] = api.BigNumber(typeProperties[propertyIndex]).plus(changeAmount);
+
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  pool.updating.updatePoolTimestamp = api.BigNumber(blockDate.getTime()).toNumber();
+  pool.updating.inProgress = true;
+  pool.updating.tokenIndex = 0;
+  pool.updating.nftTokenIndex = 0;
+  pool.updating.lastId = 0;
+
+  await api.db.update('pools', pool);
+
+  // burn the token creation fees
+  if (api.BigNumber(fee).gt(0)) {
+    await api.executeSmartContract('tokens', 'transfer', {
+      to: 'null', symbol: burnSymbol, quantity: fee, isSignedWithActiveKey,
+    });
   }
 };
 

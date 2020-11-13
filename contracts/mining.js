@@ -131,7 +131,12 @@ function validateNftTypeMap(typeMap, properties) {
     const typeConfig = typeMap[type];
     if (!api.assert(Array.isArray(typeConfig) && typeConfig.length === properties.length, 'nftTokenMiner typeConfig length mismatch')) return false;
     for (let k = 0; k < typeConfig.length; k += 1) {
-      if (!api.assert(!api.BigNumber(typeConfig[k]).isNaN(), 'nftTokenMiner typeConfig invalid')) return false;
+      const typeProperty = api.BigNumber(typeConfig[k]);
+      if (!api.assert(!typeProperty.isNaN() && typeProperty.isFinite(), 'nftTokenMiner typeConfig invalid')) return false;
+      if (properties[k].op === 'MULTIPLY') {
+        if (!api.assert(typeProperty.gte(0.01) && typeProperty.lte(100),
+          'nftTokenMiner typeConfig MULTIPLY property should be between 0.01 and 100')) return false;
+      }
     }
   }
   return true;
@@ -572,6 +577,8 @@ actions.changeNftProperty = async (payload) => {
   if (!api.assert(authorized, `you must have enough tokens to cover the update fee of ${fee} ${burnSymbol}`)) return;
 
   typeProperties[propertyIndex] = api.BigNumber(typeProperties[propertyIndex]).plus(changeAmount);
+
+  if (!validateNftTypeMap(pool.nftTokenMiner.typeMap, pool.nftTokenMiner.properties)) return;
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   pool.updating.updatePoolTimestamp = api.BigNumber(blockDate.getTime()).toNumber();

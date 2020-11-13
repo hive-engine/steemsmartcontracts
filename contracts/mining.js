@@ -566,7 +566,8 @@ actions.changeNftProperty = async (payload) => {
   if (!api.assert(fee.dp() <= token.precision, `fee precision mismatch for amount ${fee}`)) return;
 
   const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: burnSymbol });
-  const authorized = api.BigNumber(fee).lte(0) || (balance && api.BigNumber(balance.balance).gte(fee));
+  const authorized = api.BigNumber(fee).lte(0)
+        || (balance && api.BigNumber(balance.balance).gte(fee));
 
   if (!api.assert(authorized, `you must have enough tokens to cover the update fee of ${fee} ${burnSymbol}`)) return;
 

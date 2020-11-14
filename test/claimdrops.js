@@ -181,7 +181,7 @@ async function assertNoErrorInLastBlock() {
 }
 
 // smart contract
-describe('Airdrops Smart Contract', function () {
+describe('Claimdrops Smart Contract', function () {
   this.timeout(20000);
 
   before((done) => {

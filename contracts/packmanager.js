@@ -41,7 +41,7 @@ actions.createSSC = async () => {
 const doRandomRoll = (partition) => {
   let result = 0;
 
-  let roll = Math.floor(api.random() * partition[partition.length - 1]) + 1;
+  const roll = Math.floor(api.random() * partition[partition.length - 1]) + 1;
   for (let i = 0; i < partition.length; i += 1) {
     if (roll > partition[i]) {
       result += 1;
@@ -63,7 +63,7 @@ const isValidPartition = (partition) => {
   if (partition && typeof partition === 'object' && Array.isArray(partition) && partition.length >= 1 && partition.length <= MAX_PARTITIONS) {
     let prevNum = 0;
     for (let i = 0; i < partition.length; i += 1) {
-      let val = partition[i];
+      const val = partition[i];
       if (!(typeof val === 'number' && Number.isInteger(val) && val > prevNum)) {
         return false;
       }
@@ -440,18 +440,31 @@ actions.setTraitName = async (payload) => {
   }
 };
 
-actions.updateEditionName = async (payload) => {
+actions.updateEdition = async (payload) => {
   const {
     nftSymbol,
     edition,
     editionName,
+    categoryRO,
+    rarityRO,
+    teamRO,
+    nameRO,
     isSignedWithActiveKey,
   } = payload;
 
+  // nothing to do if there's not at least one field to update
+  if (editionName === undefined && categoryRO === undefined && rarityRO === undefined && teamRO === undefined && nameRO === undefined) {
+    return false;
+  }
+
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(editionName && typeof editionName === 'string' && api.validator.isAlphanumeric(api.validator.blacklist(editionName, ' '))
-      && editionName.length > 0 && editionName.length <= MAX_NAME_LENGTH, `invalid edition name: letters, numbers, whitespaces only, max length of ${MAX_NAME_LENGTH}`)
+    && api.assert(editionName === undefined || (editionName && typeof editionName === 'string' && api.validator.isAlphanumeric(api.validator.blacklist(editionName, ' '))
+      && editionName.length > 0 && editionName.length <= MAX_NAME_LENGTH), `invalid edition name: letters, numbers, whitespaces only, max length of ${MAX_NAME_LENGTH}`)
     && api.assert(nftSymbol && typeof nftSymbol === 'string'
+      && (categoryRO === undefined || (categoryRO && typeof categoryRO === 'boolean'))
+      && (rarityRO === undefined || (rarityRO && typeof rarityRO === 'boolean'))
+      && (teamRO === undefined || (teamRO && typeof teamRO === 'boolean'))
+      && (nameRO === undefined || (nameRO && typeof nameRO === 'boolean'))
       && edition !== undefined && typeof edition === 'number' && Number.isInteger(edition) && edition >= 0, 'invalid params')) {
     // make sure user is authorized for this NFT
     const nft = await api.db.findOneInTable('nft', 'nfts', { symbol: nftSymbol });
@@ -460,27 +473,50 @@ actions.updateEditionName = async (payload) => {
         const underManagement = await api.db.findOne('managedNfts', { nft: nftSymbol });
         if (api.assert(underManagement !== null, 'NFT not under management')) {
           if (api.assert(edition.toString() in underManagement.editionMapping, 'edition not registered')) {
-            const oldEditionName = underManagement.editionMapping[edition.toString()].editionName;
-            if (oldEditionName !== editionName) {
-              underManagement.editionMapping[edition.toString()].editionName = editionName;
+            const editionMap = underManagement.editionMapping[edition.toString()];
 
-              await api.db.update('managedNfts', underManagement);
+            const update = {
+              nft: nftSymbol,
+              edition,
+            };
 
-              api.emit('updateEditionName', {
-                nft: nftSymbol,
-                edition,
-                oldEditionName,
-                newEditionName: editionName,
-              });
+            // all checks have passed, now we can update stuff
+            if (editionName !== undefined) {
+              update.oldEditionName = editionMap.editionName;
+              editionMap.editionName = editionName;
+              update.newEditionName = editionName;
             }
+            if (categoryRO) {
+              editionMap.categoryRO = true;
+              update.categoryRO = true;
+            }
+            if (rarityRO) {
+              editionMap.rarityRO = true;
+              update.rarityRO = true;
+            }
+            if (teamRO) {
+              editionMap.teamRO = true;
+              update.teamRO = true;
+            }
+            if (nameRO) {
+              editionMap.nameRO = true;
+              update.nameRO = true;
+            }
+
+            await api.db.update('managedNfts', underManagement);
+
+            api.emit('updateEdition', update);
+
+            return true;
           }
         }
       }
     }
   }
+  return false;
 };
 
-actions.updateSettings = async (payload) => {
+actions.updatePack = async (payload) => {
   const {
     packSymbol,
     nftSymbol,
@@ -525,7 +561,6 @@ actions.updateSettings = async (payload) => {
         }
 
         const update = {
-          account: api.sender,
           symbol: packSymbol,
           nft: nftSymbol,
         };
@@ -573,7 +608,7 @@ actions.updateSettings = async (payload) => {
 
         await api.db.update('packs', settings);
 
-        api.emit('updateSettings', update);
+        api.emit('updatePack', update);
 
         return true;
       }

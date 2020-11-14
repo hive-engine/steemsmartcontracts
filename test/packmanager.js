@@ -141,6 +141,14 @@ function assertTrait(traitObj, nft, edition, index, name) {
   assert.equal(traitObj.name, name);
 }
 
+function assertInstance(instObj, account, ownedBy, edition, foil, type) {
+  assert.equal(instObj.account, account);
+  assert.equal(instObj.ownedBy, ownedBy);
+  assert.equal(instObj.properties.edition, edition);
+  assert.equal(instObj.properties.foil, foil);
+  assert.equal(instObj.properties.type, type);
+}
+
 // packmanager
 describe('packmanager', function() {
   this.timeout(200000);
@@ -536,6 +544,21 @@ describe('packmanager', function() {
       });
       console.log(nftInstances);
       assert.equal(nftInstances.length, 15);
+      assertInstance(nftInstances[0], 'aggroed', 'u', 0, 0, 1);
+      assertInstance(nftInstances[1], 'aggroed', 'u', 0, 1, 3);
+      assertInstance(nftInstances[2], 'aggroed', 'u', 0, 1, 2);
+      assertInstance(nftInstances[3], 'aggroed', 'u', 0, 0, 3);
+      assertInstance(nftInstances[4], 'aggroed', 'u', 0, 0, 0);
+      assertInstance(nftInstances[5], 'aggroed', 'u', 0, 0, 1);
+      assertInstance(nftInstances[6], 'aggroed', 'u', 0, 1, 4);
+      assertInstance(nftInstances[7], 'aggroed', 'u', 0, 1, 3);
+      assertInstance(nftInstances[8], 'aggroed', 'u', 0, 1, 1);
+      assertInstance(nftInstances[9], 'aggroed', 'u', 0, 0, 2);
+      assertInstance(nftInstances[10], 'aggroed', 'u', 0, 1, 2);
+      assertInstance(nftInstances[11], 'aggroed', 'u', 0, 0, 3);
+      assertInstance(nftInstances[12], 'aggroed', 'u', 0, 1, 4);
+      assertInstance(nftInstances[13], 'aggroed', 'u', 0, 0, 1);
+      assertInstance(nftInstances[14], 'aggroed', 'u', 0, 0, 1);
 
       resolve();
     })
@@ -578,6 +601,10 @@ describe('packmanager', function() {
       transactions.push(new Transaction(38145386, 'TXID1247', 'cryptomancer', 'packmanager', 'updateType', '{ "nftSymbol": "WAR", "edition": 1, "typeId": 1, "name": "Japanese Zero Fighter", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145386, 'TXID1248', 'cryptomancer', 'packmanager', 'deleteType', '{ "nftSymbol": "WAR", "edition": 0, "typeId": 1, "isSignedWithActiveKey": true }'));
 
+      // verify properties can't be updated after switching on the RO flag
+      transactions.push(new Transaction(38145386, 'TXID1249', 'cryptomancer', 'packmanager', 'updateEdition', '{ "nftSymbol": "WAR", "edition": 1, "teamRO": true, "nameRO": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145386, 'TXID1250', 'cryptomancer', 'packmanager', 'updateType', '{ "nftSymbol": "WAR", "edition": 1, "typeId": 1, "name": "Space Shuttle", "isSignedWithActiveKey": true }'));
+
       let block = {
         refHiveBlockNumber: 38145386,
         refHiveBlockId: 'ABCD1',
@@ -597,6 +624,10 @@ describe('packmanager', function() {
       console.log(transactionsBlock1[16].logs);
       console.log(transactionsBlock1[17].logs);
       console.log(transactionsBlock1[18].logs);
+      console.log(transactionsBlock1[19].logs);
+      console.log(transactionsBlock1[20].logs);
+
+      assert.equal(JSON.parse(transactionsBlock1[20].logs).errors[0], 'cannot edit read-only properties');
 
       // check if account balance updated OK
       const balances = await database1.find({
@@ -669,7 +700,7 @@ describe('packmanager', function() {
       console.log(underManagement[0].editionMapping);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
-      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":3,"editionName":"Ultimate War Edition"},"1":{"nextTypeId":2,"editionName":"War Modern Expansion"}}');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":3,"editionName":"Ultimate War Edition","categoryRO":false,"rarityRO":false,"teamRO":false,"nameRO":false},"1":{"nextTypeId":2,"editionName":"War Modern Expansion","categoryRO":false,"rarityRO":false,"teamRO":true,"nameRO":true}}');
 
       resolve();
     })
@@ -705,6 +736,9 @@ describe('packmanager', function() {
       // verify that editionName doesn't need to be provided if the edition has previously been
       // created in a prior pack registration
       transactions.push(new Transaction(38145386, 'TXID1240A', 'cryptomancer', 'packmanager', 'registerPack', '{ "packSymbol": "PACKTHREE", "nftSymbol": "WAR", "edition": 0, "numRolls": 10, "cardsPerPack": 6, "foilChance": [51, 101], "categoryChance": [71, 91, 101], "rarityChance": [601, 801, 901, 976, 1001], "teamChance": [1001, 2801, 3001], "isSignedWithActiveKey": true }'));
+
+      // finalize PACKTHREE so we can verify that settings can't be updated once finalized
+      transactions.push(new Transaction(38145386, 'TXID1240A1', 'cryptomancer', 'packmanager', 'updatePack', '{ "packSymbol": "PACKTHREE", "nftSymbol": "WAR", "isFinalized": true, "isSignedWithActiveKey": true }'));
 
       // set some trait names
       transactions.push(new Transaction(38145386, 'TXID1240B', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "foil", "index": 0, "name": "Standard", "isSignedWithActiveKey": true }'));
@@ -813,6 +847,7 @@ describe('packmanager', function() {
       assert.equal(settings[0].edition, 0);
       assert.equal(settings[0].cardsPerPack, 5);
       assert.equal(settings[0].numRolls, 10);
+      assert.equal(settings[0].isFinalized, false);
       assert.equal(JSON.stringify(settings[0].foilChance), '[50,100]');
       assert.equal(JSON.stringify(settings[0].categoryChance), '[70,90,100]');
       assert.equal(JSON.stringify(settings[0].rarityChance), '[600,800,900,975,1000]');
@@ -823,6 +858,7 @@ describe('packmanager', function() {
       assert.equal(settings[1].edition, 0);
       assert.equal(settings[1].cardsPerPack, 6);
       assert.equal(settings[1].numRolls, 10);
+      assert.equal(settings[1].isFinalized, true);
       assert.equal(JSON.stringify(settings[1].foilChance), '[51,101]');
       assert.equal(JSON.stringify(settings[1].categoryChance), '[71,91,101]');
       assert.equal(JSON.stringify(settings[1].rarityChance), '[601,801,901,976,1001]');
@@ -930,16 +966,18 @@ describe('packmanager', function() {
       console.log(underManagement[0].editionMapping);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
-      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0,"editionName":"Ultimate War Edition"}}');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0,"editionName":"Ultimate War Edition","categoryRO":false,"rarityRO":false,"teamRO":false,"nameRO":false}}');
 
       // update some settings
       transactions = [];
       // this should fail as edition 3 hasn't been registered
-      transactions.push(new Transaction(38145388, 'TXID1251', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1251', 'cryptomancer', 'packmanager', 'updatePack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "edition": 3, "isSignedWithActiveKey": true }'));
+      // this should fail as pack is already finalized
+      transactions.push(new Transaction(38145388, 'TXID1251A', 'cryptomancer', 'packmanager', 'updatePack', '{ "packSymbol": "PACKTHREE", "nftSymbol": "WAR", "numRolls": 3, "isSignedWithActiveKey": true }'));
 
       // this should succeed
-      transactions.push(new Transaction(38145388, 'TXID1252', 'cryptomancer', 'packmanager', 'updateSettings', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "cardsPerPack": 7, "numRolls": 4, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145388, 'TXID1253', 'cryptomancer', 'packmanager', 'updateEditionName', '{ "nftSymbol": "WAR", "edition": 0, "editionName": "Mega Uber War Edition", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1252', 'cryptomancer', 'packmanager', 'updatePack', '{ "packSymbol": "PACK", "nftSymbol": "WAR", "isFinalized": true, "cardsPerPack": 7, "numRolls": 4, "foilChance": [51, 101], "categoryChance": [70, 90, 95, 100], "rarityChance": [600, 800, 900, 975, 1000, 1200], "teamChance": [2800, 3000], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(38145388, 'TXID1253', 'cryptomancer', 'packmanager', 'updateEdition', '{ "nftSymbol": "WAR", "edition": 0, "editionName": "Mega Uber War Edition", "categoryRO": true, "rarityRO": true, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(38145388, 'TXID1254', 'cryptomancer', 'packmanager', 'setTraitName', '{ "nftSymbol": "WAR", "edition": 0, "trait": "rarity", "index": 1, "name": "Less Common", "isSignedWithActiveKey": true }'));
 
       block = {
@@ -958,7 +996,9 @@ describe('packmanager', function() {
       console.log(transactionsBlock3[1].logs);
       console.log(transactionsBlock3[2].logs);
       console.log(transactionsBlock3[3].logs);
+      console.log(transactionsBlock3[4].logs);
       assert.equal(JSON.parse(transactionsBlock3[0].logs).errors[0], 'edition not registered');
+      assert.equal(JSON.parse(transactionsBlock3[1].logs).errors[0], 'pack settings already finalized');
 
       // check if the pack settings were updated OK
       settings = await database1.find({
@@ -976,6 +1016,7 @@ describe('packmanager', function() {
       assert.equal(settings[0].edition, 0);
       assert.equal(settings[0].cardsPerPack, 7);
       assert.equal(settings[0].numRolls, 4);
+      assert.equal(settings[0].isFinalized, true);
       assert.equal(JSON.stringify(settings[0].foilChance), '[51,101]');
       assert.equal(JSON.stringify(settings[0].categoryChance), '[70,90,95,100]');
       assert.equal(JSON.stringify(settings[0].rarityChance), '[600,800,900,975,1000,1200]');
@@ -993,7 +1034,7 @@ describe('packmanager', function() {
       console.log(underManagement[0].editionMapping);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
-      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0,"editionName":"Mega Uber War Edition"}}');
+      assert.equal(JSON.stringify(underManagement[0].editionMapping), '{"0":{"nextTypeId":0,"editionName":"Mega Uber War Edition","categoryRO":true,"rarityRO":true,"teamRO":false,"nameRO":false}}');
 
       // check if trait names were updated OK
       traits = await database1.find({
@@ -1145,10 +1186,6 @@ describe('packmanager', function() {
       console.log(underManagement);
       assert.equal(underManagement[0].nft, 'WAR');
       assert.equal(underManagement[0].feePool, '0');
-      assert.equal(underManagement[0].categoryRO, false);
-      assert.equal(underManagement[0].rarityRO, false);
-      assert.equal(underManagement[0].teamRO, false);
-      assert.equal(underManagement[0].nameRO, false);
 
       resolve();
     })

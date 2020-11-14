@@ -7,6 +7,7 @@
 const { fork } = require('child_process');
 const assert = require('assert');
 const fs = require('fs-extra');
+const BigNumber = require('bignumber.js');
 const { MongoClient } = require('mongodb');
 const { Base64 } = require('js-base64');
 
@@ -134,8 +135,35 @@ async function assertClaimdrop(claimdropId, reverse = false) {
     },
   });
 
-  if (!reverse) assert.ok(res, `pendingAirdrop ${claimdropId} not found.`);
-  else assert.ok(!res, `pendingAirdrop ${claimdropId} is unexpected.`);
+  if (!reverse) assert.ok(res, `claimdrop ${claimdropId} not found.`);
+  else assert.ok(!res, `claimdrop ${claimdropId} is unexpected.`);
+}
+
+async function assertClaimdropPool(claimdropId, pool) {
+  const res = await database1.findOne({
+    contract: 'claimdrops',
+    table: 'claimdrops',
+    query: {
+      claimdropId,
+    },
+  });
+
+  assert(res, `claimdrop ${claimdropId} not found.`);
+  assert(BigNumber(res.remainingPool).eq(pool), 'claimdrop pool incorrect');
+}
+
+async function assertBalance(account, balance, symbol, type) {
+  const res = await database1.findOne({
+    contract: 'tokens',
+    table: (type === 'contract') ? 'contractsBalances' : 'balances',
+    query: {
+      account,
+      symbol,
+    },
+  });
+
+  assert(res, `No Balance found for ${type} ${account}.`);
+  assert(BigNumber(res.balance).eq(balance), `${account} Balance: ${res.balance} ${symbol}, Expected ${balance} ${symbol}`);
 }
 
 function assertError(tx, message) {
@@ -217,37 +245,37 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": 1000 }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": "500" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": 50 }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": 5 }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": 5 }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": 1 }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": 1 }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1", "list": ["ali-h", "1000"] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN.TEST", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "-0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.000000001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "-1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1.0000000001", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": -100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2000-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "in two days", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2030-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "lol", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "542", "beneficiaryType": "u", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "tkns", "beneficiaryType": "c", "limit": "1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": 5 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": 5 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": 1 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": 1 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1", "list": ["ali-h", "1000"] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN.TEST", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "-0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.000000001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "-1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1.0000000001", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": -100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2000-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "in two days", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2030-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "lol", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "542", "ownerType": "user", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "tkns", "ownerType": "contract", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "60", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "-1" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "limit": "0.0005" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [["", ""]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [["0ali--h", ""]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [["ali-h", ""]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [["ali-h", "SEVEN"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [["ali-h", "-50"]] }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [["ali-h", "2.00005"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "-1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "0.0005" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["", ""]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["0ali--h", ""]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["ali-h", ""]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["ali-h", "SEVEN"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["ali-h", "-50"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["ali-h", "2.00005"]] }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -268,8 +296,8 @@ describe('Airdrops Smart Contract', function () {
       assertError(txs[7], 'invalid params'); // invalid pool
       assertError(txs[8], 'invalid params'); // invalid maxClaims
       assertError(txs[9], 'invalid params'); // invalid expiry
-      assertError(txs[10], 'invalid params'); // invalid beneficiary
-      assertError(txs[11], 'invalid params'); // invalid beneficiaryType
+      assertError(txs[10], 'invalid params'); // invalid owner
+      assertError(txs[11], 'invalid params'); // invalid ownerType
       assertError(txs[12], 'invalid params'); // without limit & list
       assertError(txs[13], 'invalid params'); // invalid limit
       assertError(txs[14], 'invalid params'); // invalid list
@@ -283,9 +311,9 @@ describe('Airdrops Smart Contract', function () {
       assertError(txs[22], 'invalid expiry'); // already exprired according to blockTime
       assertError(txs[23], 'invalid expiry'); // invalid expiry
       assertError(txs[24], 'expiry exceeds limit');
-      assertError(txs[25], 'invalid beneficiaryType');
-      assertError(txs[26], 'invalid beneficiary'); // invalid username
-      assertError(txs[27], 'invalid beneficiary'); // invalid contract name
+      assertError(txs[25], 'invalid ownerType');
+      assertError(txs[26], 'invalid owner'); // invalid username
+      assertError(txs[27], 'invalid owner'); // invalid contract name
       assertError(txs[28], 'you must have enough tokens to cover the creation fee');
       assertError(txs[30], 'you must have enough tokens to cover the claimdrop pool');
       assertError(txs[32], 'limit must be positive');
@@ -320,7 +348,7 @@ describe('Airdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "160", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "beneficiary": "ali-h", "beneficiaryType": "u", "list": [["ali-h", "9.999"], ["thesim", "5000"], ["harpagon", "500.2"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["ali-h", "9.999"], ["thesim", "5000"], ["harpagon", "500.2"]] }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -342,6 +370,257 @@ describe('Airdrops Smart Contract', function () {
       assert.equal(claimdropEvent.data.claimdropId, txs[5].transactionId);
 
       await assertClaimdrop(claimdropEvent.data.claimdropId);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should not claim', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      const transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "100000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "10000000000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "10000000000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": false, "claimdropId": "claimdrop-0", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": 0, "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-0", "quantity": 1000 }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-0", "quantity": "1" }'));
+      transactions.push(new Transaction(12345678901, 'claimdrop-0', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 1, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "dave", "quantity": "0.001", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-0", "quantity": "1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-0", "quantity": "1" }')); // maxClaims reaches
+      transactions.push(new Transaction(12345678901, 'claimdrop-1', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 2, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-1", "quantity": "-1" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-1", "quantity": "0.0000000005" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "dave", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-1", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-1", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, 'claimdrop-2', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "3000", "maxClaims": 3, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "limit": "2000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-2", "quantity": "5000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-2", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "dave", "quantity": "2.5", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-2", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-2", "quantity": "1500" }')); // exceed limit
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-2", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-2", "quantity": "1000" }')); // reached limit
+      transactions.push(new Transaction(12345678901, 'claimdrop-3', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "3000", "maxClaims": 3, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["mrok", "2000"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "mrok", "quantity": "3", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "dave", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'mrok', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "2500" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'mrok', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "2000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'mrok', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "1000" }'));
+
+      const block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2020-11-11T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      assertError(txs[5], 'you must use a custom_json signed with your active key');
+      assertError(txs[6], 'invalid params'); // invalid claimdropId
+      assertError(txs[7], 'invalid params'); // invalid quantity
+      assertError(txs[8], 'claimdrop does not exist or has been expired');
+      assertError(txs[12], 'maximum claims limit has been reached');
+      assertError(txs[14], 'quantity must be positive');
+      assertError(txs[15], 'quantity precision mismatch');
+      assertError(txs[18], 'pool limit has been reached');
+      assertError(txs[20], 'quantity exceeds pool');
+      assertError(txs[21], 'you must have enough tokens to cover the price');
+      assertError(txs[24], 'quantity exceeds your limit');
+      assertError(txs[26], 'you have reached your limit');
+      assertError(txs[30], 'you are not eligible');
+      assertError(txs[31], 'quantity exceeds your limit'); // with list
+      assertError(txs[33], 'you have reached your limit'); // with list
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should claim', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      const transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "160", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'claimdrop', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "tokens", "ownerType": "contract", "list": [["ali-h", "249.999"], ["thesim", "499.999"], ["harpagon", "1000"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "ali-h", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "thesim", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "harpagon", "quantity": "1", "isSignedWithActiveKey": true }`));
+
+      // claims
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop", "quantity": "249" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'thesim', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop", "quantity": "400" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop", "quantity": "200.999" }')); // 150.001 in pool should be remaining after this
+
+      const block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2020-11-11T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      const eventLog = JSON.parse(txs[5].logs);
+      const claimdropEvent = eventLog.events.find(x => x.event === 'create');
+      assert.equal(claimdropEvent.data.claimdropId, txs[5].transactionId);
+
+      await assertClaimdrop(claimdropEvent.data.claimdropId);
+      assert((JSON.parse(txs[9].logs)).events.find(x => x.event === 'claim'), 'expected a claim event');
+      assert((JSON.parse(txs[10].logs)).events.find(x => x.event === 'claim'), 'expected a claim event');
+      assert((JSON.parse(txs[11].logs)).events.find(x => x.event === 'claim'), 'expected a claim event');
+
+      await assertClaimdropPool(claimdropEvent.data.claimdropId, '150.001');
+      await assertBalance('ali-h', '249', 'TKN');
+      await assertBalance('ali-h', '0.751', 'SWAP.HIVE');
+      await assertBalance('thesim', '400', 'TKN');
+      await assertBalance('thesim', '0.6', 'SWAP.HIVE');
+      await assertBalance('harpagon', '200.999', 'TKN');
+      await assertBalance('harpagon', '0.799001', 'SWAP.HIVE');
+      await assertBalance('tokens', '0.849999', 'SWAP.HIVE', 'contract');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should not expire claimdrop', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      const transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "160", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'claimdrop', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "tokens", "ownerType": "contract", "list": [["ali-h", "249.999"], ["thesim", "499.999"], ["harpagon", "1000"]] }'));
+
+      const block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2020-11-11T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const { virtualTransactions } = res;
+
+      await assertNoErrorInLastBlock();
+
+      assert.ok(!virtualTransactions[0]);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should expire claimdrop', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "160", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'claimdrop', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "ali-h", "ownerType": "user", "list": [["ali-h", "249.999"], ["thesim", "499.999"], ["harpagon", "1000"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "thesim", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'thesim', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop", "quantity": "200" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2020-11-11T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertClaimdrop('claimdrop');
+      await assertBalance('ali-h', '0', 'TKN');
+      await assertNoErrorInLastBlock();
+
+      // expire here
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2020-12-01T00:00:00', // expiration time
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const { virtualTransactions } = res;
+
+      const virtualEventLog = JSON.parse(virtualTransactions[0].logs);
+      const claimdropExpirationEvent = virtualEventLog.events.find(x => x.event === 'expire');
+      assert(claimdropExpirationEvent && claimdropExpirationEvent.data.claimdropId === 'claimdrop', 'expected to find expiration event');
+
+      await assertClaimdrop('claimdrop', true);
+      await assertBalance('ali-h', '800', 'TKN'); // check if the balance has returned (200 TKN was claimed)
 
       resolve();
     })

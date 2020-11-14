@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 /* global actions, api */
 
 const UTILITY_TOKEN_SYMBOL = 'BEE';
@@ -17,6 +18,7 @@ actions.createSSC = async () => {
     params.feePerClaim = '0.1';
     // 90 days (in milliseconds)
     params.maxExpiryTime = 7776000000;
+    params.maxExpiresPerBlock = 5;
     await api.db.insert('params', params);
   }
 };
@@ -27,6 +29,7 @@ actions.updateParams = async (payload) => {
       creationFee,
       feePerClaim,
       maxExpiryTime,
+      maxExpiresPerBlock,
     } = payload;
 
     const params = await api.db.findOne('params', {});
@@ -42,6 +45,10 @@ actions.updateParams = async (payload) => {
     if (maxExpiryTime) {
       if (!api.assert(Number.isInteger(maxExpiryTime) && maxExpiryTime > 0, 'invalid maxExpiryTime')) return;
       params.maxExpiryTime = maxExpiryTime;
+    }
+    if (maxExpiresPerBlock) {
+      if (!api.assert(Number.isInteger(maxExpiresPerBlock) && maxExpiresPerBlock > 0 && maxExpiresPerBlock <= 1000, 'invalid maxExpiresPerBlock')) return;
+      params.maxExpiresPerBlock = maxExpiresPerBlock;
     }
 
     await api.db.update('params', params);
@@ -97,10 +104,10 @@ const validateList = (list, precision) => {
   return false;
 };
 
-const isValidBeneficiary = async (name, type) => {
-  if (type === 'u') {
+const isValidowner = async (name, type) => {
+  if (type === 'user') {
     if (api.isValidAccountName(name)) return true;
-  } else if (type === 'c') {
+  } else if (type === 'contract') {
     const contract = await api.db.findContract(name);
     if (contract) return true;
   }
@@ -115,8 +122,8 @@ actions.create = async (payload) => {
     pool,
     maxClaims,
     expiry,
-    beneficiary,
-    beneficiaryType,
+    owner,
+    ownerType,
     list,
     limit,
     isSignedWithActiveKey,
@@ -128,8 +135,8 @@ actions.create = async (payload) => {
       && pool && typeof pool === 'string' && !api.BigNumber(pool).isNaN()
       && maxClaims && Number.isInteger(maxClaims)
       && expiry && typeof expiry === 'string'
-      && beneficiary && typeof beneficiary === 'string'
-      && beneficiaryType && typeof beneficiaryType === 'string'
+      && owner && typeof owner === 'string'
+      && ownerType && typeof ownerType === 'string'
       // limit for everyone -OR- list with limit for selected users
       && ((!limit && list && Array.isArray(list))
         || (!list && limit && typeof limit === 'string' && !api.BigNumber(limit).isNaN())), 'invalid params')) {
@@ -158,8 +165,8 @@ actions.create = async (payload) => {
       // expiry check
       && api.assert(expiryTimestamp && expiryTimestamp > timestamp, 'invalid expiry')
       && api.assert(expiryTimestamp <= maxExpiryTimestamp, 'expiry exceeds limit')
-      && api.assert(beneficiaryType === 'u' || beneficiaryType === 'c', 'invalid beneficiaryType')
-      && api.assert(await isValidBeneficiary(beneficiary, beneficiaryType), 'invalid beneficiary')) {
+      && api.assert(ownerType === 'user' || ownerType === 'contract', 'invalid ownerType')
+      && api.assert(await isValidowner(owner, ownerType), 'invalid owner')) {
       const fee = api.BigNumber(params.feePerClaim).times(maxClaims)
         .plus(params.creationFee)
         .toFixed(UTILITY_TOKEN_PRECISION);
@@ -177,8 +184,8 @@ actions.create = async (payload) => {
           remainingClaims: maxClaims,
           claims: [],
           expiry: expiryTimestamp,
-          beneficiary,
-          beneficiaryType,
+          owner,
+          ownerType,
         };
 
         // add list or limit to final claimdrop object
@@ -219,6 +226,14 @@ actions.create = async (payload) => {
   }
 };
 
+const isActive = (expiry) => {
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.00Z`);
+  const timestamp = blockDate.getTime();
+  if (expiry > timestamp) return true;
+
+  return false;
+};
+
 actions.claim = async (payload) => {
   const {
     claimdropId,
@@ -231,14 +246,15 @@ actions.claim = async (payload) => {
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const claimdrop = await api.db.findOne('claimdrops', { claimdropId });
 
-    if (api.assert(claimdrop, 'claimdrop does not exist or has been expired')) {
+    if (api.assert(claimdrop, 'claimdrop does not exist or has been expired')
+      && api.assert(isActive(claimdrop.expiry), 'claimdrop has been expired')) {
       const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: claimdrop.symbol });
 
       if (api.assert(claimdrop.remainingClaims > 0, 'maximum claims limit has been reached')
         && api.assert(api.BigNumber(quantity).gt(0), 'quantity must be positive')
         && api.assert(hasValidPrecision(quantity, token.precision), 'quantity precision mismatch')
         && api.assert(api.BigNumber(claimdrop.remainingPool).gt(0), 'pool limit has been reached')
-        && api.assert(api.BigNumber(claimdrop.remainingPool).minus(quantity).gt(0), 'quantity exceeds pool')) {
+        && api.assert(api.BigNumber(claimdrop.remainingPool).minus(quantity).gte(0), 'quantity exceeds pool')) {
         const price = api.BigNumber(claimdrop.price)
           .times(quantity)
           .toFixed(HIVE_PEGGED_SYMBOL_PRECISION);
@@ -263,18 +279,18 @@ actions.claim = async (payload) => {
           ({ limit } = accountInList);
         } else ({ limit } = claimdrop);
 
+        if (previousClaim && !api.assert(!api.BigNumber(previousClaim.quantity).eq(limit), 'you have reached your limit')) return;
         if (api.assert(hivePeggedToken && hivePeggedToken.balance
           && api.BigNumber(hivePeggedToken.balance).gte(price), 'you must have enough tokens to cover the price')
-          && api.assert(api.BigNumber(previousClaim.quantity).eq(limit), 'you have reached your limit')
           && api.assert(api.BigNumber(claim.quantity).lte(limit), 'quantity exceeds your limit')) {
           // deduct price
-          const transferType = (claimdrop.beneficiaryType === 'u') ? 'transfer' : 'transferToContract';
+          const transferType = (claimdrop.ownerType === 'user') ? 'transfer' : 'transferToContract';
           const transfer = await api.executeSmartContract('tokens', transferType, {
-            to: claimdrop.beneficiary, symbol: HIVE_PEGGED_SYMBOL, quantity: price,
+            to: claimdrop.owner, symbol: HIVE_PEGGED_SYMBOL, quantity: price,
           });
 
           if (transferIsSuccessful(transfer,
-            transferType, api.sender, claimdrop.beneficiary, HIVE_PEGGED_SYMBOL, price)) {
+            transferType, api.sender, claimdrop.owner, HIVE_PEGGED_SYMBOL, price)) {
             // transfer tokens to claimant
             await api.transferTokens(api.sender, claimdrop.symbol, quantity, 'user');
 
@@ -285,14 +301,45 @@ actions.claim = async (payload) => {
               .minus(quantity);
             claimdrop.remainingClaims -= 1;
 
-            const res = await api.db.update('claimdrops', claimdrop);
+            await api.db.update('claimdrops', claimdrop);
             api.emit('claim', {
-              claimdropId: res.claimdropId,
+              claimdropId: claimdrop.claimdropId,
               quantity,
             });
           }
         }
       }
+    }
+  }
+};
+
+actions.checkExpiredClaimdrops = async () => {
+  if (api.assert(api.sender === 'null', 'not authorized')) {
+    const params = await api.db.findOne('params', {});
+    const blockDate = new Date(`${api.hiveBlockTimestamp}.00Z`);
+    const timestamp = blockDate.getTime();
+    const expiredClaimdrops = await api.db.find('claimdrops',
+      {
+        expiry: { $lte: timestamp },
+      },
+      params.maxExpiresPerBlock,
+      0,
+      [{ index: '_id', descending: false }]);
+
+    for (let i = 0; i < expiredClaimdrops.length; i += 1) {
+      const claimdrop = expiredClaimdrops[i];
+      const {
+        remainingPool, symbol, owner, ownerType,
+      } = claimdrop;
+      if (api.BigNumber(remainingPool).gt(0)) {
+        await api.transferTokens(owner, symbol, remainingPool, ownerType);
+      }
+      // delete claimdrop
+      await api.db.remove('claimdrops', claimdrop);
+
+      api.emit('expire', {
+        claimdropId: claimdrop.claimdropId,
+      });
     }
   }
 };

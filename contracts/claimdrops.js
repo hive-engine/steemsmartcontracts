@@ -258,6 +258,7 @@ actions.claim = async (payload) => {
         const price = api.BigNumber(claimdrop.price)
           .times(quantity)
           .toFixed(HIVE_PEGGED_SYMBOL_PRECISION);
+        if (!api.assert(api.BigNumber(price).gt(0), 'quantity too low')) return;
         const hivePeggedToken = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: HIVE_PEGGED_SYMBOL });
 
         const previousClaimIndex = claimdrop.claims.findIndex(el => el.account === api.sender);

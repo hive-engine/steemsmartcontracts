@@ -391,7 +391,7 @@ describe('Claimdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "100000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "10000000000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "10000000000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "10000000000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": false, "claimdropId": "claimdrop-0", "quantity": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": 0, "quantity": "1000" }'));
@@ -422,6 +422,7 @@ describe('Claimdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'mrok', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "2500" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'mrok', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "2000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'mrok', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'mrok', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-3", "quantity": "0.00000001" }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -451,6 +452,7 @@ describe('Claimdrops Smart Contract', function () {
       assertError(txs[30], 'you are not eligible');
       assertError(txs[31], 'quantity exceeds your limit'); // with list
       assertError(txs[33], 'you have reached your limit'); // with list
+      assertError(txs[34], 'quantity too low');
 
       resolve();
     })

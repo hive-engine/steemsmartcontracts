@@ -171,6 +171,12 @@ async function assertTokenBalance(id, symbol, balance) {
   assert.ok(hasBalance, `No balance for contract ${id}, ${symbol}`);
 }
 
+function assertError(tx, message) {
+  const logs = JSON.parse(tx.logs);
+  assert(logs.errors, 'No error in logs. Error expected with message ' + message);
+  assert.equal(logs.errors[0], message, `Error expected with message ${message}. Instead got ${logs.errors[0]}`);
+}
+
 async function assertNoErrorInLastBlock() {
   const transactions = (await database1.getLatestBlockInfo()).transactions;
   for (let i = 0; i < transactions.length; i++) {
@@ -281,9 +287,26 @@ describe('distribution', function () {
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block })
 
-      let res = await database1.find({
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      assertError(txs[4], 'you must use a transaction signed with your active key');
+      assertError(txs[5], 'tokenMinPayout must be an array');
+      assertError(txs[6], 'specify at least one minimum payout configuration');
+      assertError(txs[7], 'specify at least one minimum payout configuration');
+      assertError(txs[8], 'invalid quantity');
+      assertError(txs[9], '1-40 tokenRecipients are supported');
+      assertError(txs[10], 'invalid quantity');
+      assertError(txs[11], 'tokenRecipients pct must total 100');
+      assertError(txs[12], 'tokenRecipients type must be user or contract');
+      assertError(txs[13], 'invalid quantity');
+      assertError(txs[14], 'tokenRecipients type must be user or contract');
+      assertError(txs[15], 'tokenRecipients cannot have duplicate accounts');
+      assertError(txs[16], 'tokenMinPayout cannot have duplicate symbols');
+      
+      res = await database1.find({
         contract: 'distribution',
         table: 'batches'
       });
@@ -387,7 +410,12 @@ describe('distribution', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      await assertAllErrorInLastBlock();
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+      
+      assertError(txs[0], 'you must use a custom_json signed with your active key');
+      assertError(txs[1], 'distribution id not found');
+      assertError(txs[2], 'you must be the creator of this distribution');
 
       resolve();
     })
@@ -450,7 +478,22 @@ describe('distribution', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      await assertAllErrorInLastBlock();
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      assertError(txs[0], 'you must use a transaction signed with your active key');
+      assertError(txs[1], 'tokenMinPayout must be an array');
+      assertError(txs[2], 'specify at least one minimum payout configuration');
+      assertError(txs[3], 'specify at least one minimum payout configuration');
+      assertError(txs[4], 'invalid quantity');
+      assertError(txs[5], '1-40 tokenRecipients are supported');
+      assertError(txs[6], 'invalid quantity');
+      assertError(txs[7], 'tokenRecipients type must be user or contract');
+      assertError(txs[8], 'tokenRecipients type must be user or contract');
+      assertError(txs[9], 'invalid quantity');
+      assertError(txs[10], 'tokenRecipients type must be user or contract');
+      assertError(txs[11], 'tokenRecipients cannot have duplicate accounts');
+      assertError(txs[12], 'tokenMinPayout cannot have duplicate symbols');
 
       resolve();
     })
@@ -551,7 +594,7 @@ describe('distribution', function () {
 
       const id = await getLastDistributionId();
       transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": 100}`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": 100, "isSignedWithActiveKey": true}`));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -562,8 +605,10 @@ describe('distribution', function () {
       };
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      // should be errored
-      await assertAllErrorInLastBlock();
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      assertError(txs[0], 'distribution must be active to deposit');
 
       // should still be as initialized
       await assertUserBalance('donchate', 'TKN', 500);

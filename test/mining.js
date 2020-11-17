@@ -2188,7 +2188,7 @@ describe('mining', function () {
       
       // allow mining power update to resume and add others
       transactions = [];
-      transactions.push(new Transaction(12345678906, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["5"]} ] }'));
+      transactions.push(new Transaction(12345678905, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["5"]} ] }'));
 
       block = {
         refHiveBlockNumber: 12345678905,

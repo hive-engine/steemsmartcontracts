@@ -542,6 +542,7 @@ describe('Claimdrops Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'claimdrop', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "tokens", "ownerType": "contract", "list": [["ali-h", "249.999"], ["thesim", "499.999"], ["harpagon", "1000"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'claimdrops', 'expire', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop" }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -554,11 +555,8 @@ describe('Claimdrops Smart Contract', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       const res = await database1.getLatestBlockInfo();
-      const { virtualTransactions } = res;
 
-      await assertNoErrorInLastBlock();
-
-      assert.ok(!virtualTransactions[0]);
+      assertError(res.transactions[6], 'not authorized');
 
       resolve();
     })
@@ -569,7 +567,7 @@ describe('Claimdrops Smart Contract', function () {
       });
   });
 
-  it('should expire claimdrop', (done) => {
+  it('should expire claimdrop automatically', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
@@ -600,9 +598,9 @@ describe('Claimdrops Smart Contract', function () {
       await assertBalance('ali-h', '0', 'TKN');
       await assertNoErrorInLastBlock();
 
-      // expire here
+      // expire here automatically (on the next claim)
       transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'thesim', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop", "quantity": "200" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -615,14 +613,61 @@ describe('Claimdrops Smart Contract', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       const res = await database1.getLatestBlockInfo();
-      const { virtualTransactions } = res;
 
-      const virtualEventLog = JSON.parse(virtualTransactions[0].logs);
-      const claimdropExpirationEvent = virtualEventLog.events.find(x => x.event === 'expire');
+      const EventLog = JSON.parse(res.transactions[0].logs);
+      const claimdropExpirationEvent = EventLog.events.find(x => x.event === 'expire');
       assert(claimdropExpirationEvent && claimdropExpirationEvent.data.claimdropId === 'claimdrop', 'expected to find expiration event');
 
       await assertClaimdrop('claimdrop', true);
       await assertBalance('ali-h', '800', 'TKN'); // check if the balance has returned (200 TKN was claimed)
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should expire claimdrop manually', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      // expire here manually (by the sender)
+      const transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "ali-h", "quantity": "160", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true, "name": "token", "symbol": "TKN", "precision": 3, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "symbol": "TKN", "to": "ali-h", "quantity": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'claimdrop-1', 'ali-h', 'claimdrops', 'create', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "price": "0.001", "pool": "1000", "maxClaims": 100, "expiry": "2020-12-01T00:00:00", "owner": "dave", "ownerType": "user", "list": [["ali-h", "249.999"], ["thesim", "499.999"], ["harpagon", "1000"]] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "thesim", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'thesim', 'claimdrops', 'claim', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-1", "quantity": "200" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'claimdrops', 'expire', '{ "isSignedWithActiveKey": true, "claimdropId": "claimdrop-1" }'));
+
+      const block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2020-11-11T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      await assertNoErrorInLastBlock();
+
+      const EventLog = JSON.parse(res.transactions[8].logs);
+      const claimdropExpirationEvent = EventLog.events.find(x => x.event === 'expire');
+      assert(claimdropExpirationEvent && claimdropExpirationEvent.data.claimdropId === 'claimdrop-1', 'expected to find expiration event');
+
+      await assertClaimdrop('claimdrop', true);
+      await assertBalance('dave', '800', 'TKN'); // check if the balance has returned (200 TKN was claimed)
 
       resolve();
     })

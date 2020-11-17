@@ -91,7 +91,8 @@ const validateList = (list, precision) => {
       && api.assert(limit, `list[${i}]: limit cannot be undefined`)
       && api.assert(!api.BigNumber(limit).isNaN(), `list[${i}]: invalid limit`)
       && api.assert(api.BigNumber(limit).gt(0), `list[${i}]: limit must be positive`)
-      && api.assert(hasValidPrecision(limit, precision), `list[${i}]: limit precision mismatch`)) {
+      && api.assert(hasValidPrecision(limit, precision), `list[${i}]: limit precision mismatch`)
+      && api.assert(api.BigNumber(limit).lte(Number.MAX_SAFE_INTEGER), `list[${i}]: limit must be lower than ${Number.MAX_SAFE_INTEGER}`)) {
       parsedList.push({
         account,
         limit,
@@ -113,6 +114,21 @@ const isValidowner = async (name, type) => {
   }
 
   return false;
+};
+
+const expireClaimdrop = async (claimdrop) => {
+  const {
+    remainingPool, symbol, owner, ownerType,
+  } = claimdrop;
+  if (api.BigNumber(remainingPool).gt(0)) {
+    await api.transferTokens(owner, symbol, remainingPool, ownerType);
+  }
+  // delete claimdrop
+  await api.db.remove('claimdrops', claimdrop);
+
+  api.emit('expire', {
+    claimdropId: claimdrop.claimdropId,
+  });
 };
 
 actions.create = async (payload) => {
@@ -160,8 +176,9 @@ actions.create = async (payload) => {
       // pool checks
       && api.assert(api.BigNumber(pool).gt(0), 'pool must be positive')
       && api.assert(hasValidPrecision(pool, token.precision), 'pool precision mismatch')
-      // maxClaims check
+      // maxClaims checks
       && api.assert(api.BigNumber(maxClaims).gt(0), 'maxClaims must be positive number')
+      && api.assert(api.BigNumber(maxClaims).lte(Number.MAX_SAFE_INTEGER), `maxClaims must be lower than ${Number.MAX_SAFE_INTEGER}`)
       // expiry check
       && api.assert(expiryTimestamp && expiryTimestamp > timestamp, 'invalid expiry')
       && api.assert(expiryTimestamp <= maxExpiryTimestamp, 'expiry exceeds limit')
@@ -186,6 +203,7 @@ actions.create = async (payload) => {
           expiry: expiryTimestamp,
           owner,
           ownerType,
+          sender: api.sender,
         };
 
         // add list or limit to final claimdrop object
@@ -196,7 +214,8 @@ actions.create = async (payload) => {
           } else return;
         } else if (limit) {
           if (api.assert(api.BigNumber(limit).gt(0), 'limit must be positive')
-            && api.assert(hasValidPrecision(limit, token.precision), 'limit precision mismatch')) {
+            && api.assert(hasValidPrecision(limit, token.precision), 'limit precision mismatch')
+            && api.assert(api.BigNumber(limit).lte(Number.MAX_SAFE_INTEGER), `limit must be lower than ${Number.MAX_SAFE_INTEGER}`)) {
             claimdrop.limit = limit;
           } else return;
         }
@@ -246,8 +265,11 @@ actions.claim = async (payload) => {
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const claimdrop = await api.db.findOne('claimdrops', { claimdropId });
 
-    if (api.assert(claimdrop, 'claimdrop does not exist or has been expired')
-      && api.assert(isActive(claimdrop.expiry), 'claimdrop has been expired')) {
+    if (api.assert(claimdrop, 'claimdrop does not exist or has been expired')) {
+      if (!api.assert(isActive(claimdrop.expiry), 'claimdrop has been expired')) {
+        await expireClaimdrop(claimdrop);
+        return;
+      }
       const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: claimdrop.symbol });
 
       if (api.assert(claimdrop.remainingClaims > 0, 'maximum claims limit has been reached')
@@ -314,33 +336,19 @@ actions.claim = async (payload) => {
   }
 };
 
-actions.checkExpiredClaimdrops = async () => {
-  if (api.assert(api.sender === 'null', 'not authorized')) {
-    const params = await api.db.findOne('params', {});
-    const blockDate = new Date(`${api.hiveBlockTimestamp}.00Z`);
-    const timestamp = blockDate.getTime();
-    const expiredClaimdrops = await api.db.find('claimdrops',
-      {
-        expiry: { $lte: timestamp },
-      },
-      params.maxExpiresPerBlock,
-      0,
-      [{ index: '_id', descending: false }]);
+actions.expire = async (payload) => {
+  const {
+    claimdropId,
+    isSignedWithActiveKey,
+  } = payload;
 
-    for (let i = 0; i < expiredClaimdrops.length; i += 1) {
-      const claimdrop = expiredClaimdrops[i];
-      const {
-        remainingPool, symbol, owner, ownerType,
-      } = claimdrop;
-      if (api.BigNumber(remainingPool).gt(0)) {
-        await api.transferTokens(owner, symbol, remainingPool, ownerType);
-      }
-      // delete claimdrop
-      await api.db.remove('claimdrops', claimdrop);
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(claimdropId && typeof claimdropId === 'string', 'invalid params')) {
+    const claimdrop = await api.db.findOne('claimdrops', { claimdropId });
 
-      api.emit('expire', {
-        claimdropId: claimdrop.claimdropId,
-      });
+    if (api.assert(claimdrop, 'claimdrop does not exist or already expired')
+      && api.assert(api.sender === claimdrop.owner || api.sender === claimdrop.sender, 'not authorized')) {
+      await expireClaimdrop(claimdrop);
     }
   }
 };

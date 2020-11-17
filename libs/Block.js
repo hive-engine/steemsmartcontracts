@@ -107,9 +107,6 @@ class Block {
     if (this.refHiveBlockNumber >= 48664773) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
     }
-    if (this.refHiveBlockNumber >= 48905792) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'claimdrops', 'checkExpiredClaimdrops', ''));
-    }
 
     // TODO: cleanup
     // if (this.refHiveBlockNumber >= 37899120) {
@@ -154,10 +151,6 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'airdrops'
           && transaction.action === 'checkPendingAirdrops'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'claimdrops'
-          && transaction.action === 'checkExpiredClaimdrops'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else {

@@ -610,7 +610,7 @@ actions.sell = async (payload) => {
     && api.assert(nfts && typeof nfts === 'object' && Array.isArray(nfts)
     && priceSymbol && typeof priceSymbol === 'string'
     && price && typeof price === 'string' && !api.BigNumber(price).isNaN()
-    && fee && typeof fee === 'number' && fee >= 0 && fee <= 10000 && Number.isInteger(fee), 'invalid params')
+    && typeof fee === 'number' && fee >= 0 && fee <= 10000 && Number.isInteger(fee), 'invalid params')
     && api.assert(nfts.length <= MAX_NUM_UNITS_OPERABLE, `cannot sell more than ${MAX_NUM_UNITS_OPERABLE} NFT instances at once`)
     && api.assert(tableExists, 'market not enabled for symbol')) {
     const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });

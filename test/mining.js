@@ -1678,6 +1678,9 @@ describe('mining', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'nft', 'addProperty', '{ "isSignedWithActiveKey":true, "symbol":"TSTNFT", "name":"type", "type":"string", "isReadOnly":false }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi", "toType": "user", "feeSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "properties": {"type": "bull"}}`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["1"]} ] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi", "toType": "user", "feeSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "properties": {"type": "bull"}}`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["2"]} ] }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'satoshi', 'nft', 'undelegate', '{ "nfts": [ {"symbol": "TSTNFT", "ids": ["2"]} ], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'mining', 'createPool', '{ "lotteryWinners": 1, "lotteryIntervalHours": 720, "lotteryAmount": "1", "minedToken": "TKN", "tokenMiners": [], "nftTokenMiner": {"symbol": "TSTNFT", "typeField": "type", "typeMap": {"bull": ["2.0", "1.5"], "bear": ["-1.0", "0.9"]}, "properties": [{"op": "ADD", "name": "power"}, {"op": "MULTIPLY", "name": "boost"}]}, "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -1695,13 +1698,14 @@ describe('mining', function () {
       await assertNftTokenPool('TSTNFT', 'TKN::TSTNFT');
 
       await assertNftInstance('satoshi', 'TSTNFT', 1, {'account': 'mining', 'ownedBy': 'c'});
+      await assertNftInstance('satoshi', 'TSTNFT', 2, {'account': 'mining', 'ownedBy': 'c', 'undelegateAt': 1527897600000});
 
       await assertMiningPower('satoshi', 'TKN::TSTNFT', '3', {0: '2', 1: '1.5'});
       await assertPool({id: 'TKN::TSTNFT', totalPower: '3'});
 
       transactions = [];
       transactions.push(new Transaction(12345678903, getNextTxId(), 'harpagon', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi", "toType": "user", "feeSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "properties": {"type": "bear"}}`));
-      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["2"]} ] }'));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["3"]} ] }'));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -1715,14 +1719,14 @@ describe('mining', function () {
 
       await assertNoErrorInLastBlock();
 
-      await assertNftInstance('satoshi', 'TSTNFT', 2, {'account': 'mining', 'ownedBy': 'c'});
+      await assertNftInstance('satoshi', 'TSTNFT', 3, {'account': 'mining', 'ownedBy': 'c'});
 
       await assertMiningPower('satoshi', 'TKN::TSTNFT', '1.35', {0: '1', 1: '1.35'});
       await assertPool({id: 'TKN::TSTNFT', totalPower: '1.35'});
 
       transactions = [];
       transactions.push(new Transaction(12345678904, getNextTxId(), 'harpagon', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi2", "toType": "user", "feeSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "properties": {"type": "bull"}}`));
-      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi2', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "satoshi", "toType": "user", "nfts": [ {"symbol":"TSTNFT", "ids": ["3"]} ] }'));
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi2', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "satoshi", "toType": "user", "nfts": [ {"symbol":"TSTNFT", "ids": ["4"]} ] }'));
 
       block = {
         refHiveBlockNumber: 12345678904,
@@ -1736,14 +1740,14 @@ describe('mining', function () {
 
       await assertNoErrorInLastBlock();
 
-      await assertNftInstance('satoshi2', 'TSTNFT', 3, {'account': 'satoshi', 'ownedBy': 'u'});
+      await assertNftInstance('satoshi2', 'TSTNFT', 4, {'account': 'satoshi', 'ownedBy': 'u'});
 
       await assertMiningPower('satoshi', 'TKN::TSTNFT', '6.075', {0: '3', 1: '2.025'});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
       await assertPool({id: 'TKN::TSTNFT', totalPower: '6.075'});
 
       transactions = [];
-      transactions.push(new Transaction(12345678905, getNextTxId(), 'satoshi2', 'nft', 'undelegate', '{ "nfts": [ {"symbol": "TSTNFT", "ids": ["3"]} ], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678905, getNextTxId(), 'satoshi2', 'nft', 'undelegate', '{ "nfts": [ {"symbol": "TSTNFT", "ids": ["4"]} ], "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: 12345678905,
@@ -1757,7 +1761,7 @@ describe('mining', function () {
 
       await assertNoErrorInLastBlock();
 
-      await assertNftInstance('satoshi2', 'TSTNFT', 3, {'account': 'satoshi', 'ownedBy': 'u', "undelegateAt":1527897600000});
+      await assertNftInstance('satoshi2', 'TSTNFT', 4, {'account': 'satoshi', 'ownedBy': 'u', "undelegateAt":1527897600000});
 
       await assertMiningPower('satoshi', 'TKN::TSTNFT', '1.35', {0: '1', 1: '1.35'});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
@@ -1776,7 +1780,7 @@ describe('mining', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      await assertNftInstance('satoshi2', 'TSTNFT', 3, undefined);
+      await assertNftInstance('satoshi2', 'TSTNFT', 4, undefined);
 
       await assertMiningPower('satoshi', 'TKN::TSTNFT', '1.35', {0: '1', 1: '1.35'});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
@@ -2164,7 +2168,6 @@ describe('mining', function () {
  
       transactions = [];
       transactions.push(new Transaction(12345678904, getNextTxId(), 'harpagon', 'mining', 'updatePool', '{ "id": "TEST-TKN::TSTNFT", "lotteryWinners": 1, "lotteryIntervalHours": 1, "lotteryAmount": "1", "minedToken": "TEST.TKN", "tokenMiners": [], "nftTokenMiner": {"symbol": "TSTNFT", "typeField": "type", "typeMap": {"bear": ["50", "0.1"], "bull": ["300", "1.5"]}, "properties": [{"op": "ADD", "name": "power"}, {"op": "MULTIPLY", "name": "boost"}]}, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["1"]} ] }'));
       transactions.push(new Transaction(12345678904, getNextTxId(), 'satoshi2', 'nft', 'undelegate', '{ "nfts": [ {"symbol": "TSTNFT", "ids": ["2"]} ], "isSignedWithActiveKey": true }'));
 
       block = {
@@ -2181,11 +2184,11 @@ describe('mining', function () {
   
       await assertMiningPower('satoshi', 'TEST-TKN::TSTNFT', '52.5', {0: '350', 1: '0.15'});
       await assertMiningPower('satoshi2', 'TEST-TKN::TSTNFT', undefined);
-      await assertPool({id: 'TEST-TKN::TSTNFT', totalPower: '52.5'}, { inProgress: true, lastId: 2, tokenIndex: 0, nftTokenIndex: 0 });
+      await assertPool({id: 'TEST-TKN::TSTNFT', totalPower: '52.5'}, { inProgress: true, lastId: 4, tokenIndex: 0, nftTokenIndex: 0 });
       
-      // allow mining power update to resume
+      // allow mining power update to resume and add others
       transactions = [];
-      transactions.push(new Transaction(12345678905, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(12345678906, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["5"]} ] }'));
 
       block = {
         refHiveBlockNumber: 12345678905,
@@ -2195,30 +2198,11 @@ describe('mining', function () {
         transactions,
       };
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      await assertMiningPower('satoshi', 'TEST-TKN::TSTNFT', '15.75', {0: '700', 1: '0.0225'});
-      await assertMiningPower('satoshi2', 'TEST-TKN::TSTNFT', undefined);
-      await assertPool({id: 'TEST-TKN::TSTNFT', totalPower: '15.75'}, { inProgress: true, lastId: 4, tokenIndex: 0, nftTokenIndex: 0 });
-
-      // allow mining power update to resume and add others
-      transactions = [];
-      transactions.push(new Transaction(12345678906, getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["5"]} ] }'));
-      transactions.push(new Transaction(12345678906, getNextTxId(), 'satoshi', 'nft', 'undelegate', '{ "nfts": [ {"symbol": "TSTNFT", "ids": ["1"]} ], "isSignedWithActiveKey": true }'));
-
-      block = {
-        refHiveBlockNumber: 12345678906,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
       await assertNoErrorInLastBlock();
 
-      await assertMiningPower('satoshi', 'TEST-TKN::TSTNFT', '33.75', {0: '1000', 1: '0.03375'});
+      await assertMiningPower('satoshi', 'TEST-TKN::TSTNFT', '146.25', {0: '650', 1: '0.225'});
       await assertMiningPower('satoshi2', 'TEST-TKN::TSTNFT', undefined);
-      await assertPool({id: 'TEST-TKN::TSTNFT', totalPower: '33.75'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
+      await assertPool({id: 'TEST-TKN::TSTNFT', totalPower: '146.25'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
       
       resolve();
     })

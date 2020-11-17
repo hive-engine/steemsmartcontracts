@@ -368,7 +368,7 @@ async function initNftMiningPower(pool, updatePoolTimestamp, params, nftTokenMin
   let complete = false;
   let nfts;
   while (!complete && offset < params.maxBalancesProcessedPerBlock) {
-    nfts = await api.db.findInTable('nft', `${nftTokenMiner.symbol}instances`, { _id: { $gt: lastId }, delegatedTo: { $ne: null } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
+    nfts = await api.db.findInTable('nft', `${nftTokenMiner.symbol}instances`, { _id: { $gt: lastId }, delegatedTo: { $ne: null }, 'delegatedTo.undelegateAt': { $eq: null } }, params.processQueryLimit, offset, [{ index: '_id', descending: false }]);
     for (let i = 0; i < nfts.length; i += 1) {
       const nft = nfts[i];
       if (nftTokenMiner.typeMap[nft.properties[nftTokenMiner.typeField]]) {

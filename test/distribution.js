@@ -566,7 +566,7 @@ describe('distribution', function () {
       });
   });
 
-  it('should not accept deposits when inactive', (done) => {
+  it('should not accept deposits when inactive or invalid', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
@@ -613,7 +613,31 @@ describe('distribution', function () {
       // should still be as initialized
       await assertUserBalance('donchate', 'TKN', 500);
       await assertUserBalance('dantheman', 'TKN');
-      
+
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": 100, "isSignedWithActiveKey": false}`));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100x", "isSignedWithActiveKey": true}`));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T01:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.getLatestBlockInfo();
+      txs = res.transactions;
+
+      assertError(txs[1], 'you must use a custom_json signed with your active key');
+      assertError(txs[2], 'invalid quantity');
+
+      // should still be as initialized
+      await assertUserBalance('donchate', 'TKN', 500);
+      await assertUserBalance('dantheman', 'TKN');
+     
       resolve();
     })
       .then(() => {

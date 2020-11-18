@@ -245,7 +245,7 @@ actions.deposit = async (payload) => {
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && !api.assert(quantity && api.BigNumber(quantity).dp() <= 3 && api.BigNumber(quantity).gt(0), 'invalid quantity')) {
+    || !api.assert(quantity && api.BigNumber(quantity).dp() <= 3 && api.BigNumber(quantity).gt(0), 'invalid quantity')) {
     return;
   }
 

@@ -18,7 +18,6 @@ actions.createSSC = async () => {
     params.feePerClaim = '0.1';
     // 90 days (in milliseconds)
     params.maxExpiryTime = 7776000000;
-    params.maxExpiresPerBlock = 5;
     await api.db.insert('params', params);
   }
 };
@@ -45,10 +44,6 @@ actions.updateParams = async (payload) => {
     if (maxExpiryTime) {
       if (!api.assert(Number.isInteger(maxExpiryTime) && maxExpiryTime > 0, 'invalid maxExpiryTime')) return;
       params.maxExpiryTime = maxExpiryTime;
-    }
-    if (maxExpiresPerBlock) {
-      if (!api.assert(Number.isInteger(maxExpiresPerBlock) && maxExpiresPerBlock > 0 && maxExpiresPerBlock <= 1000, 'invalid maxExpiresPerBlock')) return;
-      params.maxExpiresPerBlock = maxExpiresPerBlock;
     }
 
     await api.db.update('params', params);
@@ -129,6 +124,24 @@ const expireClaimdrop = async (claimdrop) => {
   api.emit('expire', {
     claimdropId: claimdrop.claimdropId,
   });
+};
+
+const removeExpiredClaimdrops = async () => {
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  const timestamp = blockDate.getTime();
+
+  const expired = await api.db.find(
+    'claimdrops', {
+      expiry: {
+        $lte: timestamp,
+      },
+    },
+  );
+
+  for (let i = 0; i < expired.length; i += 1) {
+    const claimdrop = expired[i];
+    await expireClaimdrop(claimdrop);
+  }
 };
 
 actions.create = async (payload) => {
@@ -245,14 +258,6 @@ actions.create = async (payload) => {
   }
 };
 
-const isActive = (expiry) => {
-  const blockDate = new Date(`${api.hiveBlockTimestamp}.00Z`);
-  const timestamp = blockDate.getTime();
-  if (expiry > timestamp) return true;
-
-  return false;
-};
-
 actions.claim = async (payload) => {
   const {
     claimdropId,
@@ -260,16 +265,15 @@ actions.claim = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
+  // remove expired claimdrops
+  await removeExpiredClaimdrops();
+
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(claimdropId && typeof claimdropId === 'string'
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const claimdrop = await api.db.findOne('claimdrops', { claimdropId });
 
     if (api.assert(claimdrop, 'claimdrop does not exist or has been expired')) {
-      if (!api.assert(isActive(claimdrop.expiry), 'claimdrop has been expired')) {
-        await expireClaimdrop(claimdrop);
-        return;
-      }
       const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: claimdrop.symbol });
 
       if (api.assert(claimdrop.remainingClaims > 0, 'maximum claims limit has been reached')

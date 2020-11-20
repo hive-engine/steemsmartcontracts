@@ -28,7 +28,6 @@ actions.updateParams = async (payload) => {
       creationFee,
       feePerClaim,
       maxExpiryTime,
-      maxExpiresPerBlock,
     } = payload;
 
     const params = await api.db.findOne('params', {});

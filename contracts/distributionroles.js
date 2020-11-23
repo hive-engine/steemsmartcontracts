@@ -41,31 +41,6 @@ actions.updateParams = async (payload) => {
   await api.db.update('params', params);
 };
 
-async function processBatch(batch, symbol, isFlush = false) {
-  const balance = batch.tokenBalances.find(b => b.symbol === symbol);
-  const balanceStart = balance.quantity;
-  const payout = batch.tokenMinPayout.find(p => p.symbol === symbol);
-
-  if (balance !== undefined && payout !== undefined
-    && (api.BigNumber(balanceStart).gt(api.BigNumber(payout.quantity)) || isFlush === true)) {
-    // pay out token balance to recipients by configured share percentage
-    for (let i = 0; i < batch.tokenRecipients.length; i += 1) {
-      const recipient = batch.tokenRecipients[i];
-      const recipientShare = api.BigNumber(balanceStart).multipliedBy(recipient.pct).dividedBy(100).toFixed(3);
-      const tx = await api.transferTokens(recipient.account, symbol, recipientShare, recipient.type);
-
-      // In the unlikely condition where the transfer fails we will keep the share leftover for the next run
-      if (api.assert(tx.errors === undefined, `unable to send ${recipientShare} ${symbol} to ${recipient.account}`)) {
-        // eslint-disable-next-line no-param-reassign
-        balance.quantity = api.BigNumber(balance.quantity).minus(recipientShare);
-      }
-    }
-    await api.db.update('batches', batch);
-    return true;
-  }
-  return false;
-}
-
 /*
 "roles": [
   {"name": "President", "description": "El Presidente", "pct": 50, "primary": 1},
@@ -136,25 +111,21 @@ async function updateStakeWeight(distOrId) {
 
     dist.voters[i].weight = voteWeight;
 
-    // update candidates if weight has changed
+    // update candidates
     if (!api.BigNumber(deltavoteWeight).eq(0)) {
-      dist.votes.forEach((x) => {
-        if (x.from === dist.voters[i].account) {
-          const cIndex = dist.candidates.findIndex(c => c.account === x.to);
-          dist.candidates[cIndex].weight = api.BigNumber(dist.candidates[cIndex].weight)
-            .plus(deltavoteWeight)
-            .toFixed(stakeToken.precision);
-        }
+      dist.votes.filter(x => x.from === dist.voters[i].account).forEach((x) => {
+        const cIndex = dist.candidates.findIndex(c => c.account === x.to);
+        dist.candidates[cIndex].weight = api.BigNumber(dist.candidates[cIndex].weight)
+          .plus(deltavoteWeight)
+          .toFixed(stakeToken.precision);
       });
     }
   }
   await api.db.update('batches', dist);
 }
 
-function validateIncomingToken(batch, symbol) {
-  for (let i = 0; i < batch.tokenMinPayout.length; i += 1) {
-    if (batch.tokenMinPayout[i].symbol === symbol) return true;
-  }
+function validateIncomingToken(dist, symbol) {
+  if (dist.stakeSymbol === symbol) return true;
   return false;
 }
 
@@ -196,22 +167,6 @@ actions.create = async (payload) => {
         });
       }
       api.emit('create', { id: createdDist._id });
-    }
-  }
-};
-
-// allow owner/creator to manually distribute a token
-actions.flush = async (payload) => {
-  const {
-    id, symbol, isSignedWithActiveKey,
-  } = payload;
-
-  const dist = await api.db.findOne('batches', { _id: id });
-  if (api.assert(dist, 'distribution id not found')
-    && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    && api.assert(api.sender === api.owner || api.sender === dist.creator, 'must be contract owner or creator')) {
-    if (await processBatch(dist, symbol, true)) {
-      api.emit('flush', { memo: `${symbol} payout distributed` });
     }
   }
 };
@@ -314,8 +269,8 @@ actions.vote = async (payload) => {
   } = payload;
 
   const dist = await api.db.findOne('batches', { _id: id });
-  if (api.assert(dist, 'distribution id not found') && api.assert(dist.active, 'distribution must be active to deposit'
-    && api.assert(dist.candidates.find(x => x.role === role && x.account === to), 'role or candidate not found in this distribution'))) {
+  if (api.assert(dist, 'distribution id not found') && api.assert(dist.active, 'distribution must be active to vote')
+    && api.assert(dist.candidates.find(x => x.role === role && x.account === to), 'role or candidate not found in this distribution')) {
     const votes = dist.votes.find(x => x.role === role && x.from === api.sender);
     if (api.assert(votes === undefined || votes.length < VOTES_PER_ROLE, `you cannot vote more than ${VOTES_PER_ROLE} candidate(s) per role`)) {
       dist.votes.push({
@@ -348,38 +303,63 @@ actions.deposit = async (payload) => {
   }
 
   const dist = await api.db.findOne('batches', { _id: id });
-  if (api.assert(dist, 'distribution id not found') && api.assert(dist.active, 'distribution must be active to deposit')
-    && api.assert(validateIncomingToken(dist, symbol), `${symbol} is not accepted by this distribution`)) {
+  const stakeToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: dist.stakeSymbol });
+  if (api.assert(dist, 'distributionroles id not found') && api.assert(dist.active, 'distributionroles must be active to deposit')
+    && api.assert(validateIncomingToken(dist, symbol), `${symbol} is not accepted by this distributionroles`)) {
     // deposit requested tokens to contract
     const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: 'distributionroles' });
     if (res.errors === undefined
       && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'distributionroles' && el.data.quantity === quantity) !== undefined) {
-      // update token balances
-      if (dist.tokenBalances) {
-        let hasBalance = false;
-        for (let i = 0; i < dist.tokenBalances.length; i += 1) {
-          if (dist.tokenBalances[i].symbol === symbol) {
-            dist.tokenBalances[i].quantity += quantity;
-            hasBalance = true;
-            break;
-          }
+      // add pending balance on contract to distribution, if any
+      const exBalance = await api.db.findOne({
+        contract: 'tokens',
+        table: 'contractsBalances',
+        query: { account: 'distributionroles', symbol },
+      });
+      const balance = exBalance !== null ? exBalance.balance + quantity : quantity;
+
+      // update voter/candidate weights
+      await updateStakeWeight(dist);
+
+      api.debug(dist);
+
+      // distribute deposit by role
+      dist.roles.forEach((x) => {
+        const rolePay = api.BigNumber(balance).multipliedBy(x.pct).dividedBy(100).toFixed(stakeToken.precision);
+        const cands = dist.candidates.filter(cand => cand.role === x.name && cand.weight > DUST_WEIGHT).sort((a, b) => api.BigNumber(a.weight).minus(b.weight));
+        if (cands !== undefined && cands.length > 0) {
+          const primaryCands = cands.length > x.primary ? cands.slice(0, x.primary) : cands;
+          const backupCands = cands.length > x.primary ? cands.slice(x.primary) : [];
+
+          // primary candidates recieve 80% of the allocation by even split
+          primaryCands.forEach(async (c) => {
+            const recipient = c.account;
+            const recipientShare = api.BigNumber(rolePay)
+              .multipliedBy(80)
+              .dividedBy(100)
+              .dividedBy(primaryCands.length)
+              .toFixed(stakeToken.precision);
+            const tx = await api.transferTokens(recipient, symbol, recipientShare, 'user');
+            api.assert(tx.errors === undefined, `unable to send ${recipientShare} ${symbol} to ${recipient}`);
+          });
+          // remaining candidates receive 20% proportionally by weight
+          const backupWeight = backupCands.reduce((prev, cur) => api.BigNumber(prev).plus(cur.weight), 0);
+          backupCands.forEach(async (c) => {
+            const recipient = c.account;
+            const recipientShareWeight = api.BigNumber(backupWeight).dividedBy(c.weight);
+            const recipientShare = api.BigNumber(rolePay)
+              .multipliedBy(20)
+              .dividedBy(100)
+              .multipliedBy(recipientShareWeight)
+              .toFixed(stakeToken.precision);
+            const tx = await api.transferTokens(recipient, symbol, recipientShare, 'user');
+            api.assert(tx.errors === undefined, `unable to send ${recipientShare} ${symbol} to ${recipient}`);
+          });
+          api.emit('deposit', `Distributed role ${x.name}`);
+        } else {
+          api.emit('deposit', `No candidates to pay for role ${x.name}`);
         }
-        if (!hasBalance) {
-          dist.tokenBalances.push({ symbol, quantity });
-        }
-      } else {
-        dist.tokenBalances = [
-          { symbol, quantity },
-        ];
-      }
-      await api.db.update('batches', dist);
-      // check if at minimum payout, and distribute
-      const payNow = await processBatch(dist, symbol);
-      if (payNow) {
-        api.emit('deposit', { memo: `Deposit received. ${symbol} payout distributed` });
-      } else {
-        api.emit('deposit', { memo: `Deposit received. ${symbol} payout pending` });
-      }
+      });
     }
   }
 };

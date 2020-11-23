@@ -135,24 +135,24 @@ async function assertUserBalance(account, symbol, balance) {
   assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
 }
 
-async function assertCandidateWeight(id, account, weight) {
+async function assertCandidateWeight(id, account, role, weight) {
   const res = await database1.findOne({
     contract: 'distributionroles',
     table: 'batches',
     query: { _id: id }
   });
-  const cand = res.candidates.find(x => x.account === account);
+  const cand = res.candidates.find(x => x.role === role && x.account === account);
   if (cand === undefined) return null;
   assert.strictEqual(cand.weight, weight, `${account} has ${cand.weight} weight, expected ${weight}`);
 }
 
-async function assertCandidateRank(id, account, rank) {
+async function assertCandidateRank(id, account, role, rank) {
   const res = await database1.findOne({
     contract: 'distributionroles',
     table: 'batches',
     query: { _id: id }
   });
-  const cands = res.candidates.filter(x => x.weight > DUST_WEIGHT).sort((a, b) => api.BigNumber(a.weight).minus(b.weight));
+  const cands = res.candidates.filter(x => x.role === role && x.weight > DUST_WEIGHT).sort((a, b) => api.BigNumber(a.weight).minus(b.weight));
   let candRank = cands.findIndex(x => x.account === account);
   if (candRank === -1) return null;
   else candRank += 1;
@@ -172,31 +172,6 @@ async function assertContractBalance(account, symbol, balance) {
   }
   assert.ok(res, `No balance for ${account}, ${symbol}`);
   assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);  
-}
-
-async function assertTokenBalance(id, symbol, balance) {
-  let hasBalance = false;
-  let dist = await database1.findOne({
-    contract: 'distributionroles',
-    table: 'batches',
-    query: {
-      _id: id
-    }
-  });
-  if (dist.tokenBalances) {
-    for (let i = 0; i <= dist.tokenBalances.length; i += 1) {
-      if (dist.tokenBalances[i].symbol === symbol) {
-        assert.equal(dist.tokenBalances[i].quantity, balance, `contract ${id} has ${symbol} balance ${dist.tokenBalances[i].quantity}, expected ${balance}`);
-        hasBalance = true;
-        break;
-      }
-    }
-    if (balance === undefined) {
-      assert(!hasBalance, `Balance found for contract ${id}, ${symbol}, expected none.`);
-      return;
-    }
-  }
-  assert.ok(hasBalance, `No balance for contract ${id}, ${symbol}`);
 }
 
 function assertError(tx, message) {
@@ -328,8 +303,8 @@ describe('distributionroles', function () {
       // should be no errors
       await assertNoErrorInLastBlock();
       // expected results
-      await assertCandidateWeight(id, 'berniesanders', '250.00000000');
-      await assertCandidateRank(id, 'berniesanders', 1);
+      await assertCandidateWeight(id, 'berniesanders', 'President', '250.00000000');
+      await assertCandidateRank(id, 'berniesanders', 'President', 1);
       
       resolve();
     })
@@ -385,8 +360,8 @@ describe('distributionroles', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       await assertNoErrorInLastBlock();
-      await assertCandidateRank(id, 'berniesanders', 0);
-      await assertCandidateRank(id, 'jeffberwick', 0);
+      await assertCandidateRank(id, 'berniesanders', 'President', 0);
+      await assertCandidateRank(id, 'jeffberwick', 'Vice President', 0);
 
       transactions = [];
       transactions.push(new Transaction(12345678903, getNextTxId(), 'berniesanders', 'distributionroles', 'resign', `{ "id": ${id}, "role": "President" }`));
@@ -402,8 +377,8 @@ describe('distributionroles', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       await assertNoErrorInLastBlock();
-      await assertCandidateRank(id, 'berniesanders', null);
-      await assertCandidateRank(id, 'jeffberwick', null);
+      await assertCandidateRank(id, 'berniesanders', 'President', null);
+      await assertCandidateRank(id, 'jeffberwick', 'Vice President', null);
       
       resolve();
     })
@@ -620,5 +595,88 @@ describe('distributionroles', function () {
         done();
       });
   });
+
+  it('should distribute deposits according to 80/20 DPOS style', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "10000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 2, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "2000", "to": "donchate", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 1}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      const id = await getLastDistributionId();
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "1000", "to": "comptroller", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'comptroller', 'tokens', 'stake', '{ "to":"comptroller", "symbol": "TKN", "quantity": "1000", "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "10", "to": "spaminator", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'tokens', 'stake', '{ "to":"spaminator", "symbol": "TKN", "quantity": "10", "isSignedWithActiveKey": true }'));           
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'berniesanders', 'distributionroles', 'apply', `{ "id": ${id}, "role": "President" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'jeffberwick', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'georgedonnelly', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'hilarski', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'rogerkver', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'dantheman', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Developer" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'ned', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Developer" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'vote', `{ "id": ${id}, "role": "President", "to": "berniesanders", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "georgedonnelly", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Developer", "to": "dantheman", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'distributionroles', 'vote', `{ "id": ${id}, "role": "President", "to": "berniesanders", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "hilarski", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Developer", "to": "dantheman", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'comptroller', 'distributionroles', 'vote', `{ "id": ${id}, "role": "President", "to": "berniesanders", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'comptroller', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "rogerkver", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'comptroller', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Developer", "to": "ned", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "1000", "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      
+      let res = await database1.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      assertCandidateWeight(id, 'berniesanders', 'President', '1260.00000000');
+      assertCandidateRank(id, 'berniesanders', 'President', 1);
+      assertContractBalance('distributionroles', 'TKN', 0);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });  
 
 });

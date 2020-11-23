@@ -235,7 +235,7 @@ actions.update = async (payload) => {
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     const exDist = await api.db.findOne('batches', { _id: id });
-    if (api.assert(exDist, 'distribution not found') && await validateRoles(roles)) {
+    if (api.assert(exDist, 'distributionroles not found') && await validateRoles(roles)) {
       exDist.roles = roles;
       await api.db.update('batches', exDist);
 
@@ -262,8 +262,8 @@ actions.setActive = async (payload) => {
     return;
   }
   const dist = await api.db.findOne('batches', { _id: id });
-  if (api.assert(dist, 'distribution id not found')
-    && api.assert(dist.creator === api.sender || api.owner === api.sender, 'you must be the creator of this distribution')) {
+  if (api.assert(dist, 'distributionroles id not found')
+    && api.assert(dist.creator === api.sender || api.owner === api.sender, 'you must be the creator of this distributionroles')) {
     dist.active = !!active;
     await api.db.update('batches', dist);
   }

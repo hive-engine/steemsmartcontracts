@@ -129,17 +129,36 @@ const removeExpiredClaimdrops = async () => {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
 
-  const expired = await api.db.find(
+  let expired = await api.db.find(
     'claimdrops', {
       expiry: {
         $lte: timestamp,
       },
     },
+    1000,
+    0,
+    [{ index: '_id', descending: false }],
   );
 
-  for (let i = 0; i < expired.length; i += 1) {
-    const claimdrop = expired[i];
-    await expireClaimdrop(claimdrop);
+  let nbExpired = expired.length;
+  while (nbExpired > 0) {
+    for (let i = 0; i < nbExpired; i += 1) {
+      const claimdrop = expired[i];
+      await expireClaimdrop(claimdrop);
+    }
+
+    expired = await api.db.find(
+      'claimdrops', {
+        expiry: {
+          $lte: timestamp,
+        },
+      },
+      1000,
+      0,
+      [{ index: '_id', descending: false }],
+    );
+
+    nbExpired = expired.length;
   }
 };
 

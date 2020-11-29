@@ -2,7 +2,7 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_id"] }] */
 /* global actions, api */
 
-const DUST_WEIGHT = 1;
+const DUST_PCT = 0.01;
 const MAX_RECIPIENTS = 40;
 const VOTES_PER_ROLE = 1;
 
@@ -83,10 +83,14 @@ async function validateRoles(roles) {
 async function updateStakeWeight(distOrId) {
   const dist = typeof (distOrId) !== 'object' ? await api.db.findOne('batches', { _id: distOrId }) : distOrId;
   const stakeToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: dist.stakeSymbol });
+  dist.dustWeight = api.BigNumber(stakeToken.supply).multipliedBy(DUST_PCT);
 
-  // update voting weight for all voters in this distribution
-  for (let i = 0; i < dist.voters.length; i += 1) {
-    const balance = await api.db.findOneInTable('tokens', 'balances', { account: dist.voters[i].account, symbol: stakeToken.symbol });
+  // eslint-disable-next-line no-return-assign, no-param-reassign
+  dist.candidates.forEach(c => c.weight = 0);
+
+  // update voting weight for all voters
+  dist.voters.forEach(async (v) => {
+    const balance = await api.db.findOneInTable('tokens', 'balances', { account: v.account, symbol: stakeToken.symbol });
     let voteWeight = 0;
     if (balance && balance.stake) {
       voteWeight = balance.stake;
@@ -103,24 +107,17 @@ async function updateStakeWeight(distOrId) {
         .plus(balance.delegationsIn)
         .toFixed(stakeToken.precision);
     }
-
-    const oldvoteWeight = dist.voters[i].weight;
-    const deltavoteWeight = api.BigNumber(voteWeight)
-      .minus(oldvoteWeight)
-      .toFixed(stakeToken.precision);
-
-    dist.voters[i].weight = voteWeight;
+    // eslint-disable-next-line no-param-reassign
+    v.weight = voteWeight;
 
     // update candidates
-    if (!api.BigNumber(deltavoteWeight).eq(0)) {
-      dist.votes.filter(x => x.from === dist.voters[i].account).forEach((x) => {
-        const cIndex = dist.candidates.findIndex(c => c.account === x.to);
-        dist.candidates[cIndex].weight = api.BigNumber(dist.candidates[cIndex].weight)
-          .plus(deltavoteWeight)
-          .toFixed(stakeToken.precision);
-      });
-    }
-  }
+    dist.votes.filter(x => x.from === v.account).forEach((x) => {
+      const cIndex = dist.candidates.findIndex(c => c.account === x.to);
+      dist.candidates[cIndex].weight = api.BigNumber(dist.candidates[cIndex].weight)
+        .plus(voteWeight)
+        .toFixed(stakeToken.precision);
+    });
+  });
   await api.db.update('batches', dist);
 }
 
@@ -154,6 +151,7 @@ actions.create = async (payload) => {
         votes: [],
         voters: [],
         stakeSymbol,
+        dustWeight: 0,
         active: false,
         creator: api.sender,
       };
@@ -318,48 +316,51 @@ actions.deposit = async (payload) => {
       });
       const balance = exBalance !== null ? exBalance.balance + quantity : quantity;
 
-      // update voter/candidate weights
+      // update weights
       await updateStakeWeight(dist);
 
-      api.debug(dist);
-
       // distribute deposit by role
-      dist.roles.forEach((x) => {
-        const rolePay = api.BigNumber(balance).multipliedBy(x.pct).dividedBy(100).toFixed(stakeToken.precision);
-        const cands = dist.candidates.filter(cand => cand.role === x.name && cand.weight > DUST_WEIGHT).sort((a, b) => api.BigNumber(a.weight).minus(b.weight));
+      for (let r = 0; r < dist.roles.length; r += 1) {
+        const rolePay = api.BigNumber(balance).multipliedBy(dist.roles[r].pct).dividedBy(100).toFixed(stakeToken.precision);
+        const cands = dist.candidates.filter(cand => cand.role === dist.roles[r].name && api.BigNumber(cand.weight).gt(dist.dustWeight));
+        cands.sort((a, b) => api.BigNumber(b.weight).minus(a.weight));
         if (cands !== undefined && cands.length > 0) {
-          const primaryCands = cands.length > x.primary ? cands.slice(0, x.primary) : cands;
-          const backupCands = cands.length > x.primary ? cands.slice(x.primary) : [];
+          const primaryCands = cands.length > dist.roles[r].primary ? cands.slice(0, dist.roles[r].primary) : cands;
+          const backupCands = cands.length > dist.roles[r].primary ? cands.slice(dist.roles[r].primary) : [];
 
-          // primary candidates recieve 80% of the allocation by even split
-          primaryCands.forEach(async (c) => {
-            const recipient = c.account;
+          // primary candidates recieve 80% of the allocation by even split, or 100% if there are no backups
+          const primaryMultiplier = backupCands.length > 0 ? 80 : 100;
+          for (let i = 0; i < primaryCands.length; i += 1) {
+            const recipient = primaryCands[i].account;
             const recipientShare = api.BigNumber(rolePay)
-              .multipliedBy(80)
+              .multipliedBy(primaryMultiplier)
               .dividedBy(100)
               .dividedBy(primaryCands.length)
               .toFixed(stakeToken.precision);
             const tx = await api.transferTokens(recipient, symbol, recipientShare, 'user');
             api.assert(tx.errors === undefined, `unable to send ${recipientShare} ${symbol} to ${recipient}`);
-          });
+          }
+
           // remaining candidates receive 20% proportionally by weight
-          const backupWeight = backupCands.reduce((prev, cur) => api.BigNumber(prev).plus(cur.weight), 0);
-          backupCands.forEach(async (c) => {
-            const recipient = c.account;
-            const recipientShareWeight = api.BigNumber(backupWeight).dividedBy(c.weight);
-            const recipientShare = api.BigNumber(rolePay)
-              .multipliedBy(20)
-              .dividedBy(100)
-              .multipliedBy(recipientShareWeight)
-              .toFixed(stakeToken.precision);
-            const tx = await api.transferTokens(recipient, symbol, recipientShare, 'user');
-            api.assert(tx.errors === undefined, `unable to send ${recipientShare} ${symbol} to ${recipient}`);
-          });
-          api.emit('deposit', `Distributed role ${x.name}`);
+          if (backupCands.length > 0) {
+            const backupWeight = backupCands.reduce((prev, cur) => api.BigNumber(prev).plus(cur.weight), 0);
+            for (let i = 0; i < backupCands.length; i += 1) {
+              const recipient = backupCands[i].account;
+              const recipientShareWeight = api.BigNumber(backupCands[i].weight).dividedBy(backupWeight);
+              const recipientShare = api.BigNumber(rolePay)
+                .multipliedBy(20)
+                .dividedBy(100)
+                .multipliedBy(recipientShareWeight)
+                .toFixed(stakeToken.precision);
+              const tx = await api.transferTokens(recipient, symbol, recipientShare, 'user');
+              api.assert(tx.errors === undefined, `unable to send ${recipientShare} ${symbol} to ${recipient}`);
+            }
+          }
+          api.emit('deposit', `Distributed role ${dist.roles[r].name}`);
         } else {
-          api.emit('deposit', `No candidates to pay for role ${x.name}`);
+          api.emit('deposit', `No candidates to pay for role ${dist.roles[r].name}`);
         }
-      });
+      }
     }
   }
 };

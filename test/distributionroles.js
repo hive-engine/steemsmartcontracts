@@ -31,9 +31,6 @@ let jobs = new Map();
 let currentJobId = 0;
 let database1 = null
 
-// contract-specific constants
-const DUST_WEIGHT = 10;
-
 function send(pluginName, from, message) {
   const plugin = plugins[pluginName];
   const newMessage = {
@@ -152,22 +149,23 @@ async function assertCandidateRank(id, account, role, rank) {
     table: 'batches',
     query: { _id: id }
   });
-  const cands = res.candidates.filter(x => x.role === role && x.weight > DUST_WEIGHT).sort((a, b) => api.BigNumber(a.weight).minus(b.weight));
+  const cands = res.candidates.filter(x => x.role === role && x.weight > res.dustWeight);
+  cands.sort((a, b) => api.BigNumber(b.weight).minus(a.weight));
   let candRank = cands.findIndex(x => x.account === account);
   if (candRank === -1) return null;
   else candRank += 1;
   assert.strictEqual(candRank, rank, `${account} has rank ${candRank}, expected ${rank}`);
 }
 
-async function assertContractBalance(account, symbol, balance) {
+async function assertContractBalance(account, symbol, balance = null) {
   const res = await database1.findOne({
     contract: 'tokens',
     table: 'contractsBalances',
     query: { account, symbol }
   });
 
-  if (!balance) {
-    assert(!res, `Balance found for ${account}, ${symbol}, expected none.`);
+  if (balance === null) {
+    assert(!res, `Balance ${res.balance} found for ${account} ${symbol}, expected none.`);
     return;
   }
   assert.ok(res, `No balance for ${account}, ${symbol}`);
@@ -271,7 +269,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 2, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -330,7 +328,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 2, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -393,7 +391,6 @@ describe('distributionroles', function () {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
-
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
@@ -405,7 +402,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 2, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -455,7 +452,6 @@ describe('distributionroles', function () {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
-
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
@@ -467,8 +463,8 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 2, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4}], "stakeSymbol": "TKN" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4}], "stakeSymbol": "", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}], "stakeSymbol": "TKN" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}], "stakeSymbol": "", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": "Role1", "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{"description": "El Presidente", "pct": 50}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
@@ -524,7 +520,6 @@ describe('distributionroles', function () {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
-
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
@@ -536,7 +531,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 2, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -552,7 +547,7 @@ describe('distributionroles', function () {
 
       const id = await getLastDistributionId();
       transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'update', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4}] }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'update', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}] }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'update', '{ "roles": "Role1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'update', '{ "roles": [], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'update', '{ "roles": [{"description": "El Presidente", "pct": 50}], "isSignedWithActiveKey": true }'));
@@ -596,11 +591,10 @@ describe('distributionroles', function () {
       });
   });
 
-  it('should distribute deposits according to 80/20 DPOS style', (done) => {
+  it('should distribute deposits by weight', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
-
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
@@ -612,7 +606,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "TKN", "unstakingCooldown": 2, "numberTransactions": 2, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "2000", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 1}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 1}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -636,7 +630,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'berniesanders', 'distributionroles', 'apply', `{ "id": ${id}, "role": "President" }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'jeffberwick', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'georgedonnelly', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'hilarski', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'dollarvigilante', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'rogerkver', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'dantheman', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Developer" }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ned', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Developer" }`));
@@ -644,7 +638,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "georgedonnelly", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Developer", "to": "dantheman", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'distributionroles', 'vote', `{ "id": ${id}, "role": "President", "to": "berniesanders", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "hilarski", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "dollarvigilante", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'spaminator', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Developer", "to": "dantheman", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'comptroller', 'distributionroles', 'vote', `{ "id": ${id}, "role": "President", "to": "berniesanders", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'comptroller', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "rogerkver", "isSignedWithActiveKey": true }`));
@@ -661,14 +655,34 @@ describe('distributionroles', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
       
-      let res = await database1.getLatestBlockInfo();
-      let txs = res.transactions;
+      // let res = await database1.getLatestBlockInfo();
+      // let txs = res.transactions;
+      // console.log(txs);
 
       await assertNoErrorInLastBlock();
 
-      assertCandidateWeight(id, 'berniesanders', 'President', '1260.00000000');
-      assertCandidateRank(id, 'berniesanders', 'President', 1);
-      assertContractBalance('distributionroles', 'TKN', 0);
+      await assertCandidateWeight(id, 'berniesanders', 'President', '1260.00000000');
+      await assertCandidateRank(id, 'berniesanders', 'President', 1);
+      await assertCandidateWeight(id, 'jeffberwick', 'Vice President', 0);
+      await assertCandidateWeight(id, 'georgedonnelly', 'Vice President', '250.00000000');
+      await assertCandidateRank(id, 'georgedonnelly', 'Vice President', 2);
+      await assertCandidateWeight(id, 'dollarvigilante', 'Vice President', '10.00000000');
+      await assertCandidateRank(id, 'dollarvigilante', 'Vice President', 3);
+      await assertCandidateWeight(id, 'rogerkver', 'Vice President', '1000.00000000');
+      await assertCandidateRank(id, 'rogerkver', 'Vice President', 1);
+      await assertCandidateWeight(id, 'ned', 'Developer', '1000.00000000');
+      await assertCandidateRank(id, 'ned', 'Developer', 1);
+      await assertCandidateWeight(id, 'dantheman', 'Developer', '260.00000000');
+      await assertCandidateRank(id, 'dantheman', 'Developer', 2);           
+
+      await assertUserBalance('berniesanders', 'TKN', 500);
+      await assertUserBalance('jeffberwick', 'TKN'); // no votes
+      await assertUserBalance('georgedonnelly', 'TKN', 125);
+      await assertUserBalance('rogerkver', 'TKN', 125);
+      await assertUserBalance('dollarvigilante', 'TKN'); // not over dust to qualify as backup
+      await assertUserBalance('ned', 'TKN', 200);
+      await assertUserBalance('dantheman', 'TKN', 50);
+      await assertContractBalance('distributionroles', 'TKN', 0);
 
       resolve();
     })

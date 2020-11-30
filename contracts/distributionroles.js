@@ -290,6 +290,31 @@ actions.vote = async (payload) => {
   }
 };
 
+actions.unvote = async (payload) => {
+  const {
+    id, role, to,
+  } = payload;
+
+  const dist = await api.db.findOne('batches', { _id: id });
+  if (api.assert(dist, 'distribution id not found') && api.assert(dist.active, 'distribution must be active to vote')
+    && api.assert(dist.candidates.find(x => x.role === role && x.account === to), 'role or candidate not found in this distribution')) {
+    const voteIndex = dist.votes.findIndex(x => x.role === role && x.to === to && x.from === api.sender);
+    if (api.assert(voteIndex !== -1, 'already unvoted')) {
+      dist.votes.splice(voteIndex, 1);
+
+      // remove voter if no other votes
+      const votesExist = dist.votes.find(x => x.from === api.sender);
+      if (votesExist === undefined) {
+        const voterIndex = dist.voters.findIndex(x => x.account === api.sender);
+        dist.voters.splice(voterIndex, 1);
+      }
+
+      await updateStakeWeight(dist);
+      api.emit('unvote', { from: api.sender, to });
+    }
+  }
+};
+
 actions.deposit = async (payload) => {
   const {
     id, symbol, quantity, isSignedWithActiveKey,

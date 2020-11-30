@@ -168,6 +168,17 @@ async function assertVoter(id, account, exists) {
   assert.strictEqual(votersBool, exists, `${account} voter presence is ${votersBool}, expected ${exists}`);
 }
 
+async function assertVotes(id, account, role, exists) {
+  const res = await database1.findOne({
+    contract: 'distributionroles',
+    table: 'batches',
+    query: { _id: id }
+  });
+  const votes = res.votes.find(x => x.to === account && x.role === role);
+  const votesResult = votes !== undefined ? votes : false;
+  assert.strictEqual(votesResult, exists, `${account} votes presence is ${votesResult}, expected ${exists}`);
+}
+
 async function assertContractBalance(account, symbol, balance = null) {
   const res = await database1.findOne({
     contract: 'tokens',
@@ -418,6 +429,7 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'stake', '{ "to":"donchate", "symbol": "TKN", "quantity": "250", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distributionroles', 'create', '{ "roles": [{ "name": "President", "description": "El Presidente", "pct": 50, "primary": 1},{"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},{"name": "Developer", "description": "Full stack developer", "pct": 25, "primary": 4}], "stakeSymbol": "TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "berniesanders", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -436,6 +448,8 @@ describe('distributionroles', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'berniesanders', 'distributionroles', 'apply', `{ "id": ${id}, "role": "President" }`));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'jeffberwick', 'distributionroles', 'apply', `{ "id": ${id}, "role": "Vice President" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'berniesanders', 'distributionroles', 'vote', `{ "id": ${id}, "role": "President", "to": "berniesanders" }`));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distributionroles', 'vote', `{ "id": ${id}, "role": "Vice President", "to": "jeffberwick" }`));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -447,11 +461,10 @@ describe('distributionroles', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       await assertNoErrorInLastBlock();
-      await assertCandidateRank(id, 'berniesanders', 'President', 0);
-      await assertCandidateRank(id, 'jeffberwick', 'Vice President', 0);
+      await assertCandidateRank(id, 'berniesanders', 'President', 1);
+      await assertCandidateRank(id, 'jeffberwick', 'Vice President', 1);
 
       transactions = [];
-      transactions.push(new Transaction(12345678903, getNextTxId(), 'berniesanders', 'distributionroles', 'resign', `{ "id": ${id}, "role": "President" }`));
       transactions.push(new Transaction(12345678903, getNextTxId(), 'jeffberwick', 'distributionroles', 'resign', `{ "id": ${id}, "role": "Vice President" }`));
 
       block = {
@@ -464,8 +477,10 @@ describe('distributionroles', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       await assertNoErrorInLastBlock();
-      await assertCandidateRank(id, 'berniesanders', 'President', null);
+      await assertCandidateRank(id, 'berniesanders', 'President', 1);
       await assertCandidateRank(id, 'jeffberwick', 'Vice President', null);
+      await assertVotes(id, 'jeffberwick', 'Vice President', false); // vote history should be clear
+      await assertVoter(id, 'donchate', false); // voter should be removed
       
       resolve();
     })

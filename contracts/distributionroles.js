@@ -41,13 +41,6 @@ actions.updateParams = async (payload) => {
   await api.db.update('params', params);
 };
 
-/*
-"roles": [
-  {"name": "President", "description": "El Presidente", "pct": 50, "primary": 1},
-  {"name": "Vice President", "description": "El Presidente Jr.", "pct": 25, "primary": 2},
-  {"name": "Developer", "description": "Responsible for xxxxx", "pct": 25, "primary": 4},
-]
-*/
 async function validateRoles(roles) {
   if (!api.assert(roles && Array.isArray(roles), 'roles must be an array')) return false;
   if (!api.assert(roles.length >= 1, 'specify at least one role')) return false;
@@ -253,7 +246,19 @@ actions.resign = async (payload) => {
     if (api.assert(roleExist, 'role not found')) {
       const cIndex = dist.candidates.findIndex(x => x.account === api.sender);
       if (api.assert(cIndex !== -1, 'no candidacy found for this role')) {
+        // remove candidate
         dist.candidates.splice(cIndex, 1);
+
+        // remove vote history
+        dist.votes = dist.votes.reduce((p, c) => {
+          if (c.to !== api.sender && c.role !== role) p.push(c); return p;
+        }, []);
+
+        // remove dangling voters
+        dist.voters = dist.voters.reduce((p, c) => {
+          if (dist.votes.findIndex(y => y.from === c.account) !== -1) p.push(c); return p;
+        }, []);
+
         await api.db.update('batches', dist);
         api.emit('resign', { id, account: api.sender, role });
       }

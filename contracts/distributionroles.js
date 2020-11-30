@@ -180,10 +180,21 @@ actions.update = async (payload) => {
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
-    const exDist = await api.db.findOne('batches', { _id: id });
-    if (api.assert(exDist, 'distributionroles not found') && await validateRoles(roles)) {
-      exDist.roles = roles;
-      await api.db.update('batches', exDist);
+    const dist = await api.db.findOne('batches', { _id: id });
+    if (api.assert(dist, 'distributionroles not found') && await validateRoles(roles)) {
+      dist.roles = roles;
+
+      // remove vote history for removed roles
+      dist.votes = dist.votes.reduce((p, c) => {
+        if (dist.roles.findIndex(y => y.name === c.role) !== -1) p.push(c); return p;
+      }, []);
+
+      // remove dangling voters
+      dist.voters = dist.voters.reduce((p, c) => {
+        if (dist.votes.findIndex(y => y.from === c.account) !== -1) p.push(c); return p;
+      }, []);
+
+      await api.db.update('batches', dist);
 
       // burn the token creation fees
       if (api.sender !== api.owner && api.BigNumber(distUpdateFee).gt(0)) {
@@ -192,7 +203,7 @@ actions.update = async (payload) => {
           to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: distUpdateFee, isSignedWithActiveKey,
         });
       }
-      api.emit('update', { id: exDist._id });
+      api.emit('update', { id: dist._id });
     }
   }
 };

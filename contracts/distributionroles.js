@@ -78,21 +78,17 @@ async function updateStakeWeight(distOrId) {
   const stakeToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: dist.stakeSymbol });
   dist.dustWeight = api.BigNumber(stakeToken.supply).multipliedBy(DUST_PCT);
 
-  // eslint-disable-next-line no-return-assign, no-param-reassign
-  dist.candidates.forEach(c => c.weight = 0);
+  for (let i = 0; i < dist.candidates.length; i += 1) {
+    dist.candidates[i].weight = 0;
+  }
 
   // update voting weight for all voters
-  dist.voters.forEach(async (v) => {
+  for (let i = 0; i < dist.voters.length; i += 1) {
+    const v = dist.voters[i];
     const balance = await api.db.findOneInTable('tokens', 'balances', { account: v.account, symbol: stakeToken.symbol });
     let voteWeight = 0;
     if (balance && balance.stake) {
       voteWeight = balance.stake;
-    }
-
-    if (balance && balance.pendingUnstake) {
-      voteWeight = api.BigNumber(voteWeight)
-        .plus(balance.pendingUnstake)
-        .toFixed(stakeToken.precision);
     }
 
     if (balance && balance.delegationsIn) {
@@ -100,17 +96,18 @@ async function updateStakeWeight(distOrId) {
         .plus(balance.delegationsIn)
         .toFixed(stakeToken.precision);
     }
-    // eslint-disable-next-line no-param-reassign
     v.weight = voteWeight;
 
     // update candidates
-    dist.votes.filter(x => x.from === v.account).forEach((x) => {
+    const vVotes = dist.votes.filter(x => x.from === v.account);
+    for (let j = 0; j < vVotes.length; j += 1) {
+      const x = vVotes[j];
       const cIndex = dist.candidates.findIndex(c => c.account === x.to);
       dist.candidates[cIndex].weight = api.BigNumber(dist.candidates[cIndex].weight)
         .plus(voteWeight)
         .toFixed(stakeToken.precision);
-    });
-  });
+    }
+  }
   await api.db.update('batches', dist);
 }
 

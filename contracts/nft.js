@@ -28,41 +28,6 @@ const MAX_NUM_NFTS_OPERABLE = 50;
 // contained within it
 const MAX_NUM_CONTAINER_NFTS_OPERABLE = 1;
 
-const RESERVED_SYMBOLS = {
-  CELL: 'beggars',
-  QUST: 'simplegame',
-  TESTERA: 'aggroed',
-  SQRL: 'stuffbyspencer',
-  CRAFT: 'immanuel94',
-  MUSIC: 'atomcollector',
-  CGULL: 'cgull',
-  NFT: 'cadawg',
-  RARE: 'beggars',
-  LIC: 'lictoken',
-  MEMBER: 'membertoken',
-  COFFEE: 'c0ff33a',
-  ART: 'byo',
-  ROCK: 'beggars',
-  CRITTER: 'cryptomancer',
-  CITY: 'gerber',
-  MONSTERS: 'simplegame',
-  SETS: 'lootkit.games',
-  ANIME: 'animetoken',
-  PHOTOFT: 'wwwiebe',
-  BEER: 'detlev',
-  SPIR: 'spinvest',
-  IFG: 'lion200',
-  GUILDS: 'simplegame',
-  FCARD: 'lion200',
-  PXL: 'pixelnft',
-  COW: 'stuffbyspencer',
-  LOOOT: 'stuffbyspencer',
-  API: 'steemcityapi',
-  SPORTSMOM: 'sportstester',
-  SWT: 'satren',
-  STAR: 'atomcollector',
-};
-
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('nfts');
   if (tableExists === false) {
@@ -877,6 +842,41 @@ actions.setPropertyPermissions = async (payload) => {
   }
 };
 
+actions.setMarketParams = async (payload) => {
+  const {
+    symbol, officialMarket, agentCut, minFee, isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(symbol && typeof symbol === 'string'
+      && (officialMarket === undefined || (officialMarket && typeof officialMarket === 'string' && isValidHiveAccountLength(officialMarket.trim().toLowerCase())))
+      && (agentCut === undefined || (typeof agentCut === 'number' && agentCut >= 0 && agentCut <= 10000 && Number.isInteger(agentCut)))
+      && (minFee === undefined || (typeof minFee === 'number' && minFee >= 0 && minFee <= 10000 && Number.isInteger(minFee))), 'invalid params')) {
+    // check if the NFT exists
+    const nft = await api.db.findOne('nfts', { symbol });
+
+    if (nft) {
+      if (api.assert(nft.issuer === api.sender, 'must be the issuer')
+        && api.assert(nft.groupBy === undefined || nft.groupBy.length === 0, 'list is already set')
+        && api.assert(properties.length <= nftPropertyCount, 'cannot set more data properties than NFT has')
+        && api.assert(!containsDuplicates(properties), 'list cannot contain duplicates')) {
+        for (let i = 0; i < properties.length; i += 1) {
+          const name = properties[i];
+          if (!api.assert(name && typeof name === 'string'
+            && name in nft.properties, 'data property must exist')) {
+            return false;
+          }
+        }
+
+        nft.groupBy = properties;
+        await api.db.update('nfts', nft);
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
 actions.setGroupBy = async (payload) => {
   const {
     symbol, properties, isSignedWithActiveKey,
@@ -1365,7 +1365,6 @@ actions.create = async (payload) => {
       && (authorizedIssuingContracts === undefined || (authorizedIssuingContracts && typeof authorizedIssuingContracts === 'object' && Array.isArray(authorizedIssuingContracts)))
       && (maxSupply === undefined || (maxSupply && typeof maxSupply === 'string' && !api.BigNumber(maxSupply).isNaN())), 'invalid params')) {
     if (api.assert(api.validator.isAlpha(symbol) && api.validator.isUppercase(symbol) && symbol.length > 0 && symbol.length <= MAX_SYMBOL_LENGTH, `invalid symbol: uppercase letters only, max length of ${MAX_SYMBOL_LENGTH}`)
-      && api.assert(RESERVED_SYMBOLS[symbol] === undefined || api.sender === RESERVED_SYMBOLS[symbol], 'cannot use this symbol')
       && api.assert(api.validator.isAlphanumeric(api.validator.blacklist(name, ' ')) && name.length > 0 && name.length <= 50, 'invalid name: letters, numbers, whitespaces only, max length of 50')
       && api.assert(orgName === undefined
         || (api.validator.isAlphanumeric(api.validator.blacklist(orgName, ' ')) && orgName.length > 0 && orgName.length <= 50), 'invalid org name: letters, numbers, whitespaces only, max length of 50')

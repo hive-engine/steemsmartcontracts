@@ -847,30 +847,55 @@ actions.setMarketParams = async (payload) => {
     symbol, officialMarket, agentCut, minFee, isSignedWithActiveKey,
   } = payload;
 
+  // if no parameters supplied, we have nothing to do
+  if(officialMarket === undefined && agentCut === undefined && minFee === undefined) {
+    return false;
+  }
+
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(symbol && typeof symbol === 'string'
       && (officialMarket === undefined || (officialMarket && typeof officialMarket === 'string' && isValidHiveAccountLength(officialMarket.trim().toLowerCase())))
       && (agentCut === undefined || (typeof agentCut === 'number' && agentCut >= 0 && agentCut <= 10000 && Number.isInteger(agentCut)))
       && (minFee === undefined || (typeof minFee === 'number' && minFee >= 0 && minFee <= 10000 && Number.isInteger(minFee))), 'invalid params')) {
-    // check if the NFT exists
     const nft = await api.db.findOne('nfts', { symbol });
 
     if (nft) {
-      if (api.assert(nft.issuer === api.sender, 'must be the issuer')
-        && api.assert(nft.groupBy === undefined || nft.groupBy.length === 0, 'list is already set')
-        && api.assert(properties.length <= nftPropertyCount, 'cannot set more data properties than NFT has')
-        && api.assert(!containsDuplicates(properties), 'list cannot contain duplicates')) {
-        for (let i = 0; i < properties.length; i += 1) {
-          const name = properties[i];
-          if (!api.assert(name && typeof name === 'string'
-            && name in nft.properties, 'data property must exist')) {
-            return false;
+      if (api.assert(nft.issuer === api.sender, 'must be the issuer')) {
+        let shouldUpdate = false;
+        const update = {
+          symbol,
+        };
+
+        if(officialMarket !== undefined && (nft.officialMarket === undefined || officialMarket !== nft.officialMarket)) {
+          if(nft.officialMarket !== undefined) {
+            update.oldOfficialMarket = nft.officialMarket;
           }
+          nft.officialMarket = officialMarket.trim().toLowerCase();
+          update.officialMarket = nft.officialMarket;
+          shouldUpdate = true;
+        }
+        if(agentCut !== undefined && (nft.agentCut === undefined || agentCut !== nft.agentCut)) {
+          if(nft.agentCut !== undefined) {
+            update.oldAgentCut = nft.agentCut;
+          }
+          nft.agentCut = agentCut;
+          update.agentCut = agentCut;
+          shouldUpdate = true;
+        }
+        if(minFee !== undefined && (nft.minFee === undefined || minFee !== nft.minFee)) {
+          if(nft.minFee !== undefined) {
+            update.oldMinFee = nft.minFee;
+          }
+          nft.minFee = minFee;
+          update.minFee = minFee;
+          shouldUpdate = true;
         }
 
-        nft.groupBy = properties;
-        await api.db.update('nfts', nft);
-        return true;
+        if(shouldUpdate) {
+          await api.db.update('nfts', nft);
+          api.emit('setMarketParams', update);
+          return true;
+        }
       }
     }
   }

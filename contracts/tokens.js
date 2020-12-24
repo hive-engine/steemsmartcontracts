@@ -683,10 +683,9 @@ const processUnstake = async (unstake) => {
       balance.pendingUnstake = calculateBalance(
         balance.pendingUnstake, tokensToRelease, token.precision, false,
       );
-      
+
       if (api.assert(api.BigNumber(balance.pendingUnstake).lt(originalPendingStake)
         && api.BigNumber(balance.balance).gt(originalBalance), 'cannot subtract')) {
-
         if (api.BigNumber(nextTokensToRelease).gt(0)) {
           balance.stake = calculateBalance(
             balance.stake, nextTokensToRelease, token.precision, false,

@@ -643,8 +643,8 @@ describe('mining', function () {
       await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '200' });
 
       transactions = [];
-      const unstakeId = getNextTxId();
-      const unstakeId2 = getNextTxId();
+      let unstakeId = getNextTxId();
+      let unstakeId2 = getNextTxId();
       transactions.push(new Transaction(12345678907, unstakeId, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000005", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678907, unstakeId2, 'satoshi2', 'tokens', 'unstake', '{ "symbol": "MTKN", "quantity": "0.00000005", "isSignedWithActiveKey": true }'));
 
@@ -685,9 +685,9 @@ describe('mining', function () {
       await assertUserBalances('satoshi', 'MTKN', '65.00000000', '5.00000000', '0.00000000');
       await assertUserBalances('satoshi2', 'MTKN', '0.00000002', '29.99999995');
 
-      await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '59.99999996');
-      await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '139.99999984');
-      await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '199.9999998' });
+      await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '59.99999995');
+      await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '139.9999998');
+      await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '199.99999975' });
 
       transactions = [];
       transactions.push(new Transaction(12345678909, getNextTxId(), 'satoshi', 'tokens', 'cancelUnstake', `{ "txID": "${unstakeId}", "isSignedWithActiveKey": true }`));
@@ -697,7 +697,7 @@ describe('mining', function () {
         refHiveBlockNumber: 12345678909,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-02T00:00:00',
+        timestamp: '2018-06-05T00:00:00',
         transactions,
       };
 
@@ -708,9 +708,9 @@ describe('mining', function () {
       await assertUserBalances('satoshi', 'MTKN', '65.00000000', '5.00000000', '0.00000000');
       await assertUserBalances('satoshi2', 'MTKN', '0.00000002', '29.99999998');
 
-      await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '59.99999999');
-      await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '139.99999996');
-      await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '199.99999995' });
+      await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '59.99999998');
+      await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '139.99999992');
+      await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '199.9999999' });
 
       resolve();
     })

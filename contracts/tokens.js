@@ -683,31 +683,31 @@ const processUnstake = async (unstake) => {
       balance.pendingUnstake = calculateBalance(
         balance.pendingUnstake, tokensToRelease, token.precision, false,
       );
-      if (api.BigNumber(nextTokensToRelease).gt(0)) {
-        balance.stake = calculateBalance(
-          balance.stake, nextTokensToRelease, token.precision, false,
-        );
-      }
-
+      
       if (api.assert(api.BigNumber(balance.pendingUnstake).lt(originalPendingStake)
         && api.BigNumber(balance.balance).gt(originalBalance), 'cannot subtract')) {
+
+        if (api.BigNumber(nextTokensToRelease).gt(0)) {
+          balance.stake = calculateBalance(
+            balance.stake, nextTokensToRelease, token.precision, false,
+          );
+          token.totalStaked = calculateBalance(
+            token.totalStaked, nextTokensToRelease, token.precision, false,
+          );
+
+          // update witnesses rank
+          // eslint-disable-next-line no-template-curly-in-string
+          if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+            // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
+          }
+          await api.executeSmartContract('mining', 'handleStakeChange',
+            { account, symbol, quantity: api.BigNumber(nextTokensToRelease).negated() });
+        }
+
         await api.db.update('balances', balance);
-
-        token.totalStaked = calculateBalance(
-          token.totalStaked, nextTokensToRelease, token.precision, false,
-        );
-
         await api.db.update('tokens', token);
 
         api.emit('unstake', { account, symbol, quantity: tokensToRelease });
-
-        // update witnesses rank
-        // eslint-disable-next-line no-template-curly-in-string
-        if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-          // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
-        }
-        await api.executeSmartContract('mining', 'handleStakeChange',
-          { account, symbol, quantity: api.BigNumber(tokensToRelease).negated() });
       }
     }
   }

@@ -643,8 +643,8 @@ describe('mining', function () {
       await assertPool({ id: 'TKN:MTKN,TKN', totalPower: '200' });
 
       transactions = [];
-      let unstakeId = getNextTxId();
-      let unstakeId2 = getNextTxId();
+      const unstakeId = getNextTxId();
+      const unstakeId2 = getNextTxId();
       transactions.push(new Transaction(12345678907, unstakeId, 'satoshi', 'tokens', 'unstake', '{ "symbol": "TKN", "quantity": "0.00000005", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678907, unstakeId2, 'satoshi2', 'tokens', 'unstake', '{ "symbol": "MTKN", "quantity": "0.00000005", "isSignedWithActiveKey": true }'));
 
@@ -697,7 +697,7 @@ describe('mining', function () {
         refHiveBlockNumber: 12345678909,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-05T00:00:00',
+        timestamp: '2018-06-02T00:00:00',
         transactions,
       };
 

@@ -1,6 +1,6 @@
 {
   "name": "steemsmartcontracts",
-  "version": "0.1.22",
+  "version": "0.1.24",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -14,7 +14,12 @@
     "test4": "./node_modules/mocha/bin/mocha ./test/smarttokens.js",
     "test5": "./node_modules/mocha/bin/mocha ./test/botcontroller.js",
     "test6": "./node_modules/mocha/bin/mocha ./test/crittermanager.js",
-    "test7": "./node_modules/mocha/bin/mocha ./test/market.js"
+    "test7": "./node_modules/mocha/bin/mocha ./test/market.js",
+    "test8": "./node_modules/mocha/bin/mocha ./test/airdrops.js",
+    "test9": "./node_modules/mocha/bin/mocha ./test/mining.js",
+    "test10": "./node_modules/mocha/bin/mocha ./test/packmanager.js",
+    "test11": "./node_modules/mocha/bin/mocha ./test/claimdrops.js",
+    "test12": "./node_modules/mocha/bin/mocha ./test/distribution.js"
   },
   "engines": {
     "node": ">=13.7.0",

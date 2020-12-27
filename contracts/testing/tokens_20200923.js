@@ -15,7 +15,6 @@ const ACCOUNT_BLACKLIST = {
   'probitsteem': 1,
   'probithive': 1,
   'ionomy': 1,
-  'mxchive': 1,
 };
 
 const RESERVED_SYMBOLS = {
@@ -26,44 +25,766 @@ const RESERVED_SYMBOLS = {
   DOGEP: 'dogep',
   BCHP: 'bchp',
   SMTT: 'steemmonsters',
+  BUX: 'nateaguila',
+  STYLE: 'steemstyle-io',
+  FREEX: 'freedomex',
+  EXYLE: 'exyle',
+  SAVVY: 'jongolson',
+  PAL: 'minnowsupport',
+  FSM: 'marcuswahl',
+  SMARTY: 'smartsteem',
+  MNY: 'themonetaryfew',
+  RAP: 'themonetaryfew',
+  BUILDTEAM: 'buildteam',
+  TPY: 'shepz1',
+  FBS: 'freebornsociety',
+  DB: 'vegeta',
+  DUMP: 'movingman',
+  KRWS: 'stablewon',
+  BTC: 'roelandp',
+  LEO: 'khaleelkazi',
+  SSS: 'shogo',
+  FOOD: 'jeffjagoe',
+  REDF: 'redfishelp',
+  KBD: 'jaki01',
+  SCHMECKLE: 'smartyschmeckles',
+  JAR: 'jarunik',
+  STEEM: 'luckystrikes',
+  SBD: 'luckystrikes',
+  JCAR: 'jsquare',
+  ENGAGE: 'abh12345',
+  NINJA: 'steem.ninja',
+  ORACLED: 'oracle-d',
+  STV: 'steeveapp',
+  USDS: 'stablewon',
+  WAFRO: 'wafrica',
+  MULA: 'artzone',
+  JITS: 'jiujitsu',
+  BUMPS: 'jiujitsu',
+  GOLD: 'jiujitsu',
+  NYANG: 'son10001',
+  STINGY: 'inertia',
+  DIY: 'tibfox',
+  SWEET: 'swapsteem',
+  BTCS: 'stablewon',
+  ETHS: 'stablewon',
+  KEN: 'infinite-bt',
+  TROLL: 'tufkat',
+  VLOG: 'teamhumble',
+  AFIT: 'actifit',
+  A: 'reseller',
+  TEARDROPS: 'surpassinggoogle',
+  PICWAR: 'nkgrigoryev',
+  SMPT: 'crystalhuman',
+  MSPW: 'r0nd0n',
+  JAM: 'umkin',
+  SUFB: 'jpbliberty',
+  BEER: 'detlev',
+  CDD: 'remndt',
+  LCT: 'sebescen81',
+  STEEMSC: 'stablewon',
+  PLKN: 'mermaidvampire',
+  GLOBALONE: 'g1ntoken',
+  DRAGON: 'legendarydragons',
+  ALPHA: 'steemmonsters',
+  BETA: 'steemmonsters',
+  DEC: 'steemmonsters',
+  VALIUM: 'prinzvalium',
+  GAME: 'pennsif',
+  PBL: 'hobo.media',
+  SBT: 'pollux.one',
+  WEED: 'coffeebuds',
+  SER: 'seo-boss',
+  ENTRO: 'entropia',
+  SMSMB: 'satren',
+  GMBLR: 'steemitqa',
+  RED: 'redpalestino',
+  MAR: 'redpalestino',
+  THS: 'theholystuhl',
+  IBC: 'ibc',
+  DRAMA: 'whatsup',
+  PATRIOT: 'stayoutoftherz',
+  BATTLE: 'battlegames',
+  TOKEN: 'noganoo',
+  UNICORN: 'tufkat',
+  REV: 'revisesociology',
+  HBO: 'hobo.media',
+  CRYPTO: 'justinashby',
+  ATOMY: 'cjsdns',
+  PS: 'perfspots',
+  NEO: 'neoxian',
+  BCC: 'trevonjb',
+  BC: 'erniegreenhill',
+  ENU: 'libert',
+  PNC: 'ades',
+  JJM: 'virus707',
+  VGIFT: 'virtualgrowth',
+  COFFEE: 'wonpay',
+  BG: 'balte',
+  VT: 'helpie-caster',
+  MINI: 'minigame',
+  DTUBE: 'reseller',
+  SGTK: 'someguy123',
+  DENTAL: 'designpod',
+  HVOTE: 'happyvoter',
+  SURF: 'surfermarly',
+  GSB: 'gsb-token',
+  RMSFITNESS: 'rmsbodybuilding',
+  SHIT: 'ngc',
+  FUND: 'kr-fund',
+  MARKET: 'beggars',
+  TRADE: 'riseofth',
+  TFLANDSP: 'grid9games',
+  TFLANDQB: 'grid9games',
+  TFLANDB: 'grid9games',
+  TFTOWNRES: 'grid9games',
+  TFCITYRES: 'grid9games',
+  DDT: 'ddaily',
+  PE: 'perfspots',
+  YESJAM: 'umkin',
+  NEOX: 'neoxian',
+  TIPU: 'tipu',
+  IMPACT: 'madeyearcher',
+  SVC: 'stablewon',
+  TAMILCOIN: 'successforall',
+  TPU: 'tipu',
+  KENN: 'kennethbosak',
+  SOL: 'solairitas',
+  SMALP: 'smalp',
+  DUST: 'danielsaori',
+  WONKA: 'wonka',
+  DICE: 'dice-engine',
+  PROMI: 'promisteem',
+  FUT: 'danbain',
+  XHST: 'exhaust',
+  FUTURE: 'beggars',
+  CU: 'curating',
+  CAFE: 'mustard-seed',
+  MEEP: 'ionlysaymeep',
+  MSC: 'steem-myanmar',
+  OTTER: 'tcpolymath',
+  YADDY: 'dcommerce',
+  STICK: 'steemillu',
+  PROXY: 'proxy.token',
+  NBC: 'teamcn-fund',
+  MSPACTIVE: 'msp-active',
+  HLP: 'meno',
+  ORG: 'solnamu',
+  SFR: 'anthonyadavisii',
+  YES: 'yesinfo',
+  SAVAGE: 'josephsavage',
+  ACTNEARN: 'actnearn',
+  K: 'stablewon',
+  GAMER: 'kryptogamers',
+  BTCMYK: 'mykos',
+  TSKR: 'steemtaskr',
+  BNW: 'naha',
+  HLPE: 'helpie',
+  CUPZ: 'cupz',
+  UQE: 'seo-boss',
+  SKIN: 'skintoken',
+  TROPHY: 'virus707',
+  SHADE: 'shadowspub',
+  PORT: 'portokens',
+  ASS: 'asshole',
+  BOT: 'mydicebot',
+  RARE: 'beggars',
+  AUSBITS: 'ausbitbank',
+  MUSIC: 'greencross',
+  KPOP: 'freedomex',
+  FOODD: 'freedomex',
+  USDONE: 'usdone',
+  EPIC: 'epicdice',
+  BLEEP: 'bleepcoin',
+  SSC: 'tradingideas',
+  ACX: 'x6ix',
+  STACH: 'stach',
+  YBT: 'y-o-u-t-h-m-e',
+  YPDT: 'y-o-u-t-h-m-e',
+  SAT: 'steemarena',
+  RST: 'dumitriu',
+  ELW: 'marabara',
+  DLV: 'v4vapid',
+  CT: 'cleanplanet',
+  SST: 'blanchy',
+  CHICK: 'steemchat.live',
+  STIP: 'swapsteem',
+  SHOP: 'teamcn-shop',
+  LASSE: 'lasseehlers',
+  SVGS: 'savagelifestyle',
+  MANNE: 'steemitri',
+  LEATHER: 'sqube',
+  MAD: 'madmagazine',
+  C: 'comedyopenmic',
+  DCC: 'vidyen',
+  UGOS: 'ugos',
+  SMT: 'wehmoen',
+  ISLAND: 'fantasyisland',
+  VIMM: 'vimm',
+  LOVE: 'indextrader24',
+  DACH: 'dachcolony',
+  LOTTO: 'beggars',
+  CRACK: 'battlecrack',
+  DICKBUTT: 'sqube',
+  OZZY: 'wtfdidozzysay',
+  UE: 'dachcolony',
+  RECOIN: 'ilnegro',
+  AIT: 'ai-channel',
+  DIP: 'zzrott',
+  TFMARKS: 'grid9games',
+  BTF: 'asshole',
+  PHUQ: 'sqube',
+  QBITS: 'grid9games',
+  EPC: 'epicdice',
+  ANG: 'lasseehlers',
+  AMA: 'lasseehlers',
+  UST: 'grid9games',
+  EOSP: 'eos-peg',
+  BANJO: 'banjo',
+  LUNA: 'moonlight-forum',
+  HABIT: 'makeahabit',
+  XAP: 'appicscommunity',
+  BLQ: 'pgarcgo',
+  MOON: 'noganoo',
+  YOGI: 'investorsclub',
+  CREDITS: 'noganoo',
+  LHT: 'riverflows',
+  COIN: 'noganoo',
+  USA: 'coincreator',
+  LAS: 'lasseehlers',
+  AGT: 'lasseehlers',
+  BEAST: 'havok777',
+  DOLPHIN: 'ribai',
+  TICKETS: 'noganoo',
+  NED: 'noganoo',
+  COKE: 'coincreator',
+  SAND: 'ackza',
+  TRUMP: 'noganoo',
+  DAN: 'applecrisp',
+  AOC: 'applecrisp',
+  CPC: 'stablewon',
+  SCT: 'sct',
+  PORN: 'dporn',
+  BOOSTER: 'coincreator',
+  FARMR: 'aneilpatel',
+  ORB: 'steemmonsters',
+  LIKE: 'coolvideo',
+  TEST: 'bewarecenterbase',
+  SMALL: 'swapsteem',
+  GOAT: 'coincreator',
+  SPWALPHA: 'splinterwars',
+  STEEMSG: 'gysmo',
+  AAA: 'triplea.reviews',
+  FUN: 'bewarecenterbase',
+  HIPHOP: 'coincreator',
+  CABAL: 'cabalcoffers',
+  TREESEED: 'grid9games',
+  TREELOG: 'grid9games',
+  FIT: 'fitcoin',
+  QUIZ: 'bewarecenterbase',
+  SWAP: 'swapsteem',
+  PHOTO: 'photo-token',
+  XRSTEEM: 'xrweb',
+  STR: 'strongbox',
+  LASSECASH: 'lasseehlers',
+  VOTE: 'votetoken',
+  GOLOS: 'coincreator',
+  RORS: 'roadofrich',
+  PMT: 'peakmonsters',
+  SPT: 'splinterlands',
+  IND: 'indiatoken',
+  MAPX: 'map10k',
+  RANKORE: 'ran.koree',
+  DFK: 'driveforkids',
+  SPK: 'wehmoen',
+  CHOPS: 'slobberchops',
   EM: 'steem-eng',
   EMFOUR: 'steem-eng',
+  ROX: 'freedomex.dev',
+  ORGANDUO: 'organduo',
+  LUNAR: 'niel96',
+  BBT: 'buildteam',
+  ZZAN: 'zzan',
+  DC: 'donwhale',
+  DISNEY: 'noganoo',
+  AMAZON: 'noganoo',
+  HUMANIST: 'chrisrice',
+  PALM: 'msp-finance',
+  PALMM: 'msp-finance',
+  VOICE: 'applecrisp',
+  MOT: 'freedomex.dev',
+  HILO: 'luckyhilo',
+  KRWP: 'sct',
+  HARCADE: 'luckyhilo',
+  ETH: 'noganoo',
+  EOS: 'noganoo',
+  LUV: 'jacuzzi',
+  SPICE: 'applecrisp',
+  DACT: 'dact',
+  STARS: 'noganoo',
+  HUG: 'applecrisp',
+  WHAN: 'wonsama',
+  UNI: 'casberp',
+  PIZZA: 'pizza-party',
+  MEME: 'holovision',
+  PSOP: 'eos-peg',
+  SEX: 'janasilver',
+  DWD: 'drugwars',
+  CANDY: 'noganoo',
+  POINTS: 'noganoo',
+  PREDICT: 'predict',
+  DCMDT: 'donwhale',
+  SPHR: 'the.circle',
+  ESPORTS: 'e-sportsworld',
+  COOKING: 'cooking-wallet',
+  GEEK: 'holovision',
+  ART: 'mentalhealthguru',
+  MSTK: 'fedesox',
+  SCTM: 'sct',
+  ALU: 'alucian',
+  BUTT: 'buttcoins',
+  NEOSTEEM: 'buildteam',
+  ANXP: 'eos-peg',
+  STD: 'rondras',
+  VRT: 'sargoon',
+  SPORTS: 'sportstalksocial',
+  TRDO: 'theguruasia',
+  KGSCOIN: 'kgakakillerg',
+  DCCT: 'donwhale',
+  Q: 'qurator',
+  FLEET: 'flauwy',
+  HEMP: 'a1-shroom-spores',
+  SNK: 'snackplus',
+  WIKI: 'jacuzzi',
+  ADSCJ: 'adsactly',
+  MARLIANS: 'surpassinggoogle',
+  CK: 'contestkings',
+  SPI: 'spinvest',
+  BSP: 'buildteam',
+  WEEDM: 'coffeebuds',
+  STEEMSENSE: 'pibara',
+  INV: 'steem.ninja',
+  PH: 'emafe',
+  BISAYA: 'emafe',
+  SCTR: 'sct',
+  WEEDMM: 'coffeebuds',
+  ZZANM: 'zzan',
+  BPC: 'bilpcoin',
+  ADSACT: 'adsactly',
+  UNION: 'donekim',
+  LIV: 'stpeople.token',
+  LEOM: 'steem.leo',
+  LEOMM: 'steem.leo',
+  CREATIVE: 'swelker101',
+  R: 'sct',
+  JAHM: 'reggaesteem',
+  BTSP: 'btsp',
+  NEOXAG: 'neoxiantoken',
+  HRNG: 'herringlord',
+  BLOKZ: 'sn0n',
+  TARUK: 'marcosdk',
+  PLOOK: 'swelker101',
+  STEEMSPEAK: 'steemspeak',
+  PAB: 'pab.ink',
+  POLISH: 'polishtoken',
+  INT: 'crystalhuman',
+  BTSCNYP: 'bitshares-token1',
+  CRYSTAL: 'crystalliu',
+  BRIDGEBTCP: 'bitshares-token1',
+  BTSUSDP: 'bitshares-token1',
+  NEOXAGM: 'neoxian',
+  ATTDUMMY: 'shariemay',
+  EDIT: 'edit.exchange',
+  SIT: 'steemincome',
+  VTO: 'littlescribe',
+  GG: 'steem-ace',
+  GGM: 'steem-ace',
+  CTP: 'jongolson',
+  UFM: 'upfundme',
+  COOKIE: 'torico',
+  ONECENT: 'onecent',
+  GUILD: 'teampossible',
+  IV: 'ror.inven',
+  VTN: 'sargoon',
+  UFMM: 'upfundme',
+  IVM: 'ror.inven',
+  CCC: 'creativecoin',
+  STEM: 'stemgeeks',
+  ATOM: 'musicvoter',
+  STEMM: 'stemgeeks',
+  STEMMM: 'stemgeeks',
+  CRINGE: 'cringecoin',
+  MAPR: 'accelerator',
+  RHB: 'knowledges',
+  HEDGE: 'trailofwhales',
+  GOD: 'holovision',
+  BEEM: 'steembeem',
+  BB: 'madstacks',
+  COFFEEA: 'c0ff33a',
+  FTLOB: 'ftlob',
+  NOBEL: 'achimmertens',
+  KFQ: 'qwoyn',
+  SWIFTP: 'btcpeg',
+  TRIBE: 'block21.corp',
+  TMT: 'tripsteem.token',
+  CCCM: 'creativecoin',
+  PRIVEX: 'privex',
+  DT: 'donwhale',
+  SSCC: 'heimindanger',
+  CONTROL: 'howhigh',
+  MINID: 'minigame',
+  NATRL: 'naturalproducts',
+  AGAG: 'aggroed',
+  PNV: 'prettynicevideo',
+  SG: 'theghost1980',
+  ZM: 'zzan.market',
+  FOMO: 'fomo-token',
+  BRAAIB: 'braaiboy',
+  SPACO: 'spanish-tribe',
+  CELL: 'beggars',
+  ANIME: 'animetoken',
+  FRUIT: 'eatmorefruit',
+  STARDUST: 'nextcolony',
+  COCO: 'co2fund',
+  VOIN: 'investinthefutur',
+  LOTTOTOKEN: 'lottotoken',
+  CAPTCHA: 'heimindanger',
+  FLZ: 'blockchainchapel',
+  ADDAX: 'addax',
+  CTPM: 'jongolson',
+  AFITX: 'actifit',
+  MAPXV: 'mapxv',
+  TULIP: 'busbecq',
+  CAT: 'catnet',
+  MRC: 'marsprofit',
+  HONOR: 'knightsunited',
+  FCT: 'jk6276.sports',
+  FINEX: 'finex',
+  SPACOM: 'spanish-tribe',
+  APX: 'appics-mint',
+  ESTM: 'esteem.app',
+  NGA: 'engagegametech',
+  SONIC: 'sonicgroove',
+  LLAMA: 'wehmoen',
+  GK: 'alexeygrigurko',
+  CBM: 'cryptobrewmaster',
+  NGAM: 'ngaminers',
+  NGAMM: 'ngaminers',
+  CANNA: 'hotsauceislethal',
+  AIRHAWK: 'airhawk-exchange',
+  SONICM: 'sonicgroove',
+  TASK: 'heimindanger',
+  SONICMM: 'sonicgroove',
+  LOL: 'lol.official',
+  THL: 'moneykicks007',
+  KCX: 'caseycontentgod',
+  OTT: 'onethousandtoken',
+  LIFESTYLE: 'one.life',
+  CLIK: 'derangedvisions',
+  SNAXP: 'steemsnax',
+  SAGO: 'sagoda',
+  SAGOM: 'sagoda',
+  WEKUP: 'bitshares-token1',
+  AWINB: 'adventureready',
+  AWINS: 'adventureready',
+  AWING: 'adventureready',
+  AWIN: 'adventureready',
+  UFO: 'ufonetwork',
+  WIN: 'adventureready',
+  CODE: 'code.issuer',
+  GIPHY: 'contrabourdon',
+  TUNES: 'steemvision',
+  QTL: 'portalgun',
+  ADSUP: 'adsup',
+  LOOK: 'lookplz',
+  SS: 'portalgun',
+  ZZ: 'portalgun',
+  ZENT: 'clayboyn',
+  LAGO: 'lago',
+  SBI: 'sbi-tokens',
+  UNTAMED: 'steemmonsters',
+  MCACHE: 'megacity',
+  MHASH: 'megacity',
+  MEGA: 'megacity',
+  LM: 'one.life',
+  SBIT: 'sbit',
+  MAXUV: 'maxuv',
+  ECU: 'bastionpm',
+  JOB: 'news-today',
+  DEV: 'news-today',
+  LCTM: 'sebescen81',
+  SAGOD: 'sagoda',
+  CC: 'commentcoin',
+  EEK: 'tsnaks',
+  CLICK: 'clicktribe',
+  SUN: 'suntoken',
+  DATA: 'phonedata',
+  LIEBE: 'crazy-love',
+  DOLLARYDOO: 'ausbitbank',
+  KARMA: 'ausbitbank',
+  PHOTOM: 'photo-token',
+  REKT: 'rekttoken',
+  HOOT: 'hobo.media',
+  QANON: 'qanonbank',
+  TORRENT: 'torrent.tokens',
+  LOTUS: 'lotuscoin',
+  TMPS: 'taskmanager',
+  DAPP: 'dappview',
+  BYU: 'yusaymon',
+  FET: 'yusaymon',
+  PEAK: 'peak.issuer',
+  NATURE: 'smt-hunter',
+  BUILD: 'build-it',
+  PHOTOMM: 'photo-token',
+  ADPLY: 'wonsama',
+  TLNT: 'talentclub',
+  DIGIPEX: 'digipex',
+  TATIF: 'twoandtwoisfour',
+  CASINO: 'treasury',
+  VITP: 'vit-tribe',
+  BEAK: 'best-live',
+  TPC: 'tykee',
+  MB: 'mysterybox',
+  NEWSTEEM: 'themarkymark',
+  SKATE: 'knowhow92',
+  NOGANOO: 'noganoo',
+  HODL: 'photo-token',
+  HODLM: 'photo-token',
+  PTBR: 'escudoreal',
+  PEPE: 'aliens',
+  DLIKER: 'dliker',
+  OOTD: 'emafe',
+  CATS: 'catsmakekittens',
+  KITTENS: 'catsmakekittens',
+  SHOPPIX: 'shoppix',
+  ORGANDUOM: 'organduo',
+  MSCOIN: 'aximkrat',
+  DTT: 'dancers',
+  GIPHYM: 'contrabourdon',
+  ORGANDUOMM: 'organduo',
+  BFT: 'blockfund',
+  DLIKEM: 'dliker',
+  BCM: 'bcm',
+  DMT: 'ayahuascacoin',
+  HELP: 'steemcrm',
+  IPFS: 'ipfscoin',
+  SATOSHI: 'satoshitoken',
+  HSPK: 'hard-spork',
+  SPV: 'steemitpool',
+  TIME: 'wehmoen',
+  MANGA: 'mangatoken',
+  OP: 'omnesplantae',
+  PETS: 'petscorner',
+  PET: 'petscorner',
+  BCT: 'bctoken',
+  WON: 'stablewon',
+  INCOME: 'ecoinstats',
+  ECO: 'eco-alex',
+  PEOSP: 'eos-peg',
+  CHESS: 'chesscash',
+  CHLP: 'eos-peg',
+  JSNS: 'reggaesteem',
+  WEEDSHARE: 'harbormmcc',
+  THC: 'harbormmcc-thc',
+  BPCR: 'bilpcoinrecords',
+  GEMS: 'battlegames',
+  BASED: 'ericwilson',
+  SRC: 'antonio.vlasov',
+  DBLOG: 'dblogger',
+  FMVI: 'djennyfloro',
+  OLYMP: 'olymp',
+  CONTEST: 'contestcoin',
+  CLOUD: 'cloud-token',
+  DWMARI: 'drugwars',
+  DWSALV: 'drugwars',
+  DWPOPP: 'drugwars',
+  DWHASH: 'drugwars',
+  DWANAB: 'drugwars',
+  DWCRAC: 'drugwars',
+  DWOPIU: 'drugwars',
+  DWHERO: 'drugwars',
+  DWMETH: 'drugwars',
+  DWMDMA: 'drugwars',
+  DWLSD: 'drugwars',
+  DWPSIL: 'drugwars',
+  DWGHB: 'drugwars',
+  DWCOCA: 'drugwars',
+  DWPCP: 'drugwars',
+  FOODIE: 'foodiesunite',
+  MMW: 'makemewhale',
+  RVA: 'GBA-Richmond',
+  GBA: 'mark-waser',
+  UPVOTES: 'upvotescashier',
+  TYT: 'donatello',
+  MONEY: 'manniman',
+  GOLOSP: 'steem-tokens',
+  CAMEL: 'smt-hunter',
+  BEAR: 'eoscalifornia',
+  BET: 'thebookie',
+  JOK: 'theoutlaw',
+  GIVEAWAYS: 'madeyearcher',
+  MUSEBR: 'paulmoon410',
+  ALLAH: 'karayasatahala',
+  YHWH: 'karayasatahala',
+  SOUL: 'soulcontract',
+  BOOK: 'naha',
+  HELEOS: 'heleos',
+  LONDON: 'steemlondon',
+  UNEOS: 'uneosio',
+  SILVER: 'steem.consultant',
+  PLATA: 'steem.consultant',
+  ORO: 'steem.consultant',
+  OMEGA: 'blocktreds',
+  ACEH: 'acehkoin',
+  INFOWARS: 'infowarslife',
+  DATE: 'ddate',
+  SHCP: 'eos-peg',
+  PT: 'dancers',
+  BXCTV: 'alexsandr',
+  BRICS: 'brics',
+  NONANONE: 'xstern93',
+  SC: 'radaquest',
+  UEC: 'uec',
+  DERANGED: 'deranged.coin',
+  TREE: 'teamtrees',
+  GREATJOB: 'samuel-swinton',
+  BONUS: 'bonustoken',
+  CASH: 'streamcash',
+  POOL: 'thepool',
+  TLOSP: 'eos-peg',
+  NETXYZ: 'netxyz',
+  CEDI: 'cryptocedi',
+  NAIRA: 'cryptonaira',
+  RARECANDY: 'missingno',
+  AA: 'alcoholicsanon',
+  SLVP: 'thesilverpenny',
+  LGBT: 'lgbtblockchain',
+  POINT: 'talkingpoint',
+  EROWID: 'erowid',
+  TRASH: 'trashdapp',
+  DM: 'dmessages',
+  PRIZEE: 'cryptoprizee',
+  PINE: 'pinecoin',
+  CVS: 'cvsrewards',
+  BOOM: 'elderson',
+  KEY: 'keylontics',
+  MARS: 'ticket2mars',
+  THEDONALD: 'thedonaldcoin',
+  UROC: 'urockradio',
+  GAURDIAN: 'saun',
+  UROCK: 'urockradio',
+  STC: 'hermit41',
+  STEEMC: 'steem.classic',
+  PEACE: 'drutter',
+  ZOO: 'zooblockchain',
+  KANDA: 'telokanda',
+  BIO: 'dumitriu',
+  WAM: 'wamgrowth',
+  DVLP: 'lion200',
+  SCAM: 'scamtoken',
+  CUM: 'cum-io',
+  KM: 'saun',
+  PUMP: 'pumpcoin',
+  ASTRO: 'astronomytoken',
+  COP: 'globalpolice',
+  CBI: 'qam2112',
+  EB: 'eurobank',
+  IOU: 'aiou',
+  PAY: 'steemianpolitics',
+  GAMEIT: 'game-it',
+  BEWARE: 'bewarecenterbase',
+  ACKZA: 'ackza',
+  BTCF: 'btcf',
+  CX: 'niceposeidon',
+  HT: 'dancers',
+  CRYPTEX: 'cryptex24',
+  TESLA: 'teslastock',
+  LAMBO: 'lamborghinibank',
+  HBBC: 'holybread',
+  DERHAM: 'derhamwallet',
+  DBN: 'pirateworld',
+  POE: 'pirateworld',
+  PHARMA: 'beggars',
+  SEEMS: 'seems',
+  ATC: 'cryptoastronaut',
+  TFC: 'twelveounces',
+  TRYST: 'tryst',
+  FOO: 'foocoin',
+  DIAMOND: 'diamondtoken',
+  DPET: 'dpet',
+  BOARD: 'bountywolf',
+  HTKN: 'hatoto',
+  LNBT: 'luciannagy',
+  FF: 'dylanhobalart',
+  ANARCHY: 'jiujitsu',
+  RAINBOW: 'rainbow.curator',
+  MCD: 'oaldamster',
+  USDTP: 'sct',
+  EGG: 'cryptomancer',
+  DTRUST: 'dorado.trust',
+  JP: 'janpaki',
+  SBC: 'janpaki',
+  WBT: 'lacking',
+  SIM: 'steemcitytokens',
+  GNK: 'oaldamster',
+  WOW: 'woodooprod',
+  FIRE: 'firemoney',
+  PHOTOFT: 'wwwiebe',
+  USDP: 'sct',
+  DONE: 'janpaki',
+  HEXY: 'ethereumalist',
+  SUPER: 'supertoken',
+  STAR: 'startoken',
+  KING: 'kingtrade',
+  PIMP: 'jennyferandtony',
+  PESOS: 'pesos',
+  PESO: 'yehey',
+  KPORG: 'sct.swap',
+  KPSVC: 'sct.swap',
+  KPSTEEM: 'sct.swap',
+  KPDEC: 'sct.swap',
+  KPSBD: 'sct.swap',
+  KPSCT: 'sct.swap',
+  KPSCTM: 'sct.swap',
+  YOGA: 'yogasport',
+  OCD: 'merche',
+  LA: 'dancers',
+  RAT: 'denti',
+  HBC: 'holybread',
+  NEWS: 'newsdac',
+  WTC: 'blackman1970',
+  BNB: 'buysell-sr',
+  FREE: 'indextrader24',
+  MILK: 'stuffbyspencer',
+  SRCAPTAIN: 'srcaptain',
+  ENERGY: 'noganoo',
+  SPIR: 'spinvest',
+  TEN: 'musicians',
+  ETHER: 'ethereum-coin',
+  TRON: 'tron-coin',
+  HOT: 'raymondspeaks',
+  BRO: 'raymondspeaks',
+  LTC: 'lite-coin',
+  LTCPEG: 'lite-coin',
+  NACHOS: 'quantumnachos',
+  DUCAT: 'oaldamster',
+  BDR: 'bonus-token',
+  STOP: 'cadawg',
+  PLAY: 'gba-richmond',
+  SUNSHINE: 'noganoo',
+  STARBITS: 'atomcollector',
+  TLH: 'tailah.bayu',
+  VIRUS: 'indextrader24',
+  CORONA: 'janasilver',
+  HND: 'dancers',
+  TP: 'cadawg',
+  EXOFUEL: 'elindos',
   HIVEP: 'steem-tokens',
+  HIVE: 'noganoo',
+  LGT: 'gotogether',
+  LATINUM: 'latinum',
 };
 
-const calculateBalance = (balance, quantity, precision, add) => (add
-  ? api.BigNumber(balance).plus(quantity).toFixed(precision)
-  : api.BigNumber(balance).minus(quantity).toFixed(precision));
-
-const countDecimals = value => api.BigNumber(value).dp();
-
-const findAndProcessAll = async (table, query, callback) => {
-  let offset = 0;
-  let results = [];
-  let done = false;
-  while (!done) {
-    results = await api.db.find(table, query, 1000, offset);
-    if (results) {
-      for (let i = 0; i < results.length; i += 1) {
-        await callback(results[i]);
-      }
-      if (results.length < 1000) {
-        done = true;
-      } else {
-        offset += 1000;
-      }
-    }
-  }
-};
-
-const cancelBadUnstakes = async () => {
-  await findAndProcessAll('pendingUnstakes', { _id: { $lte: 14508, $gte: 13736 }, 'numberTransactionsLeft': { $gt: 1 } }, async (pendingUnstake) => {
-    // eslint-disable-next-line no-use-before-define
-    if (await processCancelUnstake(pendingUnstake)) {
-      await api.db.remove('pendingUnstakes', pendingUnstake);
-    }
-  });
-};
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('tokens');
@@ -81,13 +802,6 @@ actions.createSSC = async () => {
     params.enableDelegationFee = '0';
     params.enableStakingFee = '0';
     await api.db.insert('params', params);
-  } else {
-    const params = await api.db.findOne('params', {});
-    if (!params.cancelBadUnstakes) {
-      await cancelBadUnstakes();
-      params.cancelBadUnstakes = true;
-    }
-    await api.db.update('params', params);
   }
 };
 
@@ -101,6 +815,12 @@ const balanceTemplate = {
   delegationsOut: '0',
   pendingUndelegations: '0',
 };
+
+const calculateBalance = (balance, quantity, precision, add) => (add
+  ? api.BigNumber(balance).plus(quantity).toFixed(precision)
+  : api.BigNumber(balance).minus(quantity).toFixed(precision));
+
+const countDecimals = value => api.BigNumber(value).dp();
 
 const addStake = async (account, token, quantity) => {
   let balance = await api.db.findOne('balances', { account, symbol: token.symbol });
@@ -139,6 +859,29 @@ const addStake = async (account, token, quantity) => {
   return false;
 };
 
+const subStake = async (account, token, quantity) => {
+  const balance = await api.db.findOne('balances', { account, symbol: token.symbol });
+
+  if (api.assert(balance !== null, 'balance does not exist')
+    && api.assert(api.BigNumber(balance.stake).gte(quantity), 'overdrawn stake')) {
+    const originalStake = balance.stake;
+    const originalPendingStake = balance.pendingUnstake;
+
+    balance.stake = calculateBalance(balance.stake, quantity, token.precision, false);
+    balance.pendingUnstake = calculateBalance(
+      balance.pendingUnstake, quantity, token.precision, true,
+    );
+
+    if (api.assert(api.BigNumber(balance.stake).lt(originalStake)
+      && api.BigNumber(balance.pendingUnstake).gt(originalPendingStake), 'cannot subtract')) {
+      await api.db.update('balances', balance);
+
+      return true;
+    }
+  }
+
+  return false;
+};
 
 const subBalance = async (account, token, quantity, table) => {
   const balance = await api.db.findOne(table, { account, symbol: token.symbol });
@@ -303,7 +1046,6 @@ actions.create = async (payload) => {
   // get api.sender's UTILITY_TOKEN_SYMBOL balance
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOne('balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
-
   const authorizedCreation = api.BigNumber(tokenCreationFee).lte(0)
     ? true
     : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(tokenCreationFee);
@@ -376,16 +1118,12 @@ actions.create = async (payload) => {
 actions.issue = async (payload) => {
   const {
     to, symbol, quantity, isSignedWithActiveKey,
-    callingContractInfo,
   } = payload;
 
-  const fromMiningContract = (api.sender === 'null'
-      && callingContractInfo.name === 'mining');
-  if (fromMiningContract
-    || (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-      && api.assert(to && typeof to === 'string'
-        && symbol && typeof symbol === 'string'
-        && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params'))) {
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(to && typeof to === 'string'
+      && symbol && typeof symbol === 'string'
+      && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const finalTo = to.trim();
     const token = await api.db.findOne('tokens', { symbol });
 
@@ -393,7 +1131,7 @@ actions.issue = async (payload) => {
     // the api.sender must be the issuer
     // then we need to check that the quantity is correct
     if (api.assert(token !== null, 'symbol does not exist')
-      && api.assert(fromMiningContract || token.issuer === api.sender, 'not allowed to issue tokens')
+      && api.assert(token.issuer === api.sender, 'not allowed to issue tokens')
       && api.assert(countDecimals(quantity) <= token.precision, 'symbol precision mismatch')
       && api.assert(api.BigNumber(quantity).gt(0), 'must issue positive quantity')
       && api.assert(api.BigNumber(token.maxSupply).minus(token.supply).gte(quantity), 'quantity exceeds available supply')) {
@@ -642,7 +1380,6 @@ const processUnstake = async (unstake) => {
   const balance = await api.db.findOne('balances', { account, symbol });
   const token = await api.db.findOne('tokens', { symbol });
   let tokensToRelease = 0;
-  let nextTokensToRelease = 0;
 
   if (api.assert(balance !== null, 'balance does not exist')) {
     // if last transaction to process
@@ -659,12 +1396,6 @@ const processUnstake = async (unstake) => {
         .toFixed(token.precision);
 
       newUnstake.numberTransactionsLeft -= 1;
-
-      if (newUnstake.numberTransactionsLeft === 1) {
-        nextTokensToRelease = newUnstake.quantityLeft;
-      } else {
-        nextTokensToRelease = tokensToRelease;
-      }
 
       newUnstake.nextTransactionTimestamp = api.BigNumber(newUnstake.nextTransactionTimestamp)
         .plus(newUnstake.millisecPerPeriod)
@@ -683,18 +1414,13 @@ const processUnstake = async (unstake) => {
       balance.pendingUnstake = calculateBalance(
         balance.pendingUnstake, tokensToRelease, token.precision, false,
       );
-      if (api.BigNumber(nextTokensToRelease).gt(0)) {
-        balance.stake = calculateBalance(
-          balance.stake, nextTokensToRelease, token.precision, false,
-        );
-      }
 
       if (api.assert(api.BigNumber(balance.pendingUnstake).lt(originalPendingStake)
         && api.BigNumber(balance.balance).gt(originalBalance), 'cannot subtract')) {
         await api.db.update('balances', balance);
 
         token.totalStaked = calculateBalance(
-          token.totalStaked, nextTokensToRelease, token.precision, false,
+          token.totalStaked, tokensToRelease, token.precision, false,
         );
 
         await api.db.update('tokens', token);
@@ -706,8 +1432,6 @@ const processUnstake = async (unstake) => {
         if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
           // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
         }
-        await api.executeSmartContract('mining', 'handleStakeChange',
-          { account, symbol, quantity: api.BigNumber(tokensToRelease).negated() });
       }
     }
   }
@@ -835,8 +1559,6 @@ actions.stake = async (payload) => {
             // await api.executeSmartContract
             // ('witnesses', 'updateWitnessesApprovals', { account: api.sender });
           }
-          await api.executeSmartContract('mining', 'handleStakeChange',
-            { account: finalTo, symbol, quantity });
         }
       }
     }
@@ -878,74 +1600,15 @@ actions.stakeFromContract = async (payload) => {
           // eslint-disable-next-line no-template-curly-in-string
           if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
             // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals',
-            // { account: finalTo });
+            //  { account: finalTo });
           }
-          await api.executeSmartContract('mining', 'handleStakeChange',
-            { account: finalTo, symbol, quantity });
         }
       }
     }
   }
 };
 
-const validateAvailableStake = async (balance, token, quantity) => {
-  let availableStakeBalance = api.BigNumber(balance.stake);
-  // During unstake, we only subtract next batch amount from stake. But the full unstake amount
-  // should be unavailable for delegation.
-  await findAndProcessAll('pendingUnstakes', { symbol: balance.symbol, account: balance.account },
-    async (pendingUnstake) => {
-      if (pendingUnstake.numberTransactionsLeft > 1) {
-        const tokensToRelease = api.BigNumber(pendingUnstake.quantity)
-          .dividedBy(token.numberTransactions)
-          .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
-        availableStakeBalance = availableStakeBalance.minus(pendingUnstake.quantityLeft)
-          .plus(tokensToRelease);
-      }
-    });
-  return api.assert(availableStakeBalance.gte(quantity), 'overdrawn stake');
-};
-
 const startUnstake = async (account, token, quantity) => {
-  const balance = await api.db.findOne('balances', { account, symbol: token.symbol });
-
-  if (api.assert(balance !== null, 'balance does not exist')
-    && await validateAvailableStake(balance, token, quantity)) {
-    const originalStake = balance.stake;
-    const originalPendingStake = balance.pendingUnstake;
-
-
-    const nextTokensToRelease = token.numberTransactions > 1 ? api.BigNumber(quantity)
-      .dividedBy(token.numberTransactions)
-      .toFixed(token.precision, api.BigNumber.ROUND_DOWN) : quantity;
-
-    balance.stake = calculateBalance(balance.stake, nextTokensToRelease, token.precision, false);
-    balance.pendingUnstake = calculateBalance(
-      balance.pendingUnstake, quantity, token.precision, true,
-    );
-
-    if (api.assert(api.BigNumber(balance.stake).lt(originalStake)
-      && api.BigNumber(balance.pendingUnstake).gt(originalPendingStake), 'cannot subtract')) {
-      await api.db.update('balances', balance);
-      // eslint-disable-next-line no-param-reassign
-      token.totalStaked = calculateBalance(
-        token.totalStaked, nextTokensToRelease, token.precision, false,
-      );
-      await api.db.update('tokens', token);
-      // update witnesses rank
-      // eslint-disable-next-line no-template-curly-in-string
-      if (token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-        // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
-      }
-      await api.executeSmartContract('mining', 'handleStakeChange', {
-        account,
-        symbol: token.symbol,
-        quantity: api.BigNumber(nextTokensToRelease).negated(),
-      });
-    }
-  } else {
-    return false;
-  }
-
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const cooldownPeriodMillisec = token.unstakingCooldown * 24 * 3600 * 1000;
   const millisecPerPeriod = api.BigNumber(cooldownPeriodMillisec)
@@ -968,7 +1631,6 @@ const startUnstake = async (account, token, quantity) => {
   };
 
   await api.db.insert('pendingUnstakes', unstake);
-  return true;
 };
 
 actions.unstake = async (payload) => {
@@ -986,7 +1648,9 @@ actions.unstake = async (payload) => {
       && api.assert(token.stakingEnabled === true, 'staking not enabled')
       && api.assert(countDecimals(quantity) <= token.precision, 'symbol precision mismatch')
       && api.assert(api.BigNumber(quantity).gt(0), 'must unstake positive quantity')) {
-      if (await startUnstake(api.sender, token, quantity)) {
+      if (await subStake(api.sender, token, quantity)) {
+        await startUnstake(api.sender, token, quantity);
+
         api.emit('unstakeStart', { account: api.sender, symbol, quantity });
       }
     }
@@ -997,9 +1661,7 @@ const processCancelUnstake = async (unstake) => {
   const {
     account,
     symbol,
-    quantity,
     quantityLeft,
-    numberTransactionsLeft,
   } = unstake;
 
   const balance = await api.db.findOne('balances', { account, symbol });
@@ -1010,11 +1672,8 @@ const processCancelUnstake = async (unstake) => {
     const originalStake = balance.stake;
     const originalPendingStake = balance.pendingUnstake;
 
-    const tokensToRelease = numberTransactionsLeft > 1 ? api.BigNumber(quantity)
-      .dividedBy(token.numberTransactions)
-      .toFixed(token.precision, api.BigNumber.ROUND_DOWN) : quantityLeft;
     balance.stake = calculateBalance(
-      balance.stake, tokensToRelease, token.precision, true,
+      balance.stake, quantityLeft, token.precision, true,
     );
     balance.pendingUnstake = calculateBalance(
       balance.pendingUnstake, quantityLeft, token.precision, false,
@@ -1023,22 +1682,8 @@ const processCancelUnstake = async (unstake) => {
     if (api.assert(api.BigNumber(balance.pendingUnstake).lt(originalPendingStake)
       && api.BigNumber(balance.stake).gt(originalStake), 'cannot subtract')) {
       await api.db.update('balances', balance);
-      token.totalStaked = calculateBalance(
-        token.totalStaked, tokensToRelease, token.precision, true,
-      );
-      await api.db.update('tokens', token);
 
-      api.emit('unstakeCancel', { account, symbol, quantity: quantityLeft });
-
-      // update witnesses rank
-      // eslint-disable-next-line no-template-curly-in-string
-      if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-        // await api.executeSmartContract
-        // ('witnesses', 'updateWitnessesApprovals', { account: api.sender });
-      }
-      await api.executeSmartContract('mining', 'handleStakeChange',
-        { account, symbol, quantity: tokensToRelease });
-
+      api.emit('unstake', { account, symbol, quantity: quantityLeft });
       return true;
     }
   }
@@ -1133,7 +1778,7 @@ actions.delegate = async (payload) => {
         const balanceFrom = await api.db.findOne('balances', { account: api.sender, symbol });
 
         if (api.assert(balanceFrom !== null, 'balanceFrom does not exist')
-          && await validateAvailableStake(balanceFrom, token, quantity)) {
+          && api.assert(api.BigNumber(balanceFrom.stake).gte(quantity), 'overdrawn stake')) {
           if (balanceFrom.stake === undefined) {
             // update old balances with new properties
             balanceFrom.stake = '0';
@@ -1222,12 +1867,6 @@ actions.delegate = async (payload) => {
               // await api.executeSmartContract('witnesses',
               // 'updateWitnessesApprovals', { account: finalTo });
             }
-            await api.executeSmartContract('mining', 'handleStakeChange',
-              {
-                account: finalTo, symbol, quantity, delegated: true,
-              });
-            await api.executeSmartContract('mining', 'handleStakeChange',
-              { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
           } else {
             // if a delegation already exists, increase it
 
@@ -1267,12 +1906,6 @@ actions.delegate = async (payload) => {
               // await api.executeSmartContract('witnesses',
               // 'updateWitnessesApprovals', { account: finalTo });
             }
-            await api.executeSmartContract('mining', 'handleStakeChange',
-              {
-                account: finalTo, symbol, quantity, delegated: true,
-              });
-            await api.executeSmartContract('mining', 'handleStakeChange',
-              { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
           }
         }
       }
@@ -1367,13 +2000,6 @@ actions.undelegate = async (payload) => {
                 // await api.executeSmartContract('witnesses',
                 // 'updateWitnessesApprovals', { account: finalFrom });
               }
-              await api.executeSmartContract('mining', 'handleStakeChange',
-                {
-                  account: finalFrom,
-                  symbol,
-                  quantity: api.BigNumber(quantity).negated(),
-                  delegated: true,
-                });
             }
           }
         }
@@ -1419,8 +2045,6 @@ const processUndelegation = async (undelegation) => {
         // await api.executeSmartContract('witnesses',
         // 'updateWitnessesApprovals', { account });
       }
-      await api.executeSmartContract('mining', 'handleStakeChange',
-        { account, symbol, quantity });
     }
   }
 };

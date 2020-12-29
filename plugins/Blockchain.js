@@ -3,6 +3,7 @@ const { Transaction } = require('../libs/Transaction');
 const { IPC } = require('../libs/IPC');
 const { Database } = require('../libs/Database');
 const { Bootstrap } = require('../contracts/bootstrap/Bootstrap');
+const axios = require('axios');
 
 const PLUGIN_PATH = require.resolve(__filename);
 const { PLUGIN_NAME, PLUGIN_ACTIONS } = require('./Blockchain.constants');
@@ -45,6 +46,8 @@ async function producePendingTransactions(
   refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, timestamp,
 ) {
   const previousBlock = await getLatestBlockMetadata();
+    console.log(previousBlock);
+  console.time('blockDbSession');
   if (previousBlock) {
     // skip block if it has been parsed already
     if (refHiveBlockNumber <= previousBlock.refHiveBlockNumber) {
@@ -64,12 +67,48 @@ async function producePendingTransactions(
       previousBlock.databaseHash,
     );
 
-    await newBlock.produceBlock(database, javascriptVMTimeout);
+      console.log(newBlock.blockNumber);
+    const session = database.startSession();
+
+    console.time('fetchApiBlock');
+    const mainBlock = (await axios({ url: "https://api.hive-engine.com/rpc/blockchain",
+            method: 'POST',
+            headers: {
+                      "content-type": "application/json",
+                    },
+            data: {"jsonrpc": "2.0","id":10,"method":"getBlockInfo","params":{"blockNumber": newBlock.blockNumber}},
+        })).data.result;
+    console.timeEnd('fetchApiBlock');
+    try {
+        await session.withTransaction(async() => {
+    await newBlock.produceBlock(database, javascriptVMTimeout, mainBlock);
 
     if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
+      if (newBlock.blockNumber > 100 && newBlock.hash) {
+        console.log(`bn: ${mainBlock.blockNumber}, d: ${mainBlock.databaseHash}, h: ${mainBlock.hash}`);
+        console.log(`bn: ${newBlock.blockNumber}, d: ${newBlock.databaseHash}, h: ${newBlock.hash}`);
+        
+        if (mainBlock.databaseHash != newBlock.databaseHash || mainBlock.hash != newBlock.hash) {
+            console.warn(mainBlock);
+            console.warn(newBlock);
+            throw new Error("block mismatch with api");
+        }
+      }
+
       await addBlock(newBlock);
     }
+
+    });
+    } catch (e) {
+        console.error(e);
+        throw e;
+    } finally {
+        await database.endSession();
+    }
+  } else {
+      throw new Error("block not found");
   }
+  console.timeEnd('blockDbSession');
 }
 
 const produceNewBlockSync = async (block, callback = null) => {

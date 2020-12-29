@@ -13,10 +13,14 @@ class Database {
     this.databaseHash = '';
     this.client = null;
     this.session = null;
+    this.contractCache = {};
+    this.objectCache = {};
   }
 
   startSession() {
     this.session = this.client.startSession();
+    this.contractCache = {};
+    this.objectCache = {};
     return this.session;
   }
 
@@ -123,14 +127,14 @@ class Database {
 
   async updateTableHash(contract, table) {
     const contracts = this.database.collection('contracts');
-    const contractInDb = await contracts.findOne({ _id: contract }, { session: this.session });
+    const contractInDb = await this.findContract({ name: contract });//await contracts.findOne({ _id: contract }, { session: this.session });
 
     if (contractInDb && contractInDb.tables[table] !== undefined) {
       const tableHash = contractInDb.tables[table].hash;
 
       contractInDb.tables[table].hash = SHA256(tableHash).toString(enchex);
 
-      await contracts.updateOne({ _id: contract }, { $set: contractInDb }, { session: this.session });
+      //await contracts.updateOne({ _id: contract }, { $set: contractInDb }, { session: this.session });
 
       this.databaseHash = SHA256(this.databaseHash + contractInDb.tables[table].hash)
         .toString(enchex);
@@ -189,13 +193,15 @@ class Database {
     try {
       const _idNewBlock = await this.getLastSequence('chain'); // eslint-disable-line no-underscore-dangle
 
+        console.log(_idNewBlock);
+
       const lastestBlock = await this.chain.findOne({ _id: _idNewBlock - 1 }, { session: this.session });
 
       if (lastestBlock) {
         lastestBlock.transactions = [];
         lastestBlock.virtualTransactions = [];
       }
-
+console.log(lastestBlock);
       return lastestBlock;
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -262,14 +268,19 @@ class Database {
    * @returns {Object} returns the contract info if it exists, null otherwise
    */
   async findContract(payload) {
+    const { name } = payload;
+    if (this.contractCache[name]) {
+        return this.contractCache[name];
+    }
     try {
-      const { name } = payload;
       if (name && typeof name === 'string') {
         const contracts = this.database.collection('contracts');
 
+        console.log('finding contract ' + name);
         const contractInDb = await contracts.findOne({ _id: name }, { session: this.session });
 
         if (contractInDb) {
+          this.contractCache[name] = contractInDb;
           return contractInDb;
         }
       }
@@ -331,6 +342,9 @@ class Database {
       const contract = await contracts.findOne({ _id, owner }, { session: this.session });
       if (contract !== null) {
         await contracts.updateOne({ _id }, { $set: payload }, { session: this.session });
+        if (this.contractCache[contract.name]) {
+            Object.assign(this.contractCache[contract.name], payload);
+        }
       }
     }
   }
@@ -400,6 +414,11 @@ class Database {
         indexes,
       } = payload;
 
+      if (contract == 'botcontroller' || contract == 'mining') {
+          console.log(payload);
+      }
+      await this.flushCache();
+
       const lim = limit || 1000;
       const off = offset || 0;
       const ind = indexes || [];
@@ -446,8 +465,13 @@ class Database {
         }
       }
 
+      if (contract == 'botcontroller' || contract == 'mining') {
+          console.log(result);
+      }
       return result;
     } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(error);
       return null;
     }
   }
@@ -462,6 +486,7 @@ class Database {
   async findOne(payload) { // eslint-disable-line no-unused-vars
     try {
       const { contract, table, query } = payload;
+        console.log(payload);
       let result = null;
       if (contract && typeof contract === 'string'
         && table && typeof table === 'string'
@@ -470,17 +495,30 @@ class Database {
           query._id = query.$loki; // eslint-disable-line no-underscore-dangle
           delete query.$loki;
         }
+        const objectCacheKey = this.objectCacheKey(contract, table, query);
+        if (objectCacheKey) {
+            if (this.objectCache[objectCacheKey]) {
+                return this.objectCache[objectCacheKey];
+            }
+        } else {
+            await this.flushCache();
+        }
         const finalTableName = `${contract}_${table}`;
 
         const tableData = await this.getContractCollection(contract, finalTableName);
         if (tableData) {
+            console.log('performing find');
           result = await tableData.findOne(EJSON.deserialize(query), { session: this.session });
           result = EJSON.serialize(result);
         }
       }
 
+        console.log(result);
+        console.log('after find');
       return result;
     } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(error);
       return null;
     }
   }
@@ -492,6 +530,8 @@ class Database {
    * @param {String} record record to save in the table
    */
   async insert(payload) { // eslint-disable-line no-unused-vars
+    console.log('insert');
+      console.log(payload);
     const { contract, table, record } = payload;
     const finalTableName = `${contract}_${table}`;
     let finalRecord = null;
@@ -507,7 +547,11 @@ class Database {
       }
     }
 
+    if (contract === 'mining') {
+        console.log(finalRecord);
+    }
     return finalRecord;
+    
   }
 
   /**
@@ -526,6 +570,11 @@ class Database {
       if (tableInDb) {
         await this.updateTableHash(contract, finalTableName);
         await tableInDb.deleteOne({ _id: record._id }, { session: this.session }); // eslint-disable-line no-underscore-dangle
+
+        const objectCacheKey = this.objectCacheKey(contract, table, record);
+        if (objectCacheKey && this.objectCache[objectCacheKey]) {
+            delete this.objectCache[objectCacheKey];
+        } 
       }
     }
   }
@@ -537,25 +586,78 @@ class Database {
    * @param {String} record record to update in the table
    * @param {String} unsets record fields to be removed (optional)
    */
-  async update(payload) {
+  async update(payload, cache=true) {
     const {
       contract, table, record, unsets,
     } = payload;
+    
     const finalTableName = `${contract}_${table}`;
 
     const contractInDb = await this.findContract({ name: contract });
     if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
       const tableInDb = this.database.collection(finalTableName);
       if (tableInDb) {
-        await this.updateTableHash(contract, finalTableName);
+
+        if (!record._id)  {
+            record._id = await this.getNextSequence(finalTableName); // eslint-disable-line
+        }
+
+  console.log('update cache=' + cache);
+      console.log(payload);
+    if (unsets && !cache) {
+        await this.flushCache();
+    } else if (cache) {
+        const objectCacheKey = this.objectCacheKey(contract, table, record);
+        if (objectCacheKey) {
+            this.objectCache[objectCacheKey] = record;
+            await this.updateTableHash(contract, finalTableName);
+            return;
+        }
+    }
+
+        if (cache) {
+            // Do not re-update table hash when flushing cache.
+            await this.updateTableHash(contract, finalTableName);
+        }
 
         if (unsets) {
-          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record), $unset: EJSON.deserialize(unsets) }, { session: this.session }); // eslint-disable-line
+          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record), $unset: EJSON.deserialize(unsets) }, { upsert: true, session: this.session }); // eslint-disable-line
         } else {
-          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record) }, { session: this.session }); // eslint-disable-line
+          await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record) }, { upsert: true, session: this.session }); // eslint-disable-line
         }
       }
     }
+  }
+
+  async flushCache() {
+      let keys = Object.keys(this.objectCache);
+      for (let i=0; i < keys.length; i += 1) {
+          const k = keys[i];
+          const keyParts = k.split('_');
+          const payload = {
+              contract: keyParts[0],
+              table: keyParts[1],
+              record: this.objectCache[k],
+          };
+          console.log('flush' + k);
+          console.log(payload);
+          await this.update(payload, false);
+      }
+      this.objectCache = {};
+
+      const contracts = this.database.collection('contracts');
+      keys = Object.keys(this.contractCache);
+      for (let i=0; i < keys.length; i += 1) {
+          const k = keys[i];
+          await contracts.updateOne({ _id: k }, { $set: this.contractCache[k] }, { session: this.session });
+      }
+  }
+
+  objectCacheKey(contract, table, object) {
+      if (contract === 'mining' && table === 'miningPower') {
+          return `${contract}_${table}_${object.id}_${object.account}`;
+      }
+      return null;
   }
 
   /**
@@ -619,6 +721,7 @@ class Database {
       offset,
       indexes,
     } = payload;
+    await this.flushCache();
 
     const lim = limit || 1000;
     const off = offset || 0;
@@ -657,6 +760,7 @@ class Database {
    */
   async dfindOne(payload) {
     const { table, query } = payload;
+    await this.flushCache();
 
     const tableInDb = await this.getCollection(table);
     let record = null;

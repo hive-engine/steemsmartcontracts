@@ -22,18 +22,18 @@ class SmartContracts {
   static async deploySmartContractInTransaction(
     database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout,
   ) {
-    const session = database.startSession();
+    //const session = database.startSession();
     let ret;
     try {
       try {
-        await session.withTransaction(async() => {
+     //   await session.withTransaction(async() => {
             ret = await this.deploySmartContract(database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout); 
-            if (ret.logs && ret.logs.errors && ret.logs.errors.length > 0) {
-              throw abortTransactionError;
-            }
-        });
+//            if (ret.logs && ret.logs.errors && ret.logs.errors.length > 0) {
+ //             throw abortTransactionError;
+  //          }
+      //  });
       } finally {
-        await database.endSession();
+       // await database.endSession();
       }
     } catch(e) {
       if (e !== abortTransactionError) {
@@ -268,18 +268,18 @@ class SmartContracts {
 
   static async executeSmartContractInTransaction(database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout,
   ) {
-    const session = database.startSession();
+    //const session = database.startSession();
     let ret;
     try {
       try {
-        await session.withTransaction(async() => {
+    //    await session.withTransaction(async() => {
             ret = await this.executeSmartContract(database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout);
-            if (ret.logs && ret.logs.errors && ret.logs.errors.length > 0) {
-              throw abortTransactionError;
-            }
-        });
+     //       if (ret.logs && ret.logs.errors && ret.logs.errors.length > 0) {
+      //        throw abortTransactionError;
+       //     }
+     //   });
       } finally {
-        await database.endSession();
+      //  await database.endSession();
       }
     } catch(e) {
       if (e !== abortTransactionError) {
@@ -325,15 +325,19 @@ class SmartContracts {
           database, tables, contract, tableName, indexes,
         ),
         // perform a query find on a table of the smart contract
-        find: (table, query, limit = 1000, offset = 0, indexes = []) => SmartContracts.find(
+        find: (table, query, limit = 1000, offset = 0, indexes = []) => {
+            console.log(`find ${table} ${JSON.stringify(query)} ${JSON.stringify(indexes)}`);
+            return SmartContracts.find(
           database, contract, table, query, limit, offset, indexes,
-        ),
+        ); },
         // perform a query find on a table of an other smart contract
-        findInTable: (contractName, table, query, limit = 1000, offset = 0, index = '', descending = false) => SmartContracts.find(
+        findInTable: (contractName, table, query, limit = 1000, offset = 0, index = '', descending = false) => {
+            console.log(`${contractName} ${table} ${JSON.stringify(query)}`); 
+            return SmartContracts.find(
           database, contractName, table, query, limit, offset, index, descending,
-        ),
+        ); },
         // perform a query findOne on a table of the smart contract
-        findOne: (table, query) => SmartContracts.findOne(database, contract, table, query),
+        findOne: (table, query) => { console.log(`findone ${table} ${JSON.stringify(query)}`); return SmartContracts.findOne(database, contract, table, query);},
         // perform a query findOne on a table of an other smart contract
         findOneInTable: (contractName, table, query) => SmartContracts.findOne(
           database, contractName, table, query,
@@ -341,11 +345,11 @@ class SmartContracts {
         // find the information of a contract
         findContract: contractName => SmartContracts.findContract(database, contractName),
         // insert a record in the table of the smart contract
-        insert: (table, record) => SmartContracts.insert(database, contract, table, record),
+        insert: (table, record) => { console.log(`insert ${table} ${JSON.stringify(record)}`); return SmartContracts.insert(database, contract, table, record); },
         // insert a record in the table of the smart contract
-        remove: (table, record) => SmartContracts.remove(database, contract, table, record),
+        remove: (table, record) => { console.log(`remove ${table} ${JSON.stringify(record)}`); return SmartContracts.remove(database, contract, table, record); },
         // insert a record in the table of the smart contract
-        update: (table, record, unsets = undefined) => SmartContracts.update(database, contract, table, record, unsets),
+        update: (table, record, unsets = undefined) => { console.log(`update ${table} ${JSON.stringify(record)}`); return SmartContracts.update(database, contract, table, record, unsets); },
         // check if a table exists
         tableExists: table => SmartContracts.tableExists(database, contract, table),
         // get block information
@@ -414,13 +418,13 @@ class SmartContracts {
           // execute a smart contract from the current smart contract
           executeSmartContract: async (
             contractName, actionName, parameters,
-          ) => SmartContracts.executeSmartContractFromSmartContract(
+          ) => { console.log(`{contractName} {actionName} {JSON.stringify(parameters)}`); return SmartContracts.executeSmartContractFromSmartContract(
             database, results, sender, payloadObj, contractName, actionName,
             JSON.stringify(parameters),
             blockNumber, timestamp,
             refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout,
             contract, action, contractVersion,
-          ),
+          );},
           // execute a smart contract from the current smart contract
           // with the contractOwner authority level
           executeSmartContractAsOwner: async (

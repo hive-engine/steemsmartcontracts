@@ -76,16 +76,27 @@ class Block {
   }
 
   // produce the block (deploy a smart contract or execute a smart contract)
-  async produceBlock(database, jsVMTimeout) {
+  async produceBlock(database, jsVMTimeout, mainBlock) {
+    console.time('block');
     const nbTransactions = this.transactions.length;
 
     let currentDatabaseHash = this.previousDatabaseHash;
 
+    let relIndex = 0;
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
 
       currentDatabaseHash = transaction.databaseHash;
+
+      if (transaction.contract !== 'comments'  || transaction.logs === '{}') {
+          if (currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
+              console.warn(mainBlock.transactions[relIndex]);
+              console.warn(transaction);
+              throw new Error("tx hash mismatch with api");
+          }
+          relIndex += 1;
+      }
     }
 
     // remove comment, comment_options and votes if not relevant
@@ -118,6 +129,7 @@ class Block {
       virtualTransactions.push(new Transaction(0, '', 'null', 'inflation', 'issueNewTokens', '{ "isSignedWithActiveKey": true }'));
     }
 
+    relIndex = 0;
     const nbVirtualTransactions = virtualTransactions.length;
     for (let i = 0; i < nbVirtualTransactions; i += 1) {
       const transaction = virtualTransactions[i];
@@ -155,6 +167,12 @@ class Block {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
+          if (currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
+              console.warn(mainBlock.virtualTransactions[relIndex]);
+              console.warn(transaction);
+              throw new Error("tx hash mismatch with api");
+          }
+          relIndex += 1;
         }
       }
     }
@@ -168,6 +186,8 @@ class Block {
       this.databaseHash = merkleRoots.databaseHash;
       this.hash = this.calculateHash();
     }
+
+      console.timeEnd('block');
   }
 
   async processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash) {
@@ -205,6 +225,8 @@ class Block {
     } else {
       results = { logs: { errors: ['the parameters sender, contract and action are required'] } };
     }
+
+    await database.flushCache();
 
     // get the database hash
     newCurrentDatabaseHash = database.getDatabaseHash();

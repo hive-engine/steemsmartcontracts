@@ -112,6 +112,8 @@ class Database {
 
       this.databaseHash = SHA256(this.databaseHash + contractInDb.tables[table].hash)
         .toString(enchex);
+      console.log('updated hash of ' + contract + ':' + table + ' to ' + contractInDb.tables[table].hash);
+      console.log('updated db hash to ' + this.databaseHash);
     }
   }
 

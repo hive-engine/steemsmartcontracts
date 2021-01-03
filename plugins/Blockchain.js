@@ -71,7 +71,8 @@ async function producePendingTransactions(
     const session = database.startSession();
 
     console.time('fetchApiBlock');
-    const mainBlock = (await axios({ url: "https://api.hive-engine.com/rpc/blockchain",
+    const enableHashVerification = true || newBlock.blockNumber > 3825600;
+    const mainBlock = !enableHashVerification ? null : (await axios({ url: "https://api.hive-engine.com/rpc/blockchain",
             method: 'POST',
             headers: {
                       "content-type": "application/json",
@@ -84,7 +85,7 @@ async function producePendingTransactions(
     await newBlock.produceBlock(database, javascriptVMTimeout, mainBlock);
 
     if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
-      if (newBlock.blockNumber > 100 && newBlock.hash) {
+      if (mainBlock && newBlock.hash) {
         console.log(`bn: ${mainBlock.blockNumber}, d: ${mainBlock.databaseHash}, h: ${mainBlock.hash}`);
         console.log(`bn: ${newBlock.blockNumber}, d: ${newBlock.databaseHash}, h: ${newBlock.hash}`);
         
@@ -96,6 +97,9 @@ async function producePendingTransactions(
       }
 
       await addBlock(newBlock);
+      console.log('processed hive block ' + refHiveBlockNumber + ' into sidechain block ' + newBlock.blockNumber);
+    } else {
+      console.log('processed hive block ' + refHiveBlockNumber + ' with no engine txs');
     }
 
     });
@@ -112,6 +116,7 @@ async function producePendingTransactions(
 }
 
 const produceNewBlockSync = async (block, callback = null) => {
+  console.time('produceBlockSync');
   if (stopRequested) return;
   producing = true;
   // the stream parsed transactions from the Hive blockchain
@@ -143,6 +148,7 @@ const produceNewBlockSync = async (block, callback = null) => {
   producing = false;
 
   if (callback) callback();
+  console.timeEnd('produceBlockSync');
 };
 
 // when stopping, we wait until the current block is produced

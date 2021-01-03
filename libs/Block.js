@@ -78,6 +78,7 @@ class Block {
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
     console.time('block');
+      try {
     const nbTransactions = this.transactions.length;
 
     let currentDatabaseHash = this.previousDatabaseHash;
@@ -90,7 +91,7 @@ class Block {
       currentDatabaseHash = transaction.databaseHash;
 
       if (transaction.contract !== 'comments'  || transaction.logs === '{}') {
-          if (currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
+          if (mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
               console.warn(mainBlock.transactions[relIndex]);
               console.warn(transaction);
               throw new Error("tx hash mismatch with api");
@@ -167,7 +168,7 @@ class Block {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
-          if (currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
+          if (mainBlock && currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
               console.warn(mainBlock.virtualTransactions[relIndex]);
               console.warn(transaction);
               throw new Error("tx hash mismatch with api");
@@ -186,8 +187,9 @@ class Block {
       this.databaseHash = merkleRoots.databaseHash;
       this.hash = this.calculateHash();
     }
-
+      } finally {
       console.timeEnd('block');
+      }
   }
 
   async processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash) {
@@ -227,6 +229,7 @@ class Block {
     }
 
     await database.flushCache();
+    await database.flushContractCache();
 
     // get the database hash
     newCurrentDatabaseHash = database.getDatabaseHash();

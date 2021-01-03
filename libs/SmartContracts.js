@@ -326,18 +326,20 @@ class SmartContracts {
         ),
         // perform a query find on a table of the smart contract
         find: (table, query, limit = 1000, offset = 0, indexes = []) => {
-            console.log(`find ${table} ${JSON.stringify(query)} ${JSON.stringify(indexes)}`);
+            //console.log(`find ${table} ${JSON.stringify(query)} ${JSON.stringify(indexes)}`);
             return SmartContracts.find(
           database, contract, table, query, limit, offset, indexes,
         ); },
         // perform a query find on a table of an other smart contract
         findInTable: (contractName, table, query, limit = 1000, offset = 0, index = '', descending = false) => {
-            console.log(`${contractName} ${table} ${JSON.stringify(query)}`); 
+            //console.log(`${contractName} ${table} ${JSON.stringify(query)}`); 
             return SmartContracts.find(
           database, contractName, table, query, limit, offset, index, descending,
         ); },
         // perform a query findOne on a table of the smart contract
-        findOne: (table, query) => { console.log(`findone ${table} ${JSON.stringify(query)}`); return SmartContracts.findOne(database, contract, table, query);},
+        findOne: (table, query) => { 
+            //console.log(`findone ${table} ${JSON.stringify(query)}`);
+            return SmartContracts.findOne(database, contract, table, query);},
         // perform a query findOne on a table of an other smart contract
         findOneInTable: (contractName, table, query) => SmartContracts.findOne(
           database, contractName, table, query,
@@ -418,7 +420,7 @@ class SmartContracts {
           // execute a smart contract from the current smart contract
           executeSmartContract: async (
             contractName, actionName, parameters,
-          ) => { console.log(`{contractName} {actionName} {JSON.stringify(parameters)}`); return SmartContracts.executeSmartContractFromSmartContract(
+          ) => { console.log(`${contractName} ${actionName} ${JSON.stringify(parameters)}`); return SmartContracts.executeSmartContractFromSmartContract(
             database, results, sender, payloadObj, contractName, actionName,
             JSON.stringify(parameters),
             blockNumber, timestamp,

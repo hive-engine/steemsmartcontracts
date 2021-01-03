@@ -26,6 +26,8 @@ In addition, the followimg is needed to use transaction framework for MongoDB:
       replSetName: "rs0"
   ```
 - Need version 3.6 mongo node library.
+
+Also, if using PM2, you will need to start the process with --no-treekill for proper shutdown.
 ## 5. Tests
 * npm run test
 

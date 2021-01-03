@@ -138,6 +138,8 @@ class Database {
 
       this.databaseHash = SHA256(this.databaseHash + contractInDb.tables[table].hash)
         .toString(enchex);
+      console.log('updated hash of ' + contract + ':' + table + ' to ' + contractInDb.tables[table].hash);
+      console.log('updated db hash to ' + this.databaseHash);
     }
   }
 
@@ -201,7 +203,6 @@ class Database {
         lastestBlock.transactions = [];
         lastestBlock.virtualTransactions = [];
       }
-console.log(lastestBlock);
       return lastestBlock;
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -276,7 +277,6 @@ console.log(lastestBlock);
       if (name && typeof name === 'string') {
         const contracts = this.database.collection('contracts');
 
-        console.log('finding contract ' + name);
         const contractInDb = await contracts.findOne({ _id: name }, { session: this.session });
 
         if (contractInDb) {
@@ -339,12 +339,10 @@ console.log(lastestBlock);
       && tables && typeof tables === 'object') {
       const contracts = this.database.collection('contracts');
 
+      await this.flushContractCache();
       const contract = await contracts.findOne({ _id, owner }, { session: this.session });
       if (contract !== null) {
         await contracts.updateOne({ _id }, { $set: payload }, { session: this.session });
-        if (this.contractCache[contract.name]) {
-            Object.assign(this.contractCache[contract.name], payload);
-        }
       }
     }
   }
@@ -414,9 +412,6 @@ console.log(lastestBlock);
         indexes,
       } = payload;
 
-      if (contract == 'botcontroller' || contract == 'mining') {
-          console.log(payload);
-      }
       await this.flushCache();
 
       const lim = limit || 1000;
@@ -465,9 +460,6 @@ console.log(lastestBlock);
         }
       }
 
-      if (contract == 'botcontroller' || contract == 'mining') {
-          console.log(result);
-      }
       return result;
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -507,14 +499,11 @@ console.log(lastestBlock);
 
         const tableData = await this.getContractCollection(contract, finalTableName);
         if (tableData) {
-            console.log('performing find');
           result = await tableData.findOne(EJSON.deserialize(query), { session: this.session });
           result = EJSON.serialize(result);
         }
       }
 
-        console.log(result);
-        console.log('after find');
       return result;
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -547,9 +536,6 @@ console.log(lastestBlock);
       }
     }
 
-    if (contract === 'mining') {
-        console.log(finalRecord);
-    }
     return finalRecord;
     
   }
@@ -630,7 +616,7 @@ console.log(lastestBlock);
   }
 
   async flushCache() {
-      let keys = Object.keys(this.objectCache);
+      const keys = Object.keys(this.objectCache);
       for (let i=0; i < keys.length; i += 1) {
           const k = keys[i];
           const keyParts = k.split('_');
@@ -644,13 +630,16 @@ console.log(lastestBlock);
           await this.update(payload, false);
       }
       this.objectCache = {};
+  }
 
+  async flushContractCache() {
       const contracts = this.database.collection('contracts');
-      keys = Object.keys(this.contractCache);
+      const keys = Object.keys(this.contractCache);
       for (let i=0; i < keys.length; i += 1) {
           const k = keys[i];
           await contracts.updateOne({ _id: k }, { $set: this.contractCache[k] }, { session: this.session });
       }
+      this.contractCache = {};
   }
 
   objectCacheKey(contract, table, object) {

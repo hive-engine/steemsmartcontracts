@@ -136,6 +136,7 @@ class Database {
 
       //await contracts.updateOne({ _id: contract }, { $set: contractInDb }, { session: this.session });
 
+      console.log('db hash was ' + this.databaseHash);
       this.databaseHash = SHA256(this.databaseHash + contractInDb.tables[table].hash)
         .toString(enchex);
       console.log('updated hash of ' + contract + ':' + table + ' to ' + contractInDb.tables[table].hash);

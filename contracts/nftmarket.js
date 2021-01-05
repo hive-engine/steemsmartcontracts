@@ -10,7 +10,10 @@ const CONTRACT_NAME = 'nftmarket';
 const MAX_NUM_UNITS_OPERABLE = 50;
 
 actions.createSSC = async () => {
-  // nothing to do here
+  const tableExists = await api.db.tableExists('params');
+  if (tableExists === false) {
+    await api.db.createTable('params', ['symbol']);
+  }
 };
 
 // check that token transfers succeeded

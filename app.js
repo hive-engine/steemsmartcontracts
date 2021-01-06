@@ -119,9 +119,9 @@ const loadPlugin = (newPlugin) => {
 
 const unloadPlugin = async (plugin) => {
   let res = null;
-  let plg = getPlugin(plugin);
+  const plg = getPlugin(plugin);
   if (plg) {
-    logger.info('unloading plugin ' + plugin.PLUGIN_NAME);
+    logger.info(`unloading plugin ${plugin.PLUGIN_NAME}`);
     res = await send(plg, { action: 'stop' });
     plg.cp.kill('SIGINT');
   }
@@ -214,4 +214,3 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   gracefulShutdown();
 });
-

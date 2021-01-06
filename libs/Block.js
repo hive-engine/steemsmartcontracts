@@ -77,8 +77,6 @@ class Block {
 
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
-    console.time('block');
-      try {
     const nbTransactions = this.transactions.length;
 
     let currentDatabaseHash = this.previousDatabaseHash;
@@ -90,13 +88,13 @@ class Block {
 
       currentDatabaseHash = transaction.databaseHash;
 
-      if (transaction.contract !== 'comments'  || transaction.logs === '{}') {
-          if (mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
-              console.warn(mainBlock.transactions[relIndex]);
-              console.warn(transaction);
-              throw new Error("tx hash mismatch with api");
-          }
-          relIndex += 1;
+      if (transaction.contract !== 'comments' || transaction.logs === '{}') {
+        if (mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
+          console.warn(mainBlock.transactions[relIndex]); // eslint-disable-line no-console
+          console.warn(transaction); // eslint-disable-line no-console
+          throw new Error('tx hash mismatch with api');
+        }
+        relIndex += 1;
       }
     }
 
@@ -168,10 +166,11 @@ class Block {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
-          if (mainBlock && currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
-              console.warn(mainBlock.virtualTransactions[relIndex]);
-              console.warn(transaction);
-              throw new Error("tx hash mismatch with api");
+          if (mainBlock
+              && currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
+            console.warn(mainBlock.virtualTransactions[relIndex]); // eslint-disable-line no-console
+            console.warn(transaction); // eslint-disable-line no-console
+            throw new Error('tx hash mismatch with api');
           }
           relIndex += 1;
         }
@@ -187,9 +186,6 @@ class Block {
       this.databaseHash = merkleRoots.databaseHash;
       this.hash = this.calculateHash();
     }
-      } finally {
-      console.timeEnd('block');
-      }
   }
 
   async processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash) {
@@ -211,7 +207,7 @@ class Block {
         const authorizedAccountContractDeployment = ['null', CONSTANTS.HIVE_ENGINE_ACCOUNT, CONSTANTS.HIVE_PEGGED_ACCOUNT];
 
         if (authorizedAccountContractDeployment.includes(sender)) {
-          results = await SmartContracts.deploySmartContractInTransaction( // eslint-disable-line
+          results = await SmartContracts.deploySmartContract( // eslint-disable-line
             database, transaction, this.blockNumber, this.timestamp,
             this.refHiveBlockId, this.prevRefHiveBlockId, jsVMTimeout,
           );
@@ -219,7 +215,7 @@ class Block {
           results = { logs: { errors: ['the contract deployment is currently unavailable'] } };
         }
       } else {
-        results = await SmartContracts.executeSmartContractInTransaction(// eslint-disable-line
+        results = await SmartContracts.executeSmartContract(// eslint-disable-line
           database, transaction, this.blockNumber, this.timestamp,
           this.refHiveBlockId, this.prevRefHiveBlockId, jsVMTimeout,
         );

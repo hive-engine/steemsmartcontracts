@@ -1,9 +1,9 @@
+const axios = require('axios');
 const { Block } = require('../libs/Block');
 const { Transaction } = require('../libs/Transaction');
 const { IPC } = require('../libs/IPC');
 const { Database } = require('../libs/Database');
 const { Bootstrap } = require('../contracts/bootstrap/Bootstrap');
-const axios = require('axios');
 
 const PLUGIN_PATH = require.resolve(__filename);
 const { PLUGIN_NAME, PLUGIN_ACTIONS } = require('./Blockchain.constants');
@@ -15,6 +15,7 @@ let database = null;
 let javascriptVMTimeout = 0;
 let producing = false;
 let stopRequested = false;
+let enableHashVerification = false;
 
 const createGenesisBlock = async (payload) => {
   // check if genesis block hasn't been generated already
@@ -46,8 +47,6 @@ async function producePendingTransactions(
   refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, timestamp,
 ) {
   const previousBlock = await getLatestBlockMetadata();
-    console.log(previousBlock);
-  console.time('blockDbSession');
   if (previousBlock) {
     // skip block if it has been parsed already
     if (refHiveBlockNumber <= previousBlock.refHiveBlockNumber) {
@@ -67,56 +66,50 @@ async function producePendingTransactions(
       previousBlock.databaseHash,
     );
 
-      console.log(newBlock.blockNumber);
     const session = database.startSession();
 
-    console.time('fetchApiBlock');
-    const enableHashVerification = true || newBlock.blockNumber > 3825600;
-    const mainBlock = !enableHashVerification ? null : (await axios({ url: "https://api.hive-engine.com/rpc/blockchain",
-            method: 'POST',
-            headers: {
-                      "content-type": "application/json",
-                    },
-            data: {"jsonrpc": "2.0","id":10,"method":"getBlockInfo","params":{"blockNumber": newBlock.blockNumber}},
-        })).data.result;
-    console.timeEnd('fetchApiBlock');
+    const mainBlock = !enableHashVerification ? null : (await axios({
+      url: 'https://api.hive-engine.com/rpc/blockchain',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      data: {
+        jsonrpc: '2.0', id: 10, method: 'getBlockInfo', params: { blockNumber: newBlock.blockNumber },
+      },
+    })).data.result;
     try {
-        await session.withTransaction(async() => {
-    await newBlock.produceBlock(database, javascriptVMTimeout, mainBlock);
+      await session.withTransaction(async () => {
+        await newBlock.produceBlock(database, javascriptVMTimeout, mainBlock);
 
-    if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
-      if (mainBlock && newBlock.hash) {
-        console.log(`bn: ${mainBlock.blockNumber}, d: ${mainBlock.databaseHash}, h: ${mainBlock.hash}`);
-        console.log(`bn: ${newBlock.blockNumber}, d: ${newBlock.databaseHash}, h: ${newBlock.hash}`);
-        
-        if (mainBlock.databaseHash != newBlock.databaseHash || mainBlock.hash != newBlock.hash) {
-            console.warn(mainBlock);
-            console.warn(newBlock);
-            throw new Error("block mismatch with api");
+        if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
+          if (mainBlock && newBlock.hash) {
+            console.log(`bn: ${mainBlock.blockNumber}, d: ${mainBlock.databaseHash}, h: ${mainBlock.hash}`); // eslint-disable-line no-console
+            console.log(`bn: ${newBlock.blockNumber}, d: ${newBlock.databaseHash}, h: ${newBlock.hash}`); // eslint-disable-line no-console
+
+            if (mainBlock.databaseHash !== newBlock.databaseHash
+                || mainBlock.hash !== newBlock.hash) {
+              console.warn(mainBlock); // eslint-disable-line no-console
+              console.warn(newBlock); // eslint-disable-line no-console
+              throw new Error('block mismatch with api');
+            }
+          }
+
+          await addBlock(newBlock);
         }
-      }
-
-      await addBlock(newBlock);
-      console.log('processed hive block ' + refHiveBlockNumber + ' into sidechain block ' + newBlock.blockNumber);
-    } else {
-      console.log('processed hive block ' + refHiveBlockNumber + ' with no engine txs');
-    }
-
-    });
+      });
     } catch (e) {
-        console.error(e);
-        throw e;
+      console.error(e); // eslint-disable-line no-console
+      throw e;
     } finally {
-        await database.endSession();
+      await database.endSession();
     }
   } else {
-      throw new Error("block not found");
+    throw new Error('block not found');
   }
-  console.timeEnd('blockDbSession');
 }
 
 const produceNewBlockSync = async (block, callback = null) => {
-  console.time('produceBlockSync');
   if (stopRequested) return;
   producing = true;
   // the stream parsed transactions from the Hive blockchain
@@ -148,7 +141,6 @@ const produceNewBlockSync = async (block, callback = null) => {
   producing = false;
 
   if (callback) callback();
-  console.timeEnd('produceBlockSync');
 };
 
 // when stopping, we wait until the current block is produced
@@ -169,6 +161,7 @@ const init = async (conf, callback) => {
     databaseName,
   } = conf;
   javascriptVMTimeout = conf.javascriptVMTimeout; // eslint-disable-line prefer-destructuring
+  enableHashVerification = conf.enableHashVerification; // eslint-disable-line prefer-destructuring
 
   database = new Database();
   await database.init(databaseURL, databaseName);

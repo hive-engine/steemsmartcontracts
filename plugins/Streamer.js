@@ -275,7 +275,7 @@ const updateGlobalProps = async () => {
       hiveHeadBlockNumber = globProps.head_block_number;
       const delta = hiveHeadBlockNumber - currentHiveBlock;
       // eslint-disable-next-line
-      //console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
+      console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
     }
     updaterGlobalPropsHandler = setTimeout(() => updateGlobalProps(), 10000);
   } catch (ex) {
@@ -302,10 +302,7 @@ const addBlockToBuffer = async (block) => {
 const streamBlocks = async (reject) => {
   if (stopStream) return;
   try {
-    console.time('streamBlock');
-    console.time("fetchHiveBlock");
     const block = await client.database.getBlock(currentHiveBlock);
-    console.timeEnd("fetchHiveBlock");
     let addBlockToBuf = false;
 
     if (block) {
@@ -336,16 +333,13 @@ const streamBlocks = async (reject) => {
         await addBlockToBuffer(block);
       }
       currentHiveBlock += 1;
-      console.timeEnd('streamBlock');
       streamBlocks(reject);
     } else {
-      console.timeEnd('streamBlock');
       blockStreamerHandler = setTimeout(() => {
         streamBlocks(reject);
       }, 500);
     }
   } catch (err) {
-    console.timeEnd('streamBlock');
     reject(err);
   }
 };

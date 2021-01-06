@@ -517,6 +517,7 @@ describe('mining', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       await assertNoErrorInLastBlock();
+  console.log((await database1.getLatestBlockInfo()).virtualTransactions);
 
       await assertTokenPool('TKN', 'TKN:MTKN,TKN');
       await assertTokenPool('MTKN', 'TKN:MTKN,TKN');

@@ -27,7 +27,10 @@ In addition, the followimg is needed to use transaction framework for MongoDB:
   ```
 - Need version 3.6 mongo node library.
 
-Also, if using PM2, you will need to start the process with --no-treekill for proper shutdown.
+Also, if using PM2, you will need to start the process with --no-treekill for proper shutdown. Also
+consider using --no-autorestart with proper monitoring to minimize noise and potential for problematic
+looping (though with transactions there is less risk of data corruption)
+
 ## 5. Tests
 * npm run test
 

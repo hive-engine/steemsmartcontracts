@@ -84,14 +84,11 @@ async function producePendingTransactions(
 
         if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
           if (mainBlock && newBlock.hash) {
-            console.log(`bn: ${mainBlock.blockNumber}, d: ${mainBlock.databaseHash}, h: ${mainBlock.hash}`); // eslint-disable-line no-console
-            console.log(`bn: ${newBlock.blockNumber}, d: ${newBlock.databaseHash}, h: ${newBlock.hash}`); // eslint-disable-line no-console
+            console.log(`Sidechain Block ${mainBlock.blockNumber}, Main db hash: ${mainBlock.databaseHash}, Main block hash: ${mainBlock.hash}, This db hash: ${newBlock.databaseHash}, This block hash: ${newBlock.hash}`); // eslint-disable-line no-console
 
             if (mainBlock.databaseHash !== newBlock.databaseHash
                 || mainBlock.hash !== newBlock.hash) {
-              console.warn(mainBlock); // eslint-disable-line no-console
-              console.warn(newBlock); // eslint-disable-line no-console
-              throw new Error('block mismatch with api');
+              throw new Error(`Block mismatch with api \nMain: ${mainBlock}, \nThis: ${newBlock}`);
             }
           }
 

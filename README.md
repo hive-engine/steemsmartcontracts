@@ -29,7 +29,14 @@ In addition, the followimg is needed to use transaction framework for MongoDB:
 
 Also, if using PM2, you will need to start the process with --no-treekill for proper shutdown. Also
 consider using --no-autorestart with proper monitoring to minimize noise and potential for problematic
-looping (though with transactions there is less risk of data corruption)
+looping (though with transactions there is less risk of data corruption). Another oddity with PM2 is
+ that you may need to clear node processes after a stop if the process does not terminate on its own. 
+Otherwise it will interfere with logging.
+
+E.g.
+```
+pm2 start app.js --no-treekill --kill-timeout 10000 --no-autorestart
+```
 
 ## 5. Tests
 * npm run test

@@ -183,6 +183,172 @@ describe('nftmarket', function() {
         })
   });
 
+  it('sets market parameters', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftmarketContractPayload)));
+      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"}, "dataPropertyCreationFee": "1" }`));
+      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"200", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, 'TXID1235', 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey": true, "name":"test NFT", "symbol":"TEST", "url":"http://mynft.com" }'));
+      transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'nftmarket', 'enableMarket', '{ "isSignedWithActiveKey": true, "symbol": "TEST" }'));
+
+      let block = {
+        refHiveBlockNumber: 38145386,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // verify params table exists but no market specific params created yet
+      let exists = await database1.tableExists({
+        contract: 'nftmarket',
+        table: 'params'
+      });
+      assert.equal(exists, true);
+
+      let params = await database1.find({
+        contract: 'nftmarket',
+        table: 'params',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      assert.equal(params.length, 0);
+
+      // now set some market parameters
+      transactions = [];
+      transactions.push(new Transaction(38145387, 'TXID1237', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "officialMarket": "mancermart" }'));
+
+      block = {
+        refHiveBlockNumber: 38145387,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let res = await database1.getBlockInfo(2);
+      console.log(res.transactions[0].logs);
+      params = await database1.find({
+        contract: 'nftmarket',
+        table: 'params',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(params[0]);
+      assert.equal(params.length, 1);
+      assert.equal(params[0].symbol, "TEST");
+      assert.equal(params[0].officialMarket, "mancermart");
+      assert.equal(params[0].agentCut, undefined);
+      assert.equal(params[0].minFee, undefined);
+
+      // set more market parameters
+      transactions = [];
+      transactions.push(new Transaction(38145388, 'TXID1238', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "agentCut": 500 }'));
+
+      block = {
+        refHiveBlockNumber: 38145388,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.getBlockInfo(3);
+      console.log(res.transactions[0].logs);
+      params = await database1.find({
+        contract: 'nftmarket',
+        table: 'params',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(params[0]);
+      assert.equal(params.length, 1);
+      assert.equal(params[0].symbol, "TEST");
+      assert.equal(params[0].officialMarket, "mancermart");
+      assert.equal(params[0].agentCut, 500);
+      assert.equal(params[0].minFee, undefined);
+
+      // set yet more market parameters
+      transactions = [];
+      transactions.push(new Transaction(38145389, 'TXID1239', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "minFee": 100 }'));
+
+      block = {
+        refHiveBlockNumber: 38145389,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.getBlockInfo(4);
+      console.log(res.transactions[0].logs);
+      params = await database1.find({
+        contract: 'nftmarket',
+        table: 'params',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(params[0]);
+      assert.equal(params.length, 1);
+      assert.equal(params[0].symbol, "TEST");
+      assert.equal(params[0].officialMarket, "mancermart");
+      assert.equal(params[0].agentCut, 500);
+      assert.equal(params[0].minFee, 100);
+
+      // set a combination of parameters
+      transactions = [];
+      transactions.push(new Transaction(38145390, 'TXID1240', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "minFee": 50 }'));
+      transactions.push(new Transaction(38145390, 'TXID1241', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "officialMarket": "splinterlands", "agentCut": 1200 }'));
+      transactions.push(new Transaction(38145390, 'TXID1242', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "officialMarket": "peakmonsters", "agentCut": 1100, "minFee": 250 }'));
+
+      block = {
+        refHiveBlockNumber: 38145390,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = await database1.getBlockInfo(5);
+      console.log(res.transactions[0].logs);
+      console.log(res.transactions[1].logs);
+      console.log(res.transactions[2].logs);
+      params = await database1.find({
+        contract: 'nftmarket',
+        table: 'params',
+        query: {},
+        indexes: [{index: '_id', descending: false}],
+      });
+      console.log(params[0]);
+      assert.equal(params.length, 1);
+      assert.equal(params[0].symbol, "TEST");
+      assert.equal(params[0].officialMarket, "peakmonsters");
+      assert.equal(params[0].agentCut, 1100);
+      assert.equal(params[0].minFee, 250);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('enables a market', (done) => {
     new Promise(async (resolve) => {
 

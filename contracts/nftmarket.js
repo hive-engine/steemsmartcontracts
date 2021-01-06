@@ -204,6 +204,88 @@ const updateTradesHistory = async (type, account, ownedBy, counterparties, symbo
   await api.db.insert(historyTableName, newTrade);
 };
 
+actions.setMarketParams = async (payload) => {
+  const {
+    symbol, officialMarket, agentCut, minFee, isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(symbol && typeof symbol === 'string', 'invalid params')) {
+    return false;
+  }
+
+  // if no parameters supplied, we have nothing to do
+  if (officialMarket === undefined && agentCut === undefined && minFee === undefined) {
+    return false;
+  }
+
+  const marketTableName = symbol + 'sellBook';
+  const tableExists = await api.db.tableExists(marketTableName);
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(tableExists, 'market not enabled for symbol')
+    && api.assert((officialMarket === undefined || (officialMarket && typeof officialMarket === 'string' && isValidHiveAccountLength(officialMarket.trim().toLowerCase())))
+      && (agentCut === undefined || (typeof agentCut === 'number' && agentCut >= 0 && agentCut <= 10000 && Number.isInteger(agentCut)))
+      && (minFee === undefined || (typeof minFee === 'number' && minFee >= 0 && minFee <= 10000 && Number.isInteger(minFee))), 'invalid params')) {
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
+
+    if (nft) {
+      if (api.assert(nft.issuer === api.sender, 'must be the issuer')) {
+        let shouldUpdate = false;
+        let isFirstTimeSet = false;
+        const update = {
+          symbol,
+        };
+
+        let params = await api.db.findOne('params', { symbol });
+        if (!params) {
+          isFirstTimeSet = true;
+          params = {
+            symbol,
+          };
+        }
+
+        const finalOfficialMarket = (officialMarket !== undefined) ? officialMarket.trim().toLowerCase() : null;
+        if (officialMarket !== undefined && (params.officialMarket === undefined || finalOfficialMarket !== params.officialMarket)) {
+          if (params.officialMarket !== undefined) {
+            update.oldOfficialMarket = params.officialMarket;
+          }
+          params.officialMarket = finalOfficialMarket;
+          update.officialMarket = finalOfficialMarket;
+          shouldUpdate = true;
+        }
+        if (agentCut !== undefined && (params.agentCut === undefined || agentCut !== params.agentCut)) {
+          if (params.agentCut !== undefined) {
+            update.oldAgentCut = params.agentCut;
+          }
+          params.agentCut = agentCut;
+          update.agentCut = agentCut;
+          shouldUpdate = true;
+        }
+        if (minFee !== undefined && (params.minFee === undefined || minFee !== params.minFee)) {
+          if (params.minFee !== undefined) {
+            update.oldMinFee = params.minFee;
+          }
+          params.minFee = minFee;
+          update.minFee = minFee;
+          shouldUpdate = true;
+        }
+
+        if (shouldUpdate) {
+          if (isFirstTimeSet) {
+            await api.db.insert('params', params);
+          } else {
+            await api.db.update('params', params);
+          }
+
+          api.emit('setMarketParams', update);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
 actions.changePrice = async (payload) => {
   const {
     symbol,

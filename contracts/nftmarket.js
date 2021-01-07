@@ -703,6 +703,13 @@ actions.sell = async (payload) => {
       return;
     }
 
+    const params = await api.db.findOne('params', { symbol });
+    if (params && params.minFee !== undefined) {
+      if (!api.assert(fee >= params.minFee, `fee must be >= ${params.minFee}`)) {
+        return;
+      }
+    }
+
     // get the price token params
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
     if (api.assert(token

@@ -16,7 +16,7 @@ const ACCOUNT_BLACKLIST = {
   'probithive': 1,
   'ionomy': 1,
   'mxchive': 1,
-  'cryptex24': 1,
+  'coinbasebase': 1,
 };
 
 const RESERVED_SYMBOLS = {

@@ -489,11 +489,15 @@ actions.buy = async (payload) => {
     symbol,
     nfts,
     marketAccount,
+    expPrice,
+    expPriceSymbol,
     isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(symbol && typeof symbol === 'string'
-    && marketAccount && typeof marketAccount === 'string', 'invalid params')) {
+    && marketAccount && typeof marketAccount === 'string'
+    && (expPrice === undefined || (expPrice && typeof expPrice === 'string' && !api.BigNumber(expPrice).isNaN()))
+    && (expPriceSymbol === undefined || (expPriceSymbol && typeof expPriceSymbol === 'string')), 'invalid params')) {
     return;
   }
 

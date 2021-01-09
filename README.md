@@ -38,6 +38,17 @@ E.g.
 pm2 start app.js --no-treekill --kill-timeout 10000 --no-autorestart
 ```
 
+### DB Backup and Restore
+
+Backup current state (track current hive blpck in config)
+
+`mongodump -d=hsc --gzip --archive=hsc_50287280.archive`
+
+Restore state
+
+`mongorestore --gzip --archive=hsc_50287280.archive`
+
+Edit config.json to match block number of backup.
 ## 5. Tests
 * npm run test
 

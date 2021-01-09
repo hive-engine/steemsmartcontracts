@@ -88,7 +88,7 @@ async function producePendingTransactions(
 
             if (mainBlock.databaseHash !== newBlock.databaseHash
                 || mainBlock.hash !== newBlock.hash) {
-              throw new Error(`Block mismatch with api \nMain: ${mainBlock}, \nThis: ${newBlock}`);
+              throw new Error(`Block mismatch with api \nMain: ${JSON.stringify(mainBlock, null, 2)}, \nThis: ${JSON.stringify(newBlock, null, 2)}`);
             }
           }
 

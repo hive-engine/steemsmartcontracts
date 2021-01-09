@@ -7,12 +7,13 @@
     "blocksLogFilePath": "./blocks.log",
     "javascriptVMTimeout": 10000,
     "streamNodes": [
-        "https://api.openhive.network",
         "https://api.hive.blog",
+        "https://api.openhive.network",
         "https://anyx.io",
         "https://api.hivekings.com"
     ],
-    "startHiveBlock": 41967000,
+    "startHiveBlock": 50287280,
     "genesisHiveBlock": 41967000,
-    "witnessEnabled": false
+    "witnessEnabled": true,
+    "enableHashVerification": false
 }

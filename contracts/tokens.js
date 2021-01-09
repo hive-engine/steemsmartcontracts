@@ -704,7 +704,7 @@ const processUnstake = async (unstake) => {
         // update witnesses rank
         // eslint-disable-next-line no-template-curly-in-string
         if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-          // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
+          await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
         }
         await api.executeSmartContract('mining', 'handleStakeChange',
           { account, symbol, quantity: api.BigNumber(tokensToRelease).negated() });
@@ -832,8 +832,8 @@ actions.stake = async (payload) => {
           // update witnesses rank
           // eslint-disable-next-line no-template-curly-in-string
           if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-            // await api.executeSmartContract
-            // ('witnesses', 'updateWitnessesApprovals', { account: api.sender });
+            await api.executeSmartContract(
+                'witnesses', 'updateWitnessesApprovals', { account: api.sender });
           }
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
@@ -877,8 +877,8 @@ actions.stakeFromContract = async (payload) => {
           // update witnesses rank
           // eslint-disable-next-line no-template-curly-in-string
           if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-            // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals',
-            // { account: finalTo });
+            await api.executeSmartContract('witnesses', 'updateWitnessesApprovals',
+              { account: finalTo });
           }
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
@@ -934,7 +934,7 @@ const startUnstake = async (account, token, quantity) => {
       // update witnesses rank
       // eslint-disable-next-line no-template-curly-in-string
       if (token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-        // await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
+        await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
       }
       await api.executeSmartContract('mining', 'handleStakeChange', {
         account,
@@ -1033,8 +1033,8 @@ const processCancelUnstake = async (unstake) => {
       // update witnesses rank
       // eslint-disable-next-line no-template-curly-in-string
       if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-        // await api.executeSmartContract
-        // ('witnesses', 'updateWitnessesApprovals', { account: api.sender });
+        await api.executeSmartContract(
+          'witnesses', 'updateWitnessesApprovals', { account: api.sender });
       }
       await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity: tokensToRelease });
@@ -1217,10 +1217,10 @@ actions.delegate = async (payload) => {
             // update witnesses rank
             // eslint-disable-next-line no-template-curly-in-string
             if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-              // await api.executeSmartContract('witnesses',
-              // 'updateWitnessesApprovals', { account: api.sender });
-              // await api.executeSmartContract('witnesses',
-              // 'updateWitnessesApprovals', { account: finalTo });
+              await api.executeSmartContract('witnesses',
+               'updateWitnessesApprovals', { account: api.sender });
+              await api.executeSmartContract('witnesses',
+               'updateWitnessesApprovals', { account: finalTo });
             }
             await api.executeSmartContract('mining', 'handleStakeChange',
               {
@@ -1262,10 +1262,10 @@ actions.delegate = async (payload) => {
             // update witnesses rank
             // eslint-disable-next-line no-template-curly-in-string
             if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-              // await api.executeSmartContract('witnesses',
-              // 'updateWitnessesApprovals', { account: api.sender });
-              // await api.executeSmartContract('witnesses',
-              // 'updateWitnessesApprovals', { account: finalTo });
+              await api.executeSmartContract(
+                'witnesses', 'updateWitnessesApprovals', { account: api.sender });
+              await api.executeSmartContract(
+                'witnesses', 'updateWitnessesApprovals', { account: finalTo });
             }
             await api.executeSmartContract('mining', 'handleStakeChange',
               {
@@ -1364,8 +1364,8 @@ actions.undelegate = async (payload) => {
               // update witnesses rank
               // eslint-disable-next-line no-template-curly-in-string
               if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-                // await api.executeSmartContract('witnesses',
-                // 'updateWitnessesApprovals', { account: finalFrom });
+                await api.executeSmartContract(
+                    'witnesses', 'updateWitnessesApprovals', { account: finalFrom });
               }
               await api.executeSmartContract('mining', 'handleStakeChange',
                 {
@@ -1416,8 +1416,8 @@ const processUndelegation = async (undelegation) => {
       // update witnesses rank
       // eslint-disable-next-line no-template-curly-in-string
       if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
-        // await api.executeSmartContract('witnesses',
-        // 'updateWitnessesApprovals', { account });
+        await api.executeSmartContract(
+          'witnesses', 'updateWitnessesApprovals', { account });
       }
       await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity });

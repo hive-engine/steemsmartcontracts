@@ -108,17 +108,17 @@ class Block {
 
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
-    const nbTransactions = this.transactions.length;
 
     let currentDatabaseHash = this.previousDatabaseHash;
 
     // DO NOT KEEP THIS IN PRIMARY NODE. TEST NETWORK ONLY
-    if (this.refHiveBlockNumber == 50287285) {
+    if (this.refHiveBlockNumber == 50316053) {
         // Append and enable relevant contracts for P2P
-        this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokensContractPayload)));
+        this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
         this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
     }
 
+    const nbTransactions = this.transactions.length;
     let relIndex = 0;
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];

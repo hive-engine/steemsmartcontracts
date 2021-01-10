@@ -39,30 +39,30 @@ actions.createSSC = async () => {
     };
 
     await api.db.insert('params', params);
+  } else {
+    // TODO: cleanup when launching for mainnet / next update
+    const witnesses = await api.db.find('witnesses', { });
+
+    for (let index = 0; index < witnesses.length; index += 1) {
+      const witness = witnesses[index];
+      witness.missedRounds = 0;
+      witness.missedRoundsInARow = 0;
+      await api.db.update('witnesses', witness);
+    }
+
+    const schedules = await api.db.find('schedules', { });
+
+    for (let index = 0; index < schedules.length; index += 1) {
+      const schedule = schedules[index];
+      await api.db.remove('schedules', schedule);
+    }
+
+    const params = await api.db.findOne('params', {});
+    params.currentWitness = null;
+    params.blockNumberWitnessChange = 0;
+    params.lastWitnesses = [];
+    await api.db.update('params', params);
   }
-
-  // TODO: cleanup when launching for mainnet / next update
-  const witnesses = await api.db.find('witnesses', { });
-
-  for (let index = 0; index < witnesses.length; index += 1) {
-    const witness = witnesses[index];
-    witness.missedRounds = 0;
-    witness.missedRoundsInARow = 0;
-    await api.db.update('witnesses', witness);
-  }
-
-  const schedules = await api.db.find('schedules', { });
-
-  for (let index = 0; index < schedules.length; index += 1) {
-    const schedule = schedules[index];
-    await api.db.remove('schedules', schedule);
-  }
-
-  const params = await api.db.findOne('params', {});
-  params.currentWitness = null;
-  params.blockNumberWitnessChange = 0;
-  params.lastWitnesses = [];
-  await api.db.update('params', params);
 };
 
 actions.resetSchedule = async () => {

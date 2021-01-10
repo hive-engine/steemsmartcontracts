@@ -145,7 +145,7 @@ let witnessesContractPayload = {
   code: base64ContractCode,
 };
 
-describe.skip('witnesses', function () {
+describe('witnesses', function () {
   this.timeout(60000);
 
   before((done) => {
@@ -990,7 +990,7 @@ describe.skip('witnesses', function () {
       witnesses = res;
 
       assert.equal(witnesses[0].account, "dan");
-      assert.equal(witnesses[0].approvalWeight.$numberDecimal, '101.00000001');
+      assert.equal(witnesses[0].approvalWeight.$numberDecimal, '101.75000001');
 
       assert.equal(witnesses[1].account, "vitalik");
       assert.equal(witnesses[1].approvalWeight.$numberDecimal, "100.00000001");
@@ -1010,7 +1010,7 @@ describe.skip('witnesses', function () {
 
       assert.equal(accounts[1].account, "ned");
       assert.equal(accounts[1].approvals, 1);
-      assert.equal(accounts[1].approvalWeight, "1.00000000");
+      assert.equal(accounts[1].approvalWeight, "1.75000000");
 
       res = await database1.find({
           contract: 'witnesses',
@@ -1040,7 +1040,7 @@ describe.skip('witnesses', function () {
       params = res;
 
       assert.equal(params[0].numberOfApprovedWitnesses, 2);
-      assert.equal(params[0].totalApprovalWeight, "201.00000002");
+      assert.equal(params[0].totalApprovalWeight, "201.75000002");
 
       transactions = [];
       transactions.push(new Transaction(37899128, 'TXID15', 'harpagon', 'whatever', 'whatever', ''));
@@ -1065,7 +1065,7 @@ describe.skip('witnesses', function () {
       witnesses = res;
 
       assert.equal(witnesses[0].account, "dan");
-      assert.equal(witnesses[0].approvalWeight.$numberDecimal, '100.00000001');
+      assert.equal(witnesses[0].approvalWeight.$numberDecimal, '100.75000001');
 
       assert.equal(witnesses[1].account, "vitalik");
       assert.equal(witnesses[1].approvalWeight.$numberDecimal, "100.00000001");
@@ -1085,7 +1085,7 @@ describe.skip('witnesses', function () {
 
       assert.equal(accounts[1].account, "ned");
       assert.equal(accounts[1].approvals, 1);
-      assert.equal(accounts[1].approvalWeight, "0.00000000");
+      assert.equal(accounts[1].approvalWeight, "0.75000000");
 
       res = await database1.find({
           contract: 'witnesses',
@@ -1115,7 +1115,7 @@ describe.skip('witnesses', function () {
       params = res;
 
       assert.equal(params[0].numberOfApprovedWitnesses, 2);
-      assert.equal(params[0].totalApprovalWeight, "200.00000002");
+      assert.equal(params[0].totalApprovalWeight, "200.75000002");
       
       resolve();
     })
@@ -1163,7 +1163,7 @@ describe.skip('witnesses', function () {
       }
 
       block = {
-        refHiveBlockNumber: 37899129,
+        refHiveBlockNumber: 99999999,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -1199,15 +1199,15 @@ describe.skip('witnesses', function () {
         assert.equal(schedule[3].blockNumber, 5);
         assert.equal(schedule[3].round, 1);
       } else if (NB_WITNESSES === 5) {
-        assert.equal(schedule[0].witness, "witness32");
+        assert.equal(schedule[0].witness, "witness33");
         assert.equal(schedule[0].blockNumber, 2);
         assert.equal(schedule[0].round, 1);
 
-        assert.equal(schedule[1].witness, "witness16");
+        assert.equal(schedule[1].witness, "witness31");
         assert.equal(schedule[1].blockNumber, 3);
         assert.equal(schedule[1].round, 1);
 
-        assert.equal(schedule[2].witness, "witness33");
+        assert.equal(schedule[2].witness, "witness32");
         assert.equal(schedule[2].blockNumber, 4);
         assert.equal(schedule[2].round, 1);
 
@@ -1215,7 +1215,7 @@ describe.skip('witnesses', function () {
         assert.equal(schedule[3].blockNumber, 5);
         assert.equal(schedule[3].round, 1);
 
-        assert.equal(schedule[4].witness, "witness31");
+        assert.equal(schedule[4].witness, "witness27");
         assert.equal(schedule[4].blockNumber, 6);
         assert.equal(schedule[4].round, 1);
       }
@@ -1242,8 +1242,8 @@ describe.skip('witnesses', function () {
         assert.equal(params.totalApprovalWeight, '3000.00000000');
         assert.equal(params.numberOfApprovedWitnesses, 30);
         assert.equal(params.lastVerifiedBlockNumber, 1);
-        assert.equal(params.currentWitness, 'witness31');
-        assert.equal(params.lastWitnesses.includes('witness31'), true);
+        assert.equal(params.currentWitness, 'witness27');
+        assert.equal(params.lastWitnesses.includes('witness27'), true);
         assert.equal(params.round, 1);
         assert.equal(params.lastBlockRound, 6);
       }
@@ -1449,7 +1449,7 @@ describe.skip('witnesses', function () {
       }
 
       block = {
-        refHiveBlockNumber: 37899121,
+        refHiveBlockNumber: 99999999,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -1464,7 +1464,7 @@ describe.skip('witnesses', function () {
         // send whatever transaction;
         transactions.push(new Transaction(37899122 +i, `TXID${txId}`, 'satoshi', 'whatever', 'whatever', ''));
         block = {
-          refHiveBlockNumber: 37899122 + i,
+          refHiveBlockNumber: 99999999 + i,
           refHiveBlockId: `ABCD123${i}`,
           prevRefHiveBlockId: `ABCD123${i - 1}`,
           timestamp: `2018-06-01T00:00:0${i}`,
@@ -1529,7 +1529,7 @@ describe.skip('witnesses', function () {
       transactions.push(new Transaction(38899122, `TXID${txId}`, params.currentWitness, 'witnesses', 'proposeRound', JSON.stringify(json)));
 
       block = {
-        refHiveBlockNumber: 38899122,
+        refHiveBlockNumber: 110000000,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -1569,11 +1569,11 @@ describe.skip('witnesses', function () {
         assert.equal(schedule[0].blockNumber, 7);
         assert.equal(schedule[0].round, 2);
 
-        assert.equal(schedule[1].witness, "witness34");
+        assert.equal(schedule[1].witness, "witness14");
         assert.equal(schedule[1].blockNumber, 8);
         assert.equal(schedule[1].round, 2);
 
-        assert.equal(schedule[2].witness, "witness17");
+        assert.equal(schedule[2].witness, "witness34");
         assert.equal(schedule[2].blockNumber, 9);
         assert.equal(schedule[2].round, 2);
 
@@ -1623,7 +1623,7 @@ describe.skip('witnesses', function () {
       });
   });
 
-  it.skip('changes the current witness if it has not validated a round in time', (done) => {
+  it('changes the current witness if it has not validated a round in time', (done) => {
     new Promise(async (resolve) => {
       
       await loadPlugin(blockchain);
@@ -1644,7 +1644,7 @@ describe.skip('witnesses', function () {
       }
 
       let block = {
-        refHiveBlockNumber: 37899120,
+        refHiveBlockNumber: 97899120,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -1656,11 +1656,11 @@ describe.skip('witnesses', function () {
       transactions = [];
       for (let index = 0; index < 30; index++) {
         txId++;
-        transactions.push(new Transaction(37899121, `TXID${txId}`, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "witness${index + 5}", "isSignedWithActiveKey": true }`));
+        transactions.push(new Transaction(97899121, `TXID${txId}`, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "witness${index + 5}", "isSignedWithActiveKey": true }`));
       }
 
       block = {
-        refHiveBlockNumber: 37899121,
+        refHiveBlockNumber: 97899121,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -1700,10 +1700,10 @@ describe.skip('witnesses', function () {
       // generate 20 blocks
       for (let index = 30; index < 51; index++) {
         transactions = [];
-        transactions.push(new Transaction(38899121 + index, `TXID${index}`, 'satoshi', 'whatever', 'whatever', ''));
+        transactions.push(new Transaction(98899121 + index, `TXID${index}`, 'satoshi', 'whatever', 'whatever', ''));
 
         block = {
-          refHiveBlockNumber: 38899121 + index,
+          refHiveBlockNumber: 98899121 + index,
           refHiveBlockId: 'ABCD1',
           prevRefHiveBlockId: 'ABCD2',
           timestamp: '2018-07-14T00:02:00',
@@ -1735,8 +1735,8 @@ describe.skip('witnesses', function () {
         assert.equal(params.totalApprovalWeight, '3000.00000000');
         assert.equal(params.numberOfApprovedWitnesses, 30);
         assert.equal(params.lastVerifiedBlockNumber, 1);
-        assert.equal(params.currentWitness, 'witness29');
-        assert.equal(params.lastWitnesses.includes('witness29'), true);
+        assert.equal(params.currentWitness, 'witness34');
+        assert.equal(params.lastWitnesses.includes('witness34'), true);
         assert.equal(params.round, 1);
         assert.equal(params.lastBlockRound, 6);
       }

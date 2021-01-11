@@ -145,6 +145,14 @@ let witnessesContractPayload = {
   code: base64ContractCode,
 };
 
+async function assertNoErrorInLastBlock() {
+  const transactions = (await database1.getLatestBlockInfo()).transactions;
+  for (let i = 0; i < transactions.length; i++) {
+    const logs = JSON.parse(transactions[i].logs);
+    assert(!logs.errors, `Tx #${i} had unexpected error ${logs.errors}`);
+  }
+}
+
 describe('witnesses', function () {
   this.timeout(60000);
 
@@ -213,6 +221,7 @@ describe('witnesses', function () {
       };
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
 
       let res = await database1.find({
           contract: 'witnesses',

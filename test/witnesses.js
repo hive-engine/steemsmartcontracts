@@ -1,17 +1,16 @@
 /* eslint-disable */
 const { fork } = require('child_process');
 const assert = require('assert');
-const fs = require('fs-extra');
 const { MongoClient } = require('mongodb');
 const dhive = require('@hiveio/dhive');
 const SHA256 = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
 
+const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
-
-const { CONSTANTS } = require('../libs/Constants');
+const { setupContractPayload } = require('../libs/util/contractUtil');
 
 //process.env.ACCOUNT = 'witness20';
 //process.env.ACTIVE_SIGNING_KEY = dhive.PrivateKey.fromLogin(process.env.ACCOUNT, 'testnet', 'active').toString();
@@ -117,33 +116,8 @@ const signPayload = (signingKey, payload, isPayloadSHA256 = false) => {
   return signingKey.sign(buffer).toString();
 };
 
-let contractCode = fs.readFileSync('./contracts/tokens.js');
-contractCode = contractCode.toString();
-
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
-
-let base64ContractCode = Base64.encode(contractCode);
-
-let tknContractPayload = {
-  name: 'tokens',
-  params: '',
-  code: base64ContractCode,
-};
-
-contractCode = fs.readFileSync('./contracts/witnesses.js');
-contractCode = contractCode.toString();
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_MIN_VALUE\}\$'/g, CONSTANTS.UTILITY_TOKEN_MIN_VALUE);
-base64ContractCode = Base64.encode(contractCode);
-
-let witnessesContractPayload = {
-  name: 'witnesses',
-  params: '',
-  code: base64ContractCode,
-};
+const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js');
 
 describe('witnesses', function () {
   this.timeout(60000);
@@ -199,7 +173,7 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899120, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899120, 'TXID3', 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899120, 'TXID4', 'vitalik', 'witnesses', 'register', `{ "IP": "123.255.123.253", "RPCPort": 7000, "P2PPort": 8000, "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq", "enabled": false, "isSignedWithActiveKey": true }`));
@@ -296,11 +270,11 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(32713425, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(32713425, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(32713425, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(32713425, 'TXID3', 'dan', 'witnesses', 'register', `{ "IP": "123.234.123.234", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(32713425, 'TXID4', 'vitalik', 'witnesses', 'register', `{ "IP": "123.234.123.233", "RPCPort": 7000, "P2PPort": 8000, "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq", "enabled": false, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(32713425, 'TXID5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(32713425, 'TXID5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(32713425, 'TXID6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(32713425, 'TXID7', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "vitalik", "isSignedWithActiveKey": true }`));
 
@@ -371,7 +345,7 @@ describe('witnesses', function () {
 
       transactions = [];
       transactions.push(new Transaction(32713426, 'TXID8', 'satoshi', 'witnesses', 'register', `{ "IP": "123.234.123.245", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pJ", "enabled": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(32713426, 'TXID9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "ned", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "0.00000001", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(32713426, 'TXID9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "0.00000001", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(32713426, 'TXID10', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "satoshi", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(32713426, 'TXID11', 'ned', 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(32713426, 'TXID12', 'ned', 'witnesses', 'approve', `{ "witness": "satoshi", "isSignedWithActiveKey": true }`));
@@ -474,15 +448,15 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(37899121, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(37899121, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899121, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899121, 'TXID3', 'dan', 'witnesses', 'register', `{ "IP": "123.234.123.233", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, 'TXID4', 'vitalik', 'witnesses', 'register', `{ "IP": "123.234.123.232", "RPCPort": 7000, "P2PPort": 8000, "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq", "enabled": false, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(37899121, 'TXID5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, 'TXID5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, 'TXID6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, 'TXID7', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "vitalik", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, 'TXID8', 'satoshi', 'witnesses', 'register', `{ "IP": "123.234.123.231", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pJ", "enabled": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(37899121, 'TXID9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "ned", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "0.00000001", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, 'TXID9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "0.00000001", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, 'TXID10', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "satoshi", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, 'TXID11', 'ned', 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, 'TXID12', 'ned', 'witnesses', 'approve', `{ "witness": "satoshi", "isSignedWithActiveKey": true }`));
@@ -660,14 +634,14 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
 
       let transactions = [];
-      transactions.push(new Transaction(37899123, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(37899123, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899123, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899123, 'TXID3', 'dan', 'witnesses', 'register', `{ "IP": "123.234.123.233", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899123, 'TXID4', 'vitalik', 'witnesses', 'register', `{ "IP": "123.234.123.234", "RPCPort": 7000, "P2PPort": 8000, "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq", "enabled": false, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(37899123, 'TXID5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899123, 'TXID5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899123, 'TXID6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899123, 'TXID7', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "vitalik", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(37899123, 'TXID8', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "0.00000001", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899123, 'TXID8', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "0.00000001", "isSignedWithActiveKey": true }`));
 
       let block = {
         refHiveBlockNumber: 37899123,
@@ -734,9 +708,9 @@ describe('witnesses', function () {
       assert.equal(params[0].totalApprovalWeight, "200.00000002");
 
       transactions = [];
-      transactions.push(new Transaction(37899124, 'TXID9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "ned", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899124, 'TXID9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899124, 'TXID10', 'ned', 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(37899124, 'TXID11', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'delegate', `{ "to": "ned", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899124, 'TXID11', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'delegate', `{ "to": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
 
       block = {
         refHiveBlockNumber: 37899124,
@@ -811,7 +785,7 @@ describe('witnesses', function () {
       assert.equal(params[0].totalApprovalWeight, "199.00000002");
 
       transactions = [];
-      transactions.push(new Transaction(37899125, 'TXID12', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'undelegate', `{ "from": "ned", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899125, 'TXID12', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'undelegate', `{ "from": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
 
       block = {
         refHiveBlockNumber: 37899125,
@@ -968,7 +942,7 @@ describe('witnesses', function () {
       assert.equal(params[0].totalApprovalWeight, "201.00000002");
 
       transactions = [];
-      transactions.push(new Transaction(37899127, 'TXID14', 'ned', 'tokens', 'unstake', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899127, 'TXID14', 'ned', 'tokens', 'unstake', `{ "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1", "isSignedWithActiveKey": true }`));
 
       block = {
         refHiveBlockNumber: 37899127,
@@ -1134,9 +1108,9 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
       let txId = 100;
       let transactions = [];
-      transactions.push(new Transaction(37899128, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(37899128, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899128, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-      transactions.push(new Transaction(37899128, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899128, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
 
       // register 100 witnesses
       for (let index = 0; index < 100; index++) {
@@ -1265,9 +1239,10 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
       let txId = 100;
       let transactions = [];
-      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899120, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-      transactions.push(new Transaction(37899120, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899120, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899120, 'TXID4', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issueToContract', `{ "to": "witnesses", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "1000", "isSignedWithActiveKey": true }`));
 
       // register 100 witnesses
       for (let index = 0; index < 100; index++) {
@@ -1420,9 +1395,9 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
       let txId = 100;
       let transactions = [];
-      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899120, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-      transactions.push(new Transaction(37899120, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899120, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
 
       // register 100 witnesses
       for (let index = 0; index < 100; index++) {
@@ -1631,9 +1606,9 @@ describe('witnesses', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
       let txId = 100;
       let transactions = [];
-      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(37899120, 'TXID1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899120, 'TXID2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-      transactions.push(new Transaction(37899120, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899120, 'TXID3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
 
       // register 100 witnesses
       for (let index = 0; index < 100; index++) {

@@ -697,7 +697,7 @@ const processUnstake = async (unstake) => {
 
           // update witnesses rank
           // eslint-disable-next-line no-template-curly-in-string
-          if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+          if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
             await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
           }
           await api.executeSmartContract('mining', 'handleStakeChange',
@@ -831,7 +831,7 @@ actions.stake = async (payload) => {
 
           // update witnesses rank
           // eslint-disable-next-line no-template-curly-in-string
-          if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+          if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
             await api.executeSmartContract(
                 'witnesses', 'updateWitnessesApprovals', { account: api.sender });
           }
@@ -876,7 +876,7 @@ actions.stakeFromContract = async (payload) => {
 
           // update witnesses rank
           // eslint-disable-next-line no-template-curly-in-string
-          if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+          if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
             await api.executeSmartContract('witnesses', 'updateWitnessesApprovals',
               { account: finalTo });
           }
@@ -933,7 +933,7 @@ const startUnstake = async (account, token, quantity) => {
       await api.db.update('tokens', token);
       // update witnesses rank
       // eslint-disable-next-line no-template-curly-in-string
-      if (token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+      if (token.symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
         await api.executeSmartContract('witnesses', 'updateWitnessesApprovals', { account });
       }
       await api.executeSmartContract('mining', 'handleStakeChange', {
@@ -1032,7 +1032,7 @@ const processCancelUnstake = async (unstake) => {
 
       // update witnesses rank
       // eslint-disable-next-line no-template-curly-in-string
-      if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+      if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
         await api.executeSmartContract(
           'witnesses', 'updateWitnessesApprovals', { account: api.sender });
       }
@@ -1216,7 +1216,7 @@ actions.delegate = async (payload) => {
 
             // update witnesses rank
             // eslint-disable-next-line no-template-curly-in-string
-            if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+            if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
               await api.executeSmartContract('witnesses',
                'updateWitnessesApprovals', { account: api.sender });
               await api.executeSmartContract('witnesses',
@@ -1261,7 +1261,7 @@ actions.delegate = async (payload) => {
 
             // update witnesses rank
             // eslint-disable-next-line no-template-curly-in-string
-            if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+            if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
               await api.executeSmartContract(
                 'witnesses', 'updateWitnessesApprovals', { account: api.sender });
               await api.executeSmartContract(
@@ -1363,7 +1363,7 @@ actions.undelegate = async (payload) => {
 
               // update witnesses rank
               // eslint-disable-next-line no-template-curly-in-string
-              if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+              if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
                 await api.executeSmartContract(
                     'witnesses', 'updateWitnessesApprovals', { account: finalFrom });
               }
@@ -1415,7 +1415,7 @@ const processUndelegation = async (undelegation) => {
 
       // update witnesses rank
       // eslint-disable-next-line no-template-curly-in-string
-      if (symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'") {
+      if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
         await api.executeSmartContract(
           'witnesses', 'updateWitnessesApprovals', { account });
       }

@@ -240,15 +240,16 @@ const proposeRound = async (witness, round, retry = 0) => {
       if (response.data.result) {
         verifyRoundHandler(witness, response.data.result);
       } else {
-        console.error(`Error posting to ${witness} / round ${round} / ${response.data.error.code} / ${response.data.error.message}`);
+        console.error(`Error posting to ${witness} / round ${round.round} / ${response.data.error.code} / ${response.data.error.message}`);
 
-        if (response.data.error.message === 'current round is lower'
-          || response.data.error.message === 'current witness is different') {
+        if (currentRound === round.round
+            && (response.data.error.message === 'current round is lower'
+                || response.data.error.message === 'current witness is different')) {
           if (retry < 3) {
             setTimeout(() => {
               console.log(`propose round: retry ${retry + 1}`);
               proposeRound(witness, round, retry + 1);
-            }, 5000);
+            }, 1500);
           }
         }
       }
@@ -256,7 +257,13 @@ const proposeRound = async (witness, round, retry = 0) => {
       console.log(`stopped proposing round ${round.round} as it is not the current round anymore`);
     }
   } catch (error) {
-    console.error(`Error posting to ${witness} / round ${round} / ${error}`);
+    console.error(`Error posting to ${witness} / round ${round.round} / ${error}`);
+    if (currentRound === round.round && error.toString().indexOf('ETIMEDOUT') > -1 && retry < 3) {
+        setTimeout(() => {
+            console.log(`propose round: retry ${retry + 1}`);
+            proposeRound(witness, round, retry + 1);
+        }, 0);
+    }
   }
 };
 

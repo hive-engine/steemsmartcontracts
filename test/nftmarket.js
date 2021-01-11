@@ -814,6 +814,8 @@ describe('nftmarket', function() {
       transactions.push(new Transaction(38145386, 'TXID1254', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["1","2","3","4"] }'));
       transactions.push(new Transaction(38145386, 'TXID1255', 'yabapmatt', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["1"] }'));
       transactions.push(new Transaction(38145386, 'TXID1256', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30","31","32","33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48","49","50","51"] }'));
+      transactions.push(new Transaction(38145386, 'TXID1257', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "expPriceSymbol": "ENG", "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["1","2","3"] }'));
+      transactions.push(new Transaction(38145386, 'TXID1258', 'cryptomancer', 'nftmarket', 'buy', `{ "isSignedWithActiveKey": true, "expPriceSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "expPrice": "9.42477001", "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["1","2","3"] }`));
 
       let block = {
         refHiveBlockNumber: 38145386,
@@ -829,15 +831,17 @@ describe('nftmarket', function() {
 
       const block1 = res;
       const transactionsBlock1 = block1.transactions;
-      
-      
-      
-      
-      
-      
-      
-      
-      
+      console.log(JSON.parse(transactionsBlock1[18].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[19].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[20].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[21].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[22].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[23].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[24].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[25].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[26].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[27].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[28].logs).errors[0]);
 
       assert.equal(JSON.parse(transactionsBlock1[18].logs).errors[0], 'market not enabled for symbol');
       assert.equal(JSON.parse(transactionsBlock1[19].logs).errors[0], 'you must use a custom_json signed with your active key');
@@ -848,6 +852,8 @@ describe('nftmarket', function() {
       assert.equal(JSON.parse(transactionsBlock1[24].logs).errors[0], 'all orders must have the same price symbol');
       assert.equal(JSON.parse(transactionsBlock1[25].logs).errors[0], 'you must have enough tokens for payment');
       assert.equal(JSON.parse(transactionsBlock1[26].logs).errors[0], 'cannot act on more than 50 IDs at once');
+      assert.equal(JSON.parse(transactionsBlock1[27].logs).errors[0], 'unexpected price symbol BEE');
+      assert.equal(JSON.parse(transactionsBlock1[28].logs).errors[0], 'total required payment 9.42477000 BEE does not match expected amount');
 
       // check if the NFT instances are still owned by the market
       let instances = await database1.find({
@@ -1197,7 +1203,9 @@ describe('nftmarket', function() {
 
       // now buy a few
       transactions.push(new Transaction(38145386, 'TXID1249', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["1","5"] }'));
+      transactions.push(new Transaction(38145386, 'TXID1249A', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "officialMarket": "splintermart", "agentCut": 2000 }'));
       transactions.push(new Transaction(38145386, 'TXID1250', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["2"] }'));
+      transactions.push(new Transaction(38145386, 'TXID1250A', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "agentCut": 10000 }'));
       transactions.push(new Transaction(38145386, 'TXID1251', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["3"] }'));
 
       let block = {
@@ -1210,26 +1218,47 @@ describe('nftmarket', function() {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
+      const block1 = await database1.getBlockInfo(1);
+      const transactionsBlock1 = block1.transactions;
+      console.log(transactionsBlock1[19].logs);
+      console.log(transactionsBlock1[21].logs);
+      console.log(transactionsBlock1[23].logs);
+
       // check that trade history table was updated
       let history = await database1.find({
         contract: 'nftmarket',
         table: 'TESTtradesHistory',
         query: {}
       });
+      console.log(history[0]);
+      console.log(history[1]);
+      console.log(history[2]);
       assert.equal(history.length, 3);
       assert.equal(history[0].timestamp, 1527811200);
       assert.equal(history[0].volume, 2);
       assert.equal(history[0].counterparties.length, 2);
       assert.equal(history[0].counterparties[0].nftIds[0], '1');
       assert.equal(history[0].counterparties[1].nftIds[0], '5');
+      assert.equal(history[0].marketAccount, 'peakmonsters');
+      assert.equal(history[0].fee, '0.55707950');
+      assert.equal(history[0].agentAccount, undefined);
+      assert.equal(history[0].agentFee, undefined);
       assert.equal(history[1].timestamp, 1527811200);
       assert.equal(history[1].volume, 1);
       assert.equal(history[1].counterparties.length, 1);
       assert.equal(history[1].counterparties[0].nftIds[0], '2');
+      assert.equal(history[1].marketAccount, 'splintermart');
+      assert.equal(history[1].fee, '0.12566360');
+      assert.equal(history[1].agentAccount, 'peakmonsters');
+      assert.equal(history[1].agentFee, '0.03141590');
       assert.equal(history[2].timestamp, 1527811200);
       assert.equal(history[2].volume, 1);
       assert.equal(history[2].counterparties.length, 1);
       assert.equal(history[2].counterparties[0].nftIds[0], '3');
+      assert.equal(history[2].marketAccount, undefined);
+      assert.equal(history[2].fee, undefined);
+      assert.equal(history[2].agentAccount, 'peakmonsters');
+      assert.equal(history[2].agentFee, '0.15707950');
 
       // check that open interest was recorded
       let openInterest = await database1.find({
@@ -1242,7 +1271,8 @@ describe('nftmarket', function() {
 
       // do another buy at a later time
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1252', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["4"] }'));
+      transactions.push(new Transaction(38145387, 'TXID1252', 'cryptomancer', 'nftmarket', 'setMarketParams', '{ "isSignedWithActiveKey": true, "symbol": "TEST", "agentCut": 0 }'));
+      transactions.push(new Transaction(38145387, 'TXID1252A', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["4"] }'));
 
       block = {
         refHiveBlockNumber: 38145387,
@@ -1254,13 +1284,17 @@ describe('nftmarket', function() {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
+      const block2 = await database1.getBlockInfo(2);
+      const transactionsBlock2 = block2.transactions;
+      console.log(transactionsBlock2[1].logs);
+
       // check that trade history table was updated
       history = await database1.find({
         contract: 'nftmarket',
         table: 'TESTtradesHistory',
         query: {}
       });
-      
+      console.log(history[3]);
       assert.equal(history.length, 4);
       assert.equal(history[0].timestamp, 1527811200);
       assert.equal(history[0].volume, 2);
@@ -1279,10 +1313,10 @@ describe('nftmarket', function() {
       assert.equal(history[3].volume, 1);
       assert.equal(history[3].counterparties.length, 1);
       assert.equal(history[3].counterparties[0].nftIds[0], '4');
-      
-      
-      
-      
+      assert.equal(history[3].marketAccount, 'splintermart');
+      assert.equal(history[3].fee, '0.15707950');
+      assert.equal(history[3].agentAccount, undefined);
+      assert.equal(history[3].agentFee, undefined);
 
       // check that open interest was recorded
       openInterest = await database1.find({

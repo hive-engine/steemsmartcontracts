@@ -734,9 +734,11 @@ actions.buy = async (payload) => {
           paymentTotal,
         };
         if (isMarketFeePaid) {
+          ackPacket.marketAccount = officialMarketAccount;
           ackPacket.feeTotal = feeTotal;
         }
         if (isAgentFeePaid) {
+          ackPacket.agentAccount = finalMarketAccount;
           ackPacket.agentFeeTotal = agentFeeTotal;
         }
 

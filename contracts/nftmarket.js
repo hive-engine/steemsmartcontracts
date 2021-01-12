@@ -649,7 +649,7 @@ actions.buy = async (payload) => {
           const res = await api.executeSmartContract('tokens', 'transfer', {
             to: finalMarketAccount, symbol: priceSymbol, quantity: agentFeeTotal, isSignedWithActiveKey,
           });
-          if (!api.assert(isTokenTransferVerified(res, api.sender, finalMarketAccount, priceSymbol, agentFeeTotal, 'transfer'), 'unable to transfer market fees')) {
+          if (!api.assert(isTokenTransferVerified(res, api.sender, finalMarketAccount, priceSymbol, agentFeeTotal, 'transfer'), 'unable to transfer agent fees')) {
             return;
           }
         }

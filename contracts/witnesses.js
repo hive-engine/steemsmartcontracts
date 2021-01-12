@@ -782,7 +782,7 @@ actions.proposeRound = async (payload) => {
             const schedule = schedules[index];
             // reward the witness that help verifying this round
             if (rewardWitnesses === true) {
-              await api.executeSmartContract('tokens', 'transferFromContract', { to: schedule.witness, symbol: UTILITY_TOKEN_SYMBOL, quantity: NB_TOKENS_TO_REWARD });
+              await api.transferTokens(schedule.witness, UTILITY_TOKEN_SYMBOL, NB_TOKENS_TO_REWARD, 'user');
             }
             await api.db.remove('schedules', schedule);
           }

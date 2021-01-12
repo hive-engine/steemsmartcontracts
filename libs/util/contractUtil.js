@@ -1,5 +1,5 @@
 const fs = require('fs-extra');
-const CONSTANTS = require('../Constants');
+const { CONSTANTS } = require('../Constants');
 
 function setupContractPayload(name, file) {
   let contractCode = fs.readFileSync(file);

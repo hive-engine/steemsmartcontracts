@@ -1,14 +1,13 @@
 /* eslint-disable */
 const { fork } = require('child_process');
 const assert = require('assert');
-const fs = require('fs-extra');
 const { MongoClient } = require('mongodb');
 
+const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
-
-const { CONSTANTS } = require('../libs/Constants');
+const { setupContractPayload } = require('../libs/util/contractUtil');
 
 const conf = {
   chainId: "test-chain-id",
@@ -94,32 +93,8 @@ const unloadPlugin = (plugin) => {
   currentJobId = 0;
 }
 
-let contractCode = fs.readFileSync('./contracts/tokens.js');
-contractCode = contractCode.toString();
-
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
-
-
-let base64ContractCode = Base64.encode(contractCode);
-
-let tknContractPayload = {
-  name: 'tokens',
-  params: '',
-  code: base64ContractCode,
-};
-
-contractCode = fs.readFileSync('./contracts/hivepegged.js');
-contractCode = contractCode.toString();
-contractCode = contractCode.replace(/'\$\{CONSTANTS.ACCOUNT_RECEIVING_FEES\}\$'/g, CONSTANTS.ACCOUNT_RECEIVING_FEES);
-base64ContractCode = Base64.encode(contractCode);
-
-let spContractPayload = {
-  name: 'hivepegged',
-  params: '',
-  code: base64ContractCode,
-};
+const tknContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const pegContractPayload = setupContractPayload('hivepegged', './contracts/hivepegged.js');
 
 describe('Hive Pegged', function () {
   this.timeout(10000);
@@ -176,7 +151,7 @@ describe('Hive Pegged', function () {
 
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1236', 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.002 HIVE", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(4000000, 'TXID1237', 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
 
@@ -228,7 +203,7 @@ describe('Hive Pegged', function () {
 
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1236', 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.003 HIVE", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(4000000, 'TXID1237', 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(4000000, 'TXID1238', 'harpagon', 'hivepegged', 'withdraw', '{ "quantity": "0.002", "isSignedWithActiveKey": true }'));
@@ -328,7 +303,7 @@ describe('Hive Pegged', function () {
 
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1236', 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.003 HIVE", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(4000000, 'TXID1237', 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(4000000, 'TXID1239', 'satoshi', 'hivepegged', 'withdraw', '{ "quantity": "0.001", "isSignedWithActiveKey": true }'));

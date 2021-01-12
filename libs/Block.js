@@ -118,11 +118,11 @@ class Block {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
     }
 
-    // TODO: cleanup
-    // if (this.refHiveBlockNumber >= 37899120) {
-    // virtualTransactions
-    // .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
-    // }
+    // TODO: Determine block to start witness schedule.
+    if (this.refHiveBlockNumber >= 99999999) {
+    virtualTransactions
+    .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
+    }
 
     if (this.refHiveBlockNumber % 1200 === 0) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'inflation', 'issueNewTokens', '{ "isSignedWithActiveKey": true }'));

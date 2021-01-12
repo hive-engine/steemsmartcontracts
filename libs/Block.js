@@ -93,6 +93,8 @@ class Block {
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_7', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_8', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(inflationContractPayload)));
+    } else if (this.refHiveBlockNumber === 50377365) {
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
     }
 
     const nbTransactions = this.transactions.length;

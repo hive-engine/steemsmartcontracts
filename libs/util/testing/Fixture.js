@@ -1,17 +1,18 @@
+/* eslint-disable no-console */
 const { fork } = require('child_process');
 const { Database } = require('../../Database');
 const blockchain = require('../../../plugins/Blockchain');
 
 const conf = {
-  chainId: "test-chain-id",
+  chainId: 'test-chain-id',
   genesisSteemBlock: 2000000,
-  dataDirectory: "./test/data/",
-  databaseFileName: "database.db",
+  dataDirectory: './test/data/',
+  databaseFileName: 'database.db',
   autosaveInterval: 0,
   javascriptVMTimeout: 10000,
-  databaseURL: "mongodb://localhost:27017",
-  databaseName: "testssc",
-  streamNodes: ["https://api.steemit.com"],
+  databaseURL: 'mongodb://localhost:27017',
+  databaseName: 'testssc',
+  streamNodes: ['https://api.steemit.com'],
 };
 
 class Fixture {
@@ -24,7 +25,7 @@ class Fixture {
   }
 
   sendBlock(block) {
-    return this.send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block })
+    return this.send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
   }
 
   send(pluginName, from, message) {
@@ -62,11 +63,11 @@ class Fixture {
           }
         }
       } else if (type && type === 'broadcast') {
-        plugins.forEach((plugin) => {
+        this.plugins.forEach((plugin) => {
           plugin.cp.send(message);
         });
-      } else if (plugins[to]) {
-        plugins[to].cp.send(message);
+      } else if (this.plugins[to]) {
+        this.plugins[to].cp.send(message);
       } else {
         console.error('ROUTING ERROR: ', message);
       }
@@ -92,8 +93,8 @@ class Fixture {
   }
 
   getNextTxId() {
-    this.txId++;
-    return `TXID${this.txId.toString().padStart(8, "0")}`;
+    this.txId += 1;
+    return `TXID${this.txId.toString().padStart(8, '0')}`;
   }
 
   async setUp() {

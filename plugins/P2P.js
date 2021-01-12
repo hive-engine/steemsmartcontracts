@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /* eslint-disable no-await-in-loop */
 const jayson = require('jayson');
 const http = require('http');
@@ -259,10 +260,10 @@ const proposeRound = async (witness, round, retry = 0) => {
   } catch (error) {
     console.error(`Error posting to ${witness} / round ${round.round} / ${error}`);
     if (currentRound === round.round && error.toString().indexOf('ETIMEDOUT') > -1 && retry < 3) {
-        setTimeout(() => {
-            console.log(`propose round: retry ${retry + 1}`);
-            proposeRound(witness, round, retry + 1);
-        }, 0);
+      setTimeout(() => {
+        console.log(`propose round: retry ${retry + 1}`);
+        proposeRound(witness, round, retry + 1);
+      }, 0);
     }
   }
 };

@@ -120,8 +120,8 @@ class Block {
 
     // TODO: Determine block to start witness schedule.
     if (this.refHiveBlockNumber >= 99999999) {
-    virtualTransactions
-    .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
+      virtualTransactions
+        .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
     }
 
     if (this.refHiveBlockNumber % 1200 === 0) {

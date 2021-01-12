@@ -46,6 +46,14 @@ function addGovernanceTokenTransactions(fixture, transactions, blockNumber) {
 const fixture = new Fixture();
 const tableAsserts = new TableAsserts(fixture);
 
+async function assertNoErrorInLastBlock() {
+  const transactions = (await database1.getLatestBlockInfo()).transactions;
+  for (let i = 0; i < transactions.length; i++) {
+    const logs = JSON.parse(transactions[i].logs);
+    assert(!logs.errors, `Tx #${i} had unexpected error ${logs.errors}`);
+  }
+}
+
 describe('witnesses', function () {
   this.timeout(60000);
 
@@ -112,6 +120,7 @@ describe('witnesses', function () {
       };
 
       await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
 
       let res = await fixture.database.find({
           contract: 'witnesses',

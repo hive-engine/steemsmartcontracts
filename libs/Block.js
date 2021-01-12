@@ -89,10 +89,10 @@ class Block {
       // Append and enable relevant contracts for P2P
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-    } else if (this.refHiveBlockNumbwr === 50374830) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_4', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(inflationContractPayload)));
+    } else if (this.refHiveBlockNumber === 50375190) {
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_7', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_8', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(inflationContractPayload)));
     }
 
     const nbTransactions = this.transactions.length;

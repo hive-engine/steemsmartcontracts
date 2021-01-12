@@ -11,6 +11,7 @@ function setupContractPayload(name, file) {
   contractCode = contractCode.replace(/'\$\{CONSTANTS.GOVERNANCE_TOKEN_SYMBOL\}\$'/g, CONSTANTS.GOVERNANCE_TOKEN_SYMBOL);
   contractCode = contractCode.replace(/'\$\{CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE\}\$'/g, CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE);
   contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
+  contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_ENGINE_ACCOUNT\}\$'/g, CONSTANTS.HIVE_ENGINE_ACCOUNT);
 
   const base64ContractCode = Base64.encode(contractCode);
 

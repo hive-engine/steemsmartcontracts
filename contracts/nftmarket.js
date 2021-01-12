@@ -10,7 +10,10 @@ const CONTRACT_NAME = 'nftmarket';
 const MAX_NUM_UNITS_OPERABLE = 50;
 
 actions.createSSC = async () => {
-  // nothing to do here
+  const tableExists = await api.db.tableExists('params');
+  if (tableExists === false) {
+    await api.db.createTable('params', ['symbol']);
+  }
 };
 
 // check that token transfers succeeded
@@ -152,7 +155,7 @@ const updateOpenInterest = async (side, symbol, priceSymbol, groups, groupBy) =>
   }
 };
 
-const updateTradesHistory = async (type, account, ownedBy, counterparties, symbol, priceSymbol, price, marketAccount, fee, volume) => {
+const updateTradesHistory = async (type, account, ownedBy, counterparties, symbol, priceSymbol, price, isMarketFeePaid, marketAccount, fee, isAgentFeePaid, agentAccount, agentFee, volume) => {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestampSec = blockDate.getTime() / 1000;
   const timestampMinus24hrs = blockDate.setDate(blockDate.getDate() - 1) / 1000;
@@ -167,6 +170,9 @@ const updateTradesHistory = async (type, account, ownedBy, counterparties, symbo
         $lt: timestampMinus24hrs,
       },
     },
+    1000,
+    0,
+    [{ index: '_id', descending: false }],
   );
   let nbTradesToDelete = tradesToDelete.length;
 
@@ -183,9 +189,13 @@ const updateTradesHistory = async (type, account, ownedBy, counterparties, symbo
           $lt: timestampMinus24hrs,
         },
       },
+      1000,
+      0,
+      [{ index: '_id', descending: false }],
     );
     nbTradesToDelete = tradesToDelete.length;
   }
+
   // add order to the history
   const newTrade = {};
   newTrade.type = type;
@@ -194,11 +204,99 @@ const updateTradesHistory = async (type, account, ownedBy, counterparties, symbo
   newTrade.counterparties = counterparties;
   newTrade.priceSymbol = priceSymbol;
   newTrade.price = price;
-  newTrade.marketAccount = marketAccount;
-  newTrade.fee = fee;
+  if (isMarketFeePaid) {
+    newTrade.marketAccount = marketAccount;
+    newTrade.fee = fee;
+  }
+  if (isAgentFeePaid) {
+    newTrade.agentAccount = agentAccount;
+    newTrade.agentFee = agentFee;
+  }
   newTrade.timestamp = timestampSec;
   newTrade.volume = volume;
   await api.db.insert(historyTableName, newTrade);
+};
+
+actions.setMarketParams = async (payload) => {
+  const {
+    symbol, officialMarket, agentCut, minFee, isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(symbol && typeof symbol === 'string', 'invalid params')) {
+    return false;
+  }
+
+  // if no parameters supplied, we have nothing to do
+  if (officialMarket === undefined && agentCut === undefined && minFee === undefined) {
+    return false;
+  }
+
+  const marketTableName = symbol + 'sellBook';
+  const tableExists = await api.db.tableExists(marketTableName);
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(tableExists, 'market not enabled for symbol')
+    && api.assert((officialMarket === undefined || (officialMarket && typeof officialMarket === 'string' && isValidHiveAccountLength(officialMarket.trim().toLowerCase())))
+      && (agentCut === undefined || (typeof agentCut === 'number' && agentCut >= 0 && agentCut <= 10000 && Number.isInteger(agentCut)))
+      && (minFee === undefined || (typeof minFee === 'number' && minFee >= 0 && minFee <= 10000 && Number.isInteger(minFee))), 'invalid params')) {
+    const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
+
+    if (nft) {
+      if (api.assert(nft.issuer === api.sender, 'must be the issuer')) {
+        let shouldUpdate = false;
+        let isFirstTimeSet = false;
+        const update = {
+          symbol,
+        };
+
+        let params = await api.db.findOne('params', { symbol });
+        if (!params) {
+          isFirstTimeSet = true;
+          params = {
+            symbol,
+          };
+        }
+
+        const finalOfficialMarket = (officialMarket !== undefined) ? officialMarket.trim().toLowerCase() : null;
+        if (officialMarket !== undefined && (params.officialMarket === undefined || finalOfficialMarket !== params.officialMarket)) {
+          if (params.officialMarket !== undefined) {
+            update.oldOfficialMarket = params.officialMarket;
+          }
+          params.officialMarket = finalOfficialMarket;
+          update.officialMarket = finalOfficialMarket;
+          shouldUpdate = true;
+        }
+        if (agentCut !== undefined && (params.agentCut === undefined || agentCut !== params.agentCut)) {
+          if (params.agentCut !== undefined) {
+            update.oldAgentCut = params.agentCut;
+          }
+          params.agentCut = agentCut;
+          update.agentCut = agentCut;
+          shouldUpdate = true;
+        }
+        if (minFee !== undefined && (params.minFee === undefined || minFee !== params.minFee)) {
+          if (params.minFee !== undefined) {
+            update.oldMinFee = params.minFee;
+          }
+          params.minFee = minFee;
+          update.minFee = minFee;
+          shouldUpdate = true;
+        }
+
+        if (shouldUpdate) {
+          if (isFirstTimeSet) {
+            await api.db.insert('params', params);
+          } else {
+            await api.db.update('params', params);
+          }
+
+          api.emit('setMarketParams', update);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 };
 
 actions.changePrice = async (payload) => {
@@ -404,11 +502,15 @@ actions.buy = async (payload) => {
     symbol,
     nfts,
     marketAccount,
+    expPrice,
+    expPriceSymbol,
     isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(symbol && typeof symbol === 'string'
-    && marketAccount && typeof marketAccount === 'string', 'invalid params')) {
+    && marketAccount && typeof marketAccount === 'string'
+    && (expPrice === undefined || (expPrice && typeof expPrice === 'string' && !api.BigNumber(expPrice).isNaN()))
+    && (expPriceSymbol === undefined || (expPriceSymbol && typeof expPriceSymbol === 'string')), 'invalid params')) {
     return;
   }
 
@@ -451,6 +553,11 @@ actions.buy = async (payload) => {
             return;
           }
         }
+        // verify we have the expected priceSymbol
+        if (!api.assert(expPriceSymbol === undefined || expPriceSymbol === priceSymbol, `unexpected price symbol ${priceSymbol}`)) {
+          return;
+        }
+
         // get the price token params
         const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
         if (!token) {
@@ -459,6 +566,7 @@ actions.buy = async (payload) => {
 
         // create order maps
         let feeTotal = api.BigNumber(0);
+        let agentFeeTotal = api.BigNumber(0);
         let paymentTotal = api.BigNumber(0);
         let soldNfts = [];
         const sellers = [];
@@ -493,8 +601,25 @@ actions.buy = async (payload) => {
           sellerMap[key] = sellerInfo;
         }
 
-        // verify buyer has enough funds for payment
-        const requiredBalance = paymentTotal.plus(feeTotal).toFixed(token.precision);
+        // check if we have to split the fee into market & agent fees
+        const params = await api.db.findOne('params', { symbol });
+        if (params && params.officialMarket && params.agentCut !== undefined && params.agentCut > 0 && feeTotal.gt(0)) {
+          const agentFeePercent = params.agentCut / 10000;
+          agentFeeTotal = feeTotal.multipliedBy(agentFeePercent).decimalPlaces(token.precision);
+          if (agentFeeTotal.gt(feeTotal)) {
+            agentFeeTotal = api.BigNumber(feeTotal); // unlikely but need to be sure
+          }
+          feeTotal = feeTotal.minus(agentFeeTotal).decimalPlaces(token.precision);
+          if (feeTotal.lt(0)) {
+            feeTotal = api.BigNumber(0); // unlikely but need to be sure
+          }
+        }
+
+        // verify buyer has enough funds for payment, and check payment is what we expect
+        const requiredBalance = paymentTotal.plus(feeTotal).plus(agentFeeTotal).toFixed(token.precision);
+        if (!api.assert(expPrice === undefined || api.BigNumber(expPrice).eq(requiredBalance), `total required payment ${requiredBalance} ${priceSymbol} does not match expected amount`)) {
+          return;
+        }
         const buyerBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: priceSymbol });
         if (!api.assert(buyerBalance
           && api.BigNumber(buyerBalance.balance).gte(requiredBalance), 'you must have enough tokens for payment')) {
@@ -502,13 +627,29 @@ actions.buy = async (payload) => {
         }
         paymentTotal = paymentTotal.toFixed(token.precision);
 
-        // send fees to market account
+        // send fee to market account
+        const officialMarketAccount = (params && params.officialMarket) ? params.officialMarket : finalMarketAccount;
+        let isMarketFeePaid = false;
         if (feeTotal.gt(0)) {
+          isMarketFeePaid = true;
           feeTotal = feeTotal.toFixed(token.precision);
           const res = await api.executeSmartContract('tokens', 'transfer', {
-            to: finalMarketAccount, symbol: priceSymbol, quantity: feeTotal, isSignedWithActiveKey,
+            to: officialMarketAccount, symbol: priceSymbol, quantity: feeTotal, isSignedWithActiveKey,
           });
-          if (!api.assert(isTokenTransferVerified(res, api.sender, finalMarketAccount, priceSymbol, feeTotal, 'transfer'), 'unable to transfer market fees')) {
+          if (!api.assert(isTokenTransferVerified(res, api.sender, officialMarketAccount, priceSymbol, feeTotal, 'transfer'), 'unable to transfer market fees')) {
+            return;
+          }
+        }
+
+        // send fee to agent account
+        let isAgentFeePaid = false;
+        if (agentFeeTotal.gt(0)) {
+          isAgentFeePaid = true;
+          agentFeeTotal = agentFeeTotal.toFixed(token.precision);
+          const res = await api.executeSmartContract('tokens', 'transfer', {
+            to: finalMarketAccount, symbol: priceSymbol, quantity: agentFeeTotal, isSignedWithActiveKey,
+          });
+          if (!api.assert(isTokenTransferVerified(res, api.sender, finalMarketAccount, priceSymbol, agentFeeTotal, 'transfer'), 'unable to transfer market fees')) {
             return;
           }
         }
@@ -569,17 +710,39 @@ actions.buy = async (payload) => {
         }
 
         // add the trade to the history
-        await updateTradesHistory('buy', api.sender, 'u', sellers, symbol, priceSymbol, requiredBalance, finalMarketAccount, feeTotal, soldNfts.length);
+        await updateTradesHistory('buy',
+          api.sender,
+          'u',
+          sellers,
+          symbol,
+          priceSymbol,
+          requiredBalance,
+          isMarketFeePaid,
+          officialMarketAccount,
+          feeTotal,
+          isAgentFeePaid,
+          finalMarketAccount,
+          agentFeeTotal,
+          soldNfts.length);
 
-        api.emit('hitSellOrder', {
+        const ackPacket = {
           symbol,
           priceSymbol,
           account: api.sender,
           ownedBy: 'u',
           sellers,
           paymentTotal,
-          feeTotal,
-        });
+        };
+        if (isMarketFeePaid) {
+          ackPacket.marketAccount = officialMarketAccount;
+          ackPacket.feeTotal = feeTotal;
+        }
+        if (isAgentFeePaid) {
+          ackPacket.agentAccount = finalMarketAccount;
+          ackPacket.agentFeeTotal = agentFeeTotal;
+        }
+
+        api.emit('hitSellOrder', ackPacket);
 
         // update open interest metrics
         await updateOpenInterest('sell', symbol, priceSymbol, groupingMap, nft.groupBy);
@@ -616,6 +779,13 @@ actions.sell = async (payload) => {
     const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
     if (!api.assert(nft && nft.groupBy && nft.groupBy.length > 0, 'market grouping not set')) {
       return;
+    }
+
+    const params = await api.db.findOne('params', { symbol });
+    if (params && params.minFee !== undefined) {
+      if (!api.assert(fee >= params.minFee, `fee must be >= ${params.minFee}`)) {
+        return;
+      }
     }
 
     // get the price token params

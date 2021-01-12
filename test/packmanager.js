@@ -1,17 +1,15 @@
 /* eslint-disable */
 const { fork } = require('child_process');
 const assert = require('assert');
-const fs = require('fs-extra');
 const BigNumber = require('bignumber.js');
 const { Base64 } = require('js-base64');
 const { MongoClient } = require('mongodb');
 
-
+const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
-
-const { CONSTANTS } = require('../libs/Constants');
+const { setupContractPayload } = require('../libs/util/contractUtil');
 
 const conf = {
   chainId: "test-chain-id",
@@ -97,42 +95,9 @@ const unloadPlugin = (plugin) => {
   currentJobId = 0;
 }
 
-// prepare tokens contract for deployment
-let contractCode = fs.readFileSync('./contracts/tokens.js');
-contractCode = contractCode.toString();
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
-let base64ContractCode = Base64.encode(contractCode);
-
-let tknContractPayload = {
-  name: 'tokens',
-  params: '',
-  code: base64ContractCode,
-};
-
-// prepare nft contract for deployment
-contractCode = fs.readFileSync('./contracts/nft.js');
-contractCode = contractCode.toString();
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-base64ContractCode = Base64.encode(contractCode);
-
-let nftContractPayload = {
-  name: 'nft',
-  params: '',
-  code: base64ContractCode,
-};
-
-// prepare packmanager contract for deployment
-contractCode = fs.readFileSync('./contracts/packmanager.js');
-contractCode = contractCode.toString();
-base64ContractCode = Base64.encode(contractCode);
-
-let pmContractPayload = {
-  name: 'packmanager',
-  params: '',
-  code: base64ContractCode,
-};
+const tknContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const nftContractPayload = setupContractPayload('nft', './contracts/nft.js');
+const pmContractPayload = setupContractPayload('packmanager', './contracts/packmanager.js');
 
 function assertTrait(traitObj, nft, edition, index, name) {
   assert.equal(traitObj.nft, nft);

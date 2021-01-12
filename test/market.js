@@ -1,14 +1,13 @@
 /* eslint-disable */
 const { fork } = require('child_process');
 const assert = require('assert');
-const fs = require('fs-extra');
 const { MongoClient, Decimal128 } = require('mongodb');
 
+const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
-
-const { CONSTANTS } = require('../libs/Constants');
+const { setupContractPayload } = require('../libs/util/contractUtil');
 
 const conf = {
   chainId: "test-chain-id",
@@ -94,41 +93,9 @@ const unloadPlugin = (plugin) => {
   currentJobId = 0;
 }
 
-let contractCode = fs.readFileSync('./contracts/tokens.js');
-contractCode = contractCode.toString();
-
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
-
-let base64ContractCode = Base64.encode(contractCode);
-
-let tknContractPayload = {
-  name: 'tokens',
-  params: '',
-  code: base64ContractCode,
-};
-
-contractCode = fs.readFileSync('./contracts/hivepegged.js');
-contractCode = contractCode.toString();
-contractCode = contractCode.replace(/'\$\{CONSTANTS.ACCOUNT_RECEIVING_FEES\}\$'/g, CONSTANTS.ACCOUNT_RECEIVING_FEES);
-base64ContractCode = Base64.encode(contractCode);
-
-let spContractPayload = {
-  name: 'steempegged',
-  params: '',
-  code: base64ContractCode,
-};
-
-contractCode = fs.readFileSync('./contracts/market.js');
-contractCode = contractCode.toString();
-base64ContractCode = Base64.encode(contractCode);
-
-let mktContractPayload = {
-  name: 'market',
-  params: '',
-  code: base64ContractCode,
-};
+const tknContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const pegContractPayload = setupContractPayload('hivepegged', './contracts/hivepegged.js');
+const mktContractPayload = setupContractPayload('market', './contracts/market.js');
 
 // Market
 describe('Market', function() {
@@ -186,7 +153,7 @@ describe('Market', function() {
 
       let transactions = [];
       transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "satoshi", "quantity": "523.456", "isSignedWithActiveKey": true }'));
@@ -438,7 +405,7 @@ describe('Market', function() {
 
       let transactions = [];
       transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "523.456", "isSignedWithActiveKey": true }'));
@@ -690,7 +657,7 @@ describe('Market', function() {
 
       let transactions = [];
       transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -764,7 +731,7 @@ describe('Market', function() {
 
       let transactions = [];
       transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -964,7 +931,7 @@ describe('Market', function() {
 
       let transactions = [];
       transactions.push(new Transaction(40000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(40000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(40000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(40000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1165,7 +1132,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 5, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "satoshi", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1238,7 +1205,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 5, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
@@ -1309,7 +1276,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000001, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000001, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000001, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000001, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000001, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 5, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(4000001, 'TXID1234', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "satoshi", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1348,7 +1315,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 5, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "satoshi", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1418,7 +1385,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "satoshi", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1496,7 +1463,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000001, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000001, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000001, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000001, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000001, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(4000001, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "satoshi", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1536,7 +1503,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "satoshi", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1655,7 +1622,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "satoshi", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1770,7 +1737,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(4000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -1860,7 +1827,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://TKN.token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "100000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(4000000, 'TXID1236', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "harpagon", "quantity": "500", "isSignedWithActiveKey": true }'));
@@ -1943,7 +1910,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1231', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://TKN.token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "100000" }'));
       transactions.push(new Transaction(4000000, 'TXID1236', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', '{ "symbol": "SWAP.HIVE", "to": "harpagon", "quantity": "500", "isSignedWithActiveKey": true }'));
@@ -2054,7 +2021,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1231', 'harpagon', 'accounts', 'register', ''));
       transactions.push(new Transaction(4000000, 'TXID1232', 'satoshi', 'accounts', 'register', ''));
@@ -2147,7 +2114,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1231', 'harpagon', 'accounts', 'register', ''));
       transactions.push(new Transaction(4000000, 'TXID1232', 'satoshi', 'accounts', 'register', ''));
@@ -2234,7 +2201,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1231', 'harpagon', 'accounts', 'register', ''));
       transactions.push(new Transaction(4000000, 'TXID1232', 'satoshi', 'accounts', 'register', ''));
@@ -2321,7 +2288,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1231', 'harpagon', 'accounts', 'register', ''));
       transactions.push(new Transaction(4000000, 'TXID1232', 'satoshi', 'accounts', 'register', ''));
@@ -2516,7 +2483,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1231', 'harpagon', 'accounts', 'register', ''));
       transactions.push(new Transaction(4000000, 'TXID1232', 'satoshi', 'accounts', 'register', ''));
@@ -2682,7 +2649,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(4000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -2772,7 +2739,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(4000000, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "vitalik", "quantity": "123.456", "isSignedWithActiveKey": true }'));
@@ -2862,7 +2829,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000001, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(4000001, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', '{ "symbol": "TKN.TEST", "to": "vitalik", "quantity": "101", "isSignedWithActiveKey": true }'));
@@ -3011,7 +2978,7 @@ describe('Market', function() {
       
       let transactions = [];
       transactions.push(new Transaction(4000000, 'TXID1229', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(spContractPayload)));
+      transactions.push(new Transaction(4000000, 'TXID1228', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
       transactions.push(new Transaction(4000000, 'TXID1227', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(mktContractPayload)));
       transactions.push(new Transaction(4000001, 'TXID1231', 'harpagon', 'accounts', 'register', ''));
       transactions.push(new Transaction(4000001, 'TXID1232', 'satoshi', 'accounts', 'register', ''));

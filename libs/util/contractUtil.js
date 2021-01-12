@@ -1,5 +1,6 @@
 const fs = require('fs-extra');
-const CONSTANTS = require('../Constants');
+const { Base64 } = require('js-base64');
+const { CONSTANTS } = require('../Constants');
 
 function setupContractPayload(name, file) {
   let contractCode = fs.readFileSync(file);
@@ -11,7 +12,7 @@ function setupContractPayload(name, file) {
   contractCode = contractCode.replace(/'\$\{CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE\}\$'/g, CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE);
   contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
 
-  let base64ContractCode = Base64.encode(contractCode);
+  const base64ContractCode = Base64.encode(contractCode);
 
   return {
     name,

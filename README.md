@@ -17,15 +17,24 @@ This is actually pretty easy, you basically need a Hive account and that's it. T
 
 ## 4. Setup a Hive Smart Contracts node
 
-see wiki: https://github.com/harpagon210/steemsmartcontracts/wiki/How-to-setup-a-Steem-Smart-Contracts-node
+see wiki: https://github.com/hive-engine/steemsmartcontracts-wiki
 
-In addition, the followimg is needed to use transaction framework for MongoDB:
+In addition, the following is needed to use transaction framework for MongoDB:
 - Run MongoDB in replicated mode. This is as simple as changing the mongo config to add replication config:
   ```
     replication:
       replSetName: "rs0"
   ```
-- Need version 3.6 mongo node library.
+  and then enabling replication by using the mongo shell:
+  ```
+  mongo
+  > rs.initiate()
+  ``` 
+  See https://docs.mongodb.com/manual/tutorial/convert-standalone-to-replica-set/ for details.
+  Also, if you are /upgrading/ from a previous MongoDB, you need to take careful extra steps and follow
+  https://docs.mongodb.com/manual/release-notes/4.4-upgrade-standalone/
+  carefully.
+- Need version 3.6.3 mongo node library.
 
 Also, if using PM2, you will need to start the process with --no-treekill for proper shutdown. Also
 consider using --no-autorestart with proper monitoring to minimize noise and potential for problematic

@@ -1327,6 +1327,55 @@ describe('nftmarket', function() {
       assert.equal(openInterest.length, 1);
       assert.equal(openInterest[0].count, 2);
 
+      // check that payment + fees were subtracted from buyer's account
+      let balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: { account: 'cryptomancer' }
+      });
+
+      console.log(balances[0].balance);
+      assert.equal(balances[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+      assert.equal(balances[0].balance, '172.33364000');
+
+      // check that fees were sent to official market account
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: { account: 'splintermart' }
+      });
+
+      console.log(balances[0].balance);
+      assert.equal(balances[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+      assert.equal(balances[0].balance, '0.28274310');
+
+      // check that fees were sent to agent account
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: { account: 'peakmonsters' }
+      });
+
+      console.log(balances[0].balance);
+      assert.equal(balances[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+      assert.equal(balances[0].balance, '0.74557490');
+
+      // check that payments were sent to sellers
+      balances = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: { account: { "$in" : ["aggroed","marc"] } }
+      });
+
+      console.log(balances[0].balance);
+      console.log(balances[1].balance);
+      assert.equal(balances[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+      assert.equal(balances[0].balance, '11.93804200');
+      assert.equal(balances[0].account, 'aggroed');
+      assert.equal(balances[1].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+      assert.equal(balances[1].balance, '7.60000000');
+      assert.equal(balances[1].account, 'marc');
+
       // do another buy at a later time
       transactions = [];
       transactions.push(new Transaction(38145388, 'TXID1253', 'cryptomancer', 'nftmarket', 'buy', '{ "isSignedWithActiveKey": true, "marketAccount": "peakmonsters", "symbol": "TEST", "nfts": ["6"] }'));

@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 /* eslint-disable no-await-in-loop */
+/* eslint-disable no-underscore-dangle */
 require('dotenv').config();
 const axios = require('axios');
 
@@ -10,7 +11,7 @@ const contractNames = ['tokens', 'claimdrops', 'distribution', 'nftmarket', 'min
 const node1 = 'https://api.hive-engine.com/rpc/contracts';
 const node2 = 'http://127.0.0.1:5000/contracts';
 
-async function getData(url, contract, tablekey, offset, query={}) {
+async function getData(url, contract, tablekey, offset, query = {}) {
   if (!tablekey) return null;
   const table = tablekey.split('_')[1];
   try {
@@ -61,18 +62,18 @@ async function compare(contractName) {
       const data2 = await getData(node2, contractName, t, offset);
       let mismatch = false;
       for (let j = 0; j < data1.length; j += 1) {
-          if (JSON.stringify(data1[j]) !== JSON.stringify(data2[j])) {
-              // 1 attempt to retry
-              const data1_retry = await getData(node1, contractName, t, 0, { "_id": data1[j]._id });
-              const data2_retry = await getData(node2, contractName, t, 0, { "_id": data2[j]._id });
+        if (JSON.stringify(data1[j]) !== JSON.stringify(data2[j])) {
+          // 1 attempt to retry
+          const data1Retry = await getData(node1, contractName, t, 0, { _id: data1[j]._id });
+          const data2Retry = await getData(node2, contractName, t, 0, { _id: data2[j]._id });
 
-              if (JSON.stringify(data1_retry) !== JSON.stringify(data2_retry)) {
-                  console.error(`Mismatch in ${contractName}:${t} at _id ${data1[j]._id}`);
-                  console.error(JSON.stringify(data1_retry));
-                  console.error(JSON.stringify(data2_retry));
-                  mismatch = true;
-              }
+          if (JSON.stringify(data1Retry) !== JSON.stringify(data2Retry)) {
+            console.error(`Mismatch in ${contractName}:${t} at _id ${data1[j]._id}`);
+            console.error(JSON.stringify(data1Retry));
+            console.error(JSON.stringify(data2Retry));
+            mismatch = true;
           }
+        }
       }
       if (!mismatch) {
         console.log(`compared ${contractName}:${t} at offset ${offset}`);

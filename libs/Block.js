@@ -82,19 +82,27 @@ class Block {
 
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
+    // To keep in sync with primary node history after hack
+    if (this.refHiveBlockNumber === 50352631) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '1.05000000' } });
+      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '1010.00000000' } });
+    } else if (this.refHiveBlockNumber === 50354478) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '0.50000000' } });
+    } else if (this.refHiveBlockNumber === 50354625) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '500000.00000000' } });
+    }
+
     let currentDatabaseHash = this.previousDatabaseHash;
 
     // DO NOT KEEP THIS IN PRIMARY NODE. TEST NETWORK ONLY
-    if (this.refHiveBlockNumber === 50316053) {
+    if (this.refHiveBlockNumber === 99999999) {
       // Append and enable relevant contracts for P2P
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-    } else if (this.refHiveBlockNumber === 50375190) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_7', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_8', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(inflationContractPayload)));
-    } else if (this.refHiveBlockNumber === 50377365) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_3', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(inflationContractPayload)));
     }
 
     const nbTransactions = this.transactions.length;

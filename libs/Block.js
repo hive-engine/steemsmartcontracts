@@ -79,6 +79,19 @@ class Block {
   async produceBlock(database, jsVMTimeout, mainBlock) {
     const nbTransactions = this.transactions.length;
 
+    // To keep in sync with primary node history after hack
+    if (this.refHiveBlockNumber === 50352631) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '1.05000000' } });
+      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '1010.00000000' } });
+    } else if (this.refHiveBlockNumber === 50354478) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '0.50000000' } });
+    } else if (this.refHiveBlockNumber === 50354625) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '500000.00000000' } });
+    }
+
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;

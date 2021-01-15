@@ -119,11 +119,11 @@ const loadPlugin = (newPlugin) => {
 
 const unloadPlugin = async (plugin) => {
   let res = null;
-  let plg = getPlugin(plugin);
+  const plg = getPlugin(plugin);
   if (plg) {
+    logger.info(`unloading plugin ${plugin.PLUGIN_NAME}`);
     res = await send(plg, { action: 'stop' });
     plg.cp.kill('SIGINT');
-    plg = null;
   }
   return res;
 };
@@ -143,6 +143,7 @@ const start = async () => {
 };
 
 const stop = async () => {
+  logger.info('Stopping node...');
   await unloadPlugin(jsonRPCServer);
   await unloadPlugin(p2p);
   // get the last Hive block parsed

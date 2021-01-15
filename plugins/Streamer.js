@@ -277,10 +277,10 @@ const updateGlobalProps = async () => {
       // eslint-disable-next-line
       console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
     }
-    updaterGlobalPropsHandler = setTimeout(() => updateGlobalProps(), 10000);
   } catch (ex) {
     console.error('An error occured while trying to fetch the Hive blockchain global properties'); // eslint-disable-line no-console
   }
+  updaterGlobalPropsHandler = setTimeout(() => updateGlobalProps(), 10000);
 };
 
 const addBlockToBuffer = async (block) => {
@@ -384,7 +384,7 @@ const init = async (conf) => {
   const block = await getLatestBlockMetadata();
   if (block) {
     if (finalConf.startHiveBlock < block.refHiveBlockNumber) {
-      console.log('adjusted startHiveBlock automatically as it was lower that the refHiveBlockNumber available'); // eslint-disable-line no-console
+      console.log('adjusted startHiveBlock automatically as it was lower than the refHiveBlockNumber available'); // eslint-disable-line no-console
       finalConf.startHiveBlock = block.refHiveBlockNumber + 1;
     }
   }

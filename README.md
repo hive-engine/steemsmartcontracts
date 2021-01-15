@@ -17,8 +17,47 @@ This is actually pretty easy, you basically need a Hive account and that's it. T
 
 ## 4. Setup a Hive Smart Contracts node
 
-see wiki: https://github.com/harpagon210/steemsmartcontracts/wiki/How-to-setup-a-Steem-Smart-Contracts-node
+see wiki: https://github.com/hive-engine/steemsmartcontracts-wiki
 
+In addition, the following is needed to use transaction framework for MongoDB:
+- Run MongoDB in replicated mode. This is as simple as changing the mongo config to add replication config:
+  ```
+    replication:
+      replSetName: "rs0"
+  ```
+  and then enabling replication by using the mongo shell:
+  ```
+  mongo
+  > rs.initiate()
+  ``` 
+  See https://docs.mongodb.com/manual/tutorial/convert-standalone-to-replica-set/ for details.
+  Also, if you are /upgrading/ from a previous MongoDB, you need to take careful extra steps and follow
+  https://docs.mongodb.com/manual/release-notes/4.4-upgrade-standalone/
+  carefully.
+- Need version 3.6.3 mongo node library.
+
+Also, if using PM2, you will need to start the process with --no-treekill for proper shutdown. Also
+consider using --no-autorestart with proper monitoring to minimize noise and potential for problematic
+looping (though with transactions there is less risk of data corruption). Another oddity with PM2 is
+ that you may need to clear node processes after a stop if the process does not terminate on its own. 
+Otherwise it will interfere with logging.
+
+E.g.
+```
+pm2 start app.js --no-treekill --kill-timeout 10000 --no-autorestart
+```
+
+### DB Backup and Restore
+
+Backup current state (track current hive blpck in config)
+
+`mongodump -d=hsc --gzip --archive=hsc_50287280.archive`
+
+Restore state
+
+`mongorestore --gzip --archive=hsc_50287280.archive`
+
+Edit config.json to match block number of backup.
 ## 5. Tests
 * npm run test
 

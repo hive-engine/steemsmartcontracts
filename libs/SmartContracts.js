@@ -206,7 +206,7 @@ class SmartContracts {
         if (error) {
           if (error.name && typeof error.name === 'string'
             && error.message && typeof error.message === 'string') {
-            return { errors: [`${error.name}: ${error.message}`] };
+            return { logs: { errors: [`${error.name}: ${error.message}`] } };
           }
 
           return { logs: { errors: ['unknown error'] } };

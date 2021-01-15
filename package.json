@@ -43,7 +43,7 @@
     "jayson": "^2.1.1",
     "js-base64": "^2.5.1",
     "line-by-line": "^0.1.6",
-    "mongodb": "^3.2.6",
+    "mongodb": "^3.6.3",
     "read-last-lines": "^1.6.0",
     "seedrandom": "^3.0.1",
     "socket.io": "^2.3.0",

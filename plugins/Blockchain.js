@@ -1,3 +1,4 @@
+const axios = require('axios');
 const { Block } = require('../libs/Block');
 const { Transaction } = require('../libs/Transaction');
 const { IPC } = require('../libs/IPC');
@@ -14,6 +15,7 @@ let database = null;
 let javascriptVMTimeout = 0;
 let producing = false;
 let stopRequested = false;
+let enableHashVerification = false;
 
 const createGenesisBlock = async (payload) => {
   // check if genesis block hasn't been generated already
@@ -64,11 +66,43 @@ async function producePendingTransactions(
       previousBlock.databaseHash,
     );
 
-    await newBlock.produceBlock(database, javascriptVMTimeout);
+    const session = database.startSession();
 
-    if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
-      await addBlock(newBlock);
+    const mainBlock = !enableHashVerification ? null : (await axios({
+      url: 'https://api.hive-engine.com/rpc/blockchain',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      data: {
+        jsonrpc: '2.0', id: 10, method: 'getBlockInfo', params: { blockNumber: newBlock.blockNumber },
+      },
+    })).data.result;
+    try {
+      await session.withTransaction(async () => {
+        await newBlock.produceBlock(database, javascriptVMTimeout, mainBlock);
+
+        if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
+          if (mainBlock && newBlock.hash) {
+            console.log(`Sidechain Block ${mainBlock.blockNumber}, Main db hash: ${mainBlock.databaseHash}, Main block hash: ${mainBlock.hash}, This db hash: ${newBlock.databaseHash}, This block hash: ${newBlock.hash}`); // eslint-disable-line no-console
+
+            if (mainBlock.databaseHash !== newBlock.databaseHash
+                || mainBlock.hash !== newBlock.hash) {
+              throw new Error(`Block mismatch with api \nMain: ${JSON.stringify(mainBlock, null, 2)}, \nThis: ${JSON.stringify(newBlock, null, 2)}`);
+            }
+          }
+
+          await addBlock(newBlock);
+        }
+      });
+    } catch (e) {
+      console.error(e); // eslint-disable-line no-console
+      throw e;
+    } finally {
+      await database.endSession();
     }
+  } else {
+    throw new Error('block not found');
   }
 }
 
@@ -124,6 +158,7 @@ const init = async (conf, callback) => {
     databaseName,
   } = conf;
   javascriptVMTimeout = conf.javascriptVMTimeout; // eslint-disable-line prefer-destructuring
+  enableHashVerification = conf.enableHashVerification; // eslint-disable-line prefer-destructuring
 
   database = new Database();
   await database.init(databaseURL, databaseName);

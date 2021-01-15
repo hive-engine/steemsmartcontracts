@@ -76,16 +76,39 @@ class Block {
   }
 
   // produce the block (deploy a smart contract or execute a smart contract)
-  async produceBlock(database, jsVMTimeout) {
+  async produceBlock(database, jsVMTimeout, mainBlock) {
     const nbTransactions = this.transactions.length;
+
+    // To keep in sync with primary node history after hack
+    if (this.refHiveBlockNumber === 50352631) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '1.05000000' } });
+      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '1010.00000000' } });
+    } else if (this.refHiveBlockNumber === 50354478) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '0.50000000' } });
+    } else if (this.refHiveBlockNumber === 50354625) {
+      const tokenBalances = database.database.collection('tokens_balances');
+      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '500000.00000000' } });
+    }
 
     let currentDatabaseHash = this.previousDatabaseHash;
 
+    let relIndex = 0;
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
 
       currentDatabaseHash = transaction.databaseHash;
+
+      if (transaction.contract !== 'comments' || transaction.logs === '{}') {
+        if (mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
+          console.warn(mainBlock.transactions[relIndex]); // eslint-disable-line no-console
+          console.warn(transaction); // eslint-disable-line no-console
+          throw new Error('tx hash mismatch with api');
+        }
+        relIndex += 1;
+      }
     }
 
     // remove comment, comment_options and votes if not relevant
@@ -108,16 +131,17 @@ class Block {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
     }
 
-    // TODO: cleanup
-    // if (this.refHiveBlockNumber >= 37899120) {
-    // virtualTransactions
-    // .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
-    // }
+    // TODO: Determine block to start witness schedule.
+    if (this.refHiveBlockNumber >= 99999999) {
+      virtualTransactions
+        .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
+    }
 
     if (this.refHiveBlockNumber % 1200 === 0) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'inflation', 'issueNewTokens', '{ "isSignedWithActiveKey": true }'));
     }
 
+    relIndex = 0;
     const nbVirtualTransactions = virtualTransactions.length;
     for (let i = 0; i < nbVirtualTransactions; i += 1) {
       const transaction = virtualTransactions[i];
@@ -155,6 +179,13 @@ class Block {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
+          if (mainBlock
+              && currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
+            console.warn(mainBlock.virtualTransactions[relIndex]); // eslint-disable-line no-console
+            console.warn(transaction); // eslint-disable-line no-console
+            throw new Error('tx hash mismatch with api');
+          }
+          relIndex += 1;
         }
       }
     }
@@ -205,6 +236,9 @@ class Block {
     } else {
       results = { logs: { errors: ['the parameters sender, contract and action are required'] } };
     }
+
+    await database.flushCache();
+    await database.flushContractCache();
 
     // get the database hash
     newCurrentDatabaseHash = database.getDatabaseHash();

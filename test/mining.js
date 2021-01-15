@@ -1,15 +1,14 @@
 /* eslint-disable */
 const { fork } = require('child_process');
 const assert = require('assert');
-const fs = require('fs-extra');
 const { MongoClient } = require('mongodb');
 const { Base64 } = require('js-base64');
 
+const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
-
-const { CONSTANTS } = require('../libs/Constants');
+const { setupContractPayload } = require('../libs/util/contractUtil');
 
 const conf = {
   chainId: "test-chain-id",
@@ -93,22 +92,6 @@ const unloadPlugin = (plugin) => {
   plugins[plugin.PLUGIN_NAME] = null;
   jobs = new Map();
   currentJobId = 0;
-}
-
-function setupContractPayload(name, file) {
-  let contractCode = fs.readFileSync(file);
-  contractCode = contractCode.toString();
-  contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-  contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-  contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
-
-  let base64ContractCode = Base64.encode(contractCode);
-
-  return {
-    name,
-    params: '',
-    code: base64ContractCode,
-  };
 }
 
 const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
@@ -517,6 +500,7 @@ describe('mining', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       await assertNoErrorInLastBlock();
+  console.log((await database1.getLatestBlockInfo()).virtualTransactions);
 
       await assertTokenPool('TKN', 'TKN:MTKN,TKN');
       await assertTokenPool('MTKN', 'TKN:MTKN,TKN');

@@ -13,9 +13,11 @@ const NB_TOKENS_NEEDED_BEFORE_REWARDING = '0.09512935';
 // eslint-disable-next-line no-template-curly-in-string
 const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
 // eslint-disable-next-line no-template-curly-in-string
-const UTILITY_TOKEN_PRECISION = '${CONSTANTS.UTILITY_TOKEN_PRECISION}$';
+const GOVERNANCE_TOKEN_SYMBOL = "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'";
 // eslint-disable-next-line no-template-curly-in-string
-const UTILITY_TOKEN_MIN_VALUE = '${CONSTANTS.UTILITY_TOKEN_MIN_VALUE}$';
+const GOVERNANCE_TOKEN_PRECISION = '${CONSTANTS.GOVERNANCE_TOKEN_PRECISION}$';
+// eslint-disable-next-line no-template-curly-in-string
+const GOVERNANCE_TOKEN_MIN_VALUE = '${CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE}$';
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('witnesses');
@@ -39,30 +41,30 @@ actions.createSSC = async () => {
     };
 
     await api.db.insert('params', params);
+  } else {
+    // TODO: cleanup when launching for mainnet / next update
+    const witnesses = await api.db.find('witnesses', { });
+
+    for (let index = 0; index < witnesses.length; index += 1) {
+      const witness = witnesses[index];
+      witness.missedRounds = 0;
+      witness.missedRoundsInARow = 0;
+      await api.db.update('witnesses', witness);
+    }
+
+    const schedules = await api.db.find('schedules', { });
+
+    for (let index = 0; index < schedules.length; index += 1) {
+      const schedule = schedules[index];
+      await api.db.remove('schedules', schedule);
+    }
+
+    const params = await api.db.findOne('params', {});
+    params.currentWitness = null;
+    params.blockNumberWitnessChange = 0;
+    params.lastWitnesses = [];
+    await api.db.update('params', params);
   }
-
-  // TODO: cleanup when launching for mainnet / next update
-  const witnesses = await api.db.find('witnesses', { });
-
-  for (let index = 0; index < witnesses.length; index += 1) {
-    const witness = witnesses[index];
-    witness.missedRounds = 0;
-    witness.missedRoundsInARow = 0;
-    await api.db.update('witnesses', witness);
-  }
-
-  const schedules = await api.db.find('schedules', { });
-
-  for (let index = 0; index < schedules.length; index += 1) {
-    const schedule = schedules[index];
-    await api.db.remove('schedules', schedule);
-  }
-
-  const params = await api.db.findOne('params', {});
-  params.currentWitness = null;
-  params.blockNumberWitnessChange = 0;
-  params.lastWitnesses = [];
-  await api.db.update('params', params);
 };
 
 actions.resetSchedule = async () => {
@@ -101,7 +103,7 @@ const updateWitnessRank = async (witness, approvalWeight) => {
       witnessRec.approvalWeight.$numberDecimal,
     )
       .plus(approvalWeight)
-      .toFixed(UTILITY_TOKEN_PRECISION);
+      .toFixed(GOVERNANCE_TOKEN_PRECISION);
 
     await api.db.update('witnesses', witnessRec);
 
@@ -110,7 +112,7 @@ const updateWitnessRank = async (witness, approvalWeight) => {
     // update totalApprovalWeight
     params.totalApprovalWeight = api.BigNumber(params.totalApprovalWeight)
       .plus(approvalWeight)
-      .toFixed(UTILITY_TOKEN_PRECISION);
+      .toFixed(GOVERNANCE_TOKEN_PRECISION);
 
     // update numberOfApprovedWitnesses
     if (api.BigNumber(oldApprovalWeight).eq(0)
@@ -134,7 +136,7 @@ actions.updateWitnessesApprovals = async (payload) => {
   const acct = await api.db.findOne('accounts', { account });
   if (acct !== null) {
     // calculate approval weight of the account
-    const balance = await api.db.findOneInTable('tokens', 'balances', { account, symbol: UTILITY_TOKEN_SYMBOL });
+    const balance = await api.db.findOneInTable('tokens', 'balances', { account, symbol: GOVERNANCE_TOKEN_SYMBOL });
     let approvalWeight = 0;
     if (balance && balance.stake) {
       approvalWeight = balance.stake;
@@ -143,20 +145,20 @@ actions.updateWitnessesApprovals = async (payload) => {
     if (balance && balance.pendingUnstake) {
       approvalWeight = api.BigNumber(approvalWeight)
         .plus(balance.pendingUnstake)
-        .toFixed(UTILITY_TOKEN_PRECISION);
+        .toFixed(GOVERNANCE_TOKEN_PRECISION);
     }
 
     if (balance && balance.delegationsIn) {
       approvalWeight = api.BigNumber(approvalWeight)
         .plus(balance.delegationsIn)
-        .toFixed(UTILITY_TOKEN_PRECISION);
+        .toFixed(GOVERNANCE_TOKEN_PRECISION);
     }
 
     const oldApprovalWeight = acct.approvalWeight;
 
     const deltaApprovalWeight = api.BigNumber(approvalWeight)
       .minus(oldApprovalWeight)
-      .toFixed(UTILITY_TOKEN_PRECISION);
+      .toFixed(GOVERNANCE_TOKEN_PRECISION);
 
     acct.approvalWeight = approvalWeight;
 
@@ -256,7 +258,7 @@ actions.approve = async (payload) => {
           await api.db.insert('approvals', approval);
 
           // update the rank of the witness that received the approval
-          const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
+          const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: GOVERNANCE_TOKEN_SYMBOL });
           let approvalWeight = 0;
           if (balance && balance.stake) {
             approvalWeight = balance.stake;
@@ -265,13 +267,13 @@ actions.approve = async (payload) => {
           if (balance && balance.pendingUnstake) {
             approvalWeight = api.BigNumber(approvalWeight)
               .plus(balance.pendingUnstake)
-              .toFixed(UTILITY_TOKEN_PRECISION);
+              .toFixed(GOVERNANCE_TOKEN_PRECISION);
           }
 
           if (balance && balance.delegationsIn) {
             approvalWeight = api.BigNumber(approvalWeight)
               .plus(balance.delegationsIn)
-              .toFixed(UTILITY_TOKEN_PRECISION);
+              .toFixed(GOVERNANCE_TOKEN_PRECISION);
           }
 
           acct.approvals += 1;
@@ -314,7 +316,7 @@ actions.disapprove = async (payload) => {
         if (api.assert(approval !== null, 'you have not approved this witness')) {
           await api.db.remove('approvals', approval);
 
-          const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
+          const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: GOVERNANCE_TOKEN_SYMBOL });
           let approvalWeight = 0;
           if (balance && balance.stake) {
             approvalWeight = balance.stake;
@@ -323,7 +325,7 @@ actions.disapprove = async (payload) => {
           if (balance && balance.delegationsIn) {
             approvalWeight = api.BigNumber(approvalWeight)
               .plus(balance.delegationsIn)
-              .toFixed(UTILITY_TOKEN_PRECISION);
+              .toFixed(GOVERNANCE_TOKEN_PRECISION);
           }
 
           acct.approvals -= 1;
@@ -354,7 +356,7 @@ const changeCurrentWitness = async () => {
   const random = api.random();
   const randomWeight = api.BigNumber(totalApprovalWeight)
     .times(random)
-    .toFixed(UTILITY_TOKEN_PRECISION);
+    .toFixed(GOVERNANCE_TOKEN_PRECISION);
 
   let offset = 0;
   let accWeight = 0;
@@ -389,7 +391,7 @@ const changeCurrentWitness = async () => {
 
       accWeight = api.BigNumber(accWeight)
         .plus(witness.approvalWeight.$numberDecimal)
-        .toFixed(UTILITY_TOKEN_PRECISION);
+        .toFixed(GOVERNANCE_TOKEN_PRECISION);
 
       // if the witness is enabled
       // and different from the scheduled one from the previous round
@@ -551,18 +553,18 @@ const manageWitnessesSchedule = async () => {
           if (schedule.length >= NB_TOP_WITNESSES
             && randomWeight === null) {
             const min = api.BigNumber(accWeight)
-              .plus(UTILITY_TOKEN_MIN_VALUE);
+              .plus(GOVERNANCE_TOKEN_MIN_VALUE);
 
             randomWeight = api.BigNumber(totalApprovalWeight)
               .minus(min)
               .times(random)
               .plus(min)
-              .toFixed(UTILITY_TOKEN_PRECISION);
+              .toFixed(GOVERNANCE_TOKEN_PRECISION);
           }
 
           accWeight = api.BigNumber(accWeight)
             .plus(witness.approvalWeight.$numberDecimal)
-            .toFixed(UTILITY_TOKEN_PRECISION);
+            .toFixed(GOVERNANCE_TOKEN_PRECISION);
 
           // if the witness is enabled
           if (witness.enabled === true) {
@@ -780,7 +782,7 @@ actions.proposeRound = async (payload) => {
             const schedule = schedules[index];
             // reward the witness that help verifying this round
             if (rewardWitnesses === true) {
-              await api.executeSmartContract('tokens', 'stakeFromContract', { to: schedule.witness, symbol: UTILITY_TOKEN_SYMBOL, quantity: NB_TOKENS_TO_REWARD });
+              await api.transferTokens(schedule.witness, UTILITY_TOKEN_SYMBOL, NB_TOKENS_TO_REWARD, 'user');
             }
             await api.db.remove('schedules', schedule);
           }

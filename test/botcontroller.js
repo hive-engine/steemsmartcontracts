@@ -1,17 +1,15 @@
 /* eslint-disable */
 const { fork } = require('child_process');
 const assert = require('assert');
-const fs = require('fs-extra');
 const BigNumber = require('bignumber.js');
 const { Base64 } = require('js-base64');
 const { MongoClient } = require('mongodb');
 
-
+const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
-
-const { CONSTANTS } = require('../libs/Constants');
+const { setupContractPayload } = require('../libs/util/contractUtil');
 
 const conf = {
   chainId: "test-chain-id",
@@ -97,52 +95,10 @@ const unloadPlugin = (plugin) => {
   currentJobId = 0;
 }
 
-// prepare tokens contract for deployment
-let contractCode = fs.readFileSync('./contracts/tokens.js');
-contractCode = contractCode.toString();
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_SYMBOL\}\$'/g, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
-let base64ContractCode = Base64.encode(contractCode);
-
-let tknContractPayload = {
-  name: 'tokens',
-  params: '',
-  code: base64ContractCode,
-};
-
-// prepare market contract for deployment
-contractCode = fs.readFileSync('./contracts/market.js');
-contractCode = contractCode.toString();
-base64ContractCode = Base64.encode(contractCode);
-
-let mktContractPayload = {
-  name: 'market',
-  params: '',
-  code: base64ContractCode,
-};
-
-// prepare bot controller contract for deployment
-contractCode = fs.readFileSync('./contracts/botcontroller.js');
-contractCode = contractCode.toString();
-base64ContractCode = Base64.encode(contractCode);
-
-let bcContractPayload = {
-  name: 'botcontroller',
-  params: '',
-  code: base64ContractCode,
-};
-
-// prepare market maker contract for deployment
-contractCode = fs.readFileSync('./contracts/marketmaker.js');
-contractCode = contractCode.toString();
-base64ContractCode = Base64.encode(contractCode);
-
-let mmContractPayload = {
-  name: 'marketmaker',
-  params: '',
-  code: base64ContractCode,
-};
+const tknContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const mktContractPayload = setupContractPayload('market', './contracts/market.js');
+const bcContractPayload = setupContractPayload('botcontroller', './contracts/botcontroller.js');
+const mmContractPayload = setupContractPayload('marketmaker', './contracts/marketmaker.js');
 
 const getUsers = async (db) => {
   const users = await db.find({
@@ -216,7 +172,7 @@ describe('botcontroller', function() {
 
   before((done) => {
     new Promise(async (resolve) => {
-      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true });
+      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
       db = await client.db(conf.databaseName);
       await db.dropDatabase();
       resolve();

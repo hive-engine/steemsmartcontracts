@@ -112,7 +112,7 @@ const produceNewBlockSync = async (block, callback = null) => {
   // the stream parsed transactions from the Hive blockchain
   const {
     refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId,
-    transactions, timestamp, virtualTransactions,
+    transactions, timestamp, virtualTransactions, replay
   } = block;
   const newTransactions = [];
 
@@ -130,7 +130,7 @@ const produceNewBlockSync = async (block, callback = null) => {
   });
 
   // if there are transactions pending we produce a block
-  if (newTransactions.length > 0 || (virtualTransactions && virtualTransactions.length > 0)) {
+  if (newTransactions.length > 0 || (virtualTransactions && virtualTransactions.length > 0) || replay) {
     await producePendingTransactions(
       refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, newTransactions, timestamp,
     );

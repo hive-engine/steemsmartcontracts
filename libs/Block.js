@@ -98,7 +98,7 @@ class Block {
     let currentDatabaseHash = this.previousDatabaseHash;
 
     // DO NOT KEEP THIS IN PRIMARY NODE. TEST NETWORK ONLY
-    if (this.refHiveBlockNumber === 99999999) {
+    if (this.refHiveBlockNumber === 50437081) {
       // Append and enable relevant contracts for P2P
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__P2P_2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
@@ -144,7 +144,7 @@ class Block {
     }
 
     // TODO: Witness scheduling start, must be after deployment of witness contracts.
-    if (this.refHiveBlockNumber >= 50287300) {
+    if (this.refHiveBlockNumber >= 50437081) {
       virtualTransactions
         .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
     }

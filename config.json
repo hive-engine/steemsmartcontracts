@@ -12,7 +12,7 @@
         "https://anyx.io",
         "https://api.hivekings.com"
     ],
-    "startHiveBlock": 50287280,
+    "startHiveBlock": 50437081,
     "genesisHiveBlock": 41967000,
     "witnessEnabled": true,
     "enableHashVerification": false

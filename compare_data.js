@@ -6,8 +6,7 @@ const axios = require('axios');
 
 let id = 1;
 
-//const contractNames = ['tokens', 'claimdrops', 'distribution', 'nftmarket', 'mining', 'packmanager', 'nft', 'airdrops', 'inflation', 'marketmaker', 'botcontroller', 'market', 'crittermanager', 'hivepegged'];
-const contractNames = ['tokens', 'market'];
+const contractNames = ['tokens', 'claimdrops', 'distribution', 'nftmarket', 'mining', 'packmanager', 'nft', 'airdrops', 'inflation', 'marketmaker', 'botcontroller', 'market', 'crittermanager', 'hivepegged'];
 
 const node1 = 'https://api.hive-engine.com/rpc/contracts';
 const node2 = 'http://127.0.0.1:5000/contracts';

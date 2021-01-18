@@ -63,4 +63,4 @@ Edit config.json to match block number of backup.
 
 ## 6. Usage/docs
 
-* see wiki: https://github.com/harpagon210/steemsmartcontracts/wiki
+* see wiki: https://github.com/hive-engine/steemsmartcontracts-wiki

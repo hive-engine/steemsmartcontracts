@@ -16,7 +16,7 @@ const { Database } = require('../libs/Database');
 const PLUGIN_NAME = 'P2P';
 const PLUGIN_PATH = require.resolve(__filename);
 const POST_TIMEOUT = 10000;
-const NB_WITNESSES_SIGNATURES_REQUIRED = 2;
+const NB_WITNESSES_SIGNATURES_REQUIRED = 3;
 
 const ipc = new IPC(PLUGIN_NAME);
 let serverP2P = null;

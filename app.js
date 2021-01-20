@@ -99,7 +99,10 @@ const getPlugin = (plugin) => {
   return null;
 };
 
-const loadPlugin = (newPlugin) => {
+const loadPlugin = (newPlugin, requestedPlugins) => {
+  if (requestedPlugins.indexOf(newPlugin.PLUGIN_NAME) === -1) {
+    return { payload: null };
+  }
   const plugin = {};
   plugin.name = newPlugin.PLUGIN_NAME;
   plugin.cp = fork(newPlugin.PLUGIN_PATH, [], { silent: true, detached: true });
@@ -129,14 +132,14 @@ const unloadPlugin = async (plugin) => {
 };
 
 // start streaming the Hive blockchain and produce the sidechain blocks accordingly
-const start = async () => {
-  let res = await loadPlugin(blockchain);
+const start = async (requestedPlugins) => {
+  let res = await loadPlugin(blockchain, requestedPlugins);
   if (res && res.payload === null) {
-    res = await loadPlugin(streamer);
+    res = await loadPlugin(streamer, requestedPlugins);
     if (res && res.payload === null) {
-      res = await loadPlugin(p2p);
+      res = await loadPlugin(p2p, requestedPlugins);
       if (res && res.payload === null) {
-        res = await loadPlugin(jsonRPCServer);
+        res = await loadPlugin(jsonRPCServer, requestedPlugins);
       }
     }
   }
@@ -157,7 +160,7 @@ const stop = async () => {
 
   await unloadPlugin(blockchain);
 
-  return res.payload;
+  return res ? res.payload : null;
 };
 
 const saveConfig = (lastBlockParsed) => {
@@ -189,12 +192,15 @@ const replayBlocksLog = async () => {
 program
   .version(packagejson.version)
   .option('-r, --replay [type]', 'replay the blockchain from [file]', /^(file)$/i)
+  .option('-p, --plugins <plugins>', 'which plugins to run. (Available plugins: Blockchain,Streamer,P2P,JsonRPCServer', 'Blockchain,Streamer,P2P,JsonRPCServer')
   .parse(process.argv);
 
+const requestedPlugins = program.plugins.split(',');
+console.log(requestedPlugins);
 if (program.replay !== undefined) {
   replayBlocksLog();
 } else {
-  start();
+  start(requestedPlugins);
 }
 
 // graceful app closing

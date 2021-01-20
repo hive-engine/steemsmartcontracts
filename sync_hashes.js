@@ -78,6 +78,9 @@ async function getHashes() {
     const database = new Database();
     await database.init(databaseURL, databaseName);
     const contracts = database.database.collection('contracts');
+    const chain = database.database.collection('chain');
+    const localBlock  = (await chain.find().sort({ _id: -1}).limit(1).toArray())[0]._id;
+
     for (let i = 0; i < contractNames.length; i += 1) {
       const contract = contractNames[i];
       const contractInDb = await contracts.findOne({ _id: contract });
@@ -94,6 +97,8 @@ async function getHashes() {
         }
       }
     }
+    const localBlockAfterFetch  = (await chain.find().sort({ _id: -1}).limit(1).toArray())[0]._id;
+    console.log(`Local block before hash fetch: ${localBlock}. Block after: ${localBlockAfterFetch}`);
     database.close();
   }
 }

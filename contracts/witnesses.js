@@ -142,12 +142,6 @@ actions.updateWitnessesApprovals = async (payload) => {
       approvalWeight = balance.stake;
     }
 
-    if (balance && balance.pendingUnstake) {
-      approvalWeight = api.BigNumber(approvalWeight)
-        .plus(balance.pendingUnstake)
-        .toFixed(GOVERNANCE_TOKEN_PRECISION);
-    }
-
     if (balance && balance.delegationsIn) {
       approvalWeight = api.BigNumber(approvalWeight)
         .plus(balance.delegationsIn)
@@ -262,12 +256,6 @@ actions.approve = async (payload) => {
           let approvalWeight = 0;
           if (balance && balance.stake) {
             approvalWeight = balance.stake;
-          }
-
-          if (balance && balance.pendingUnstake) {
-            approvalWeight = api.BigNumber(approvalWeight)
-              .plus(balance.pendingUnstake)
-              .toFixed(GOVERNANCE_TOKEN_PRECISION);
           }
 
           if (balance && balance.delegationsIn) {

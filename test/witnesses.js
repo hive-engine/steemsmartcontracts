@@ -885,81 +885,6 @@ describe('witnesses', function () {
       witnesses = res;
 
       assert.equal(witnesses[0].account, "dan");
-      assert.equal(witnesses[0].approvalWeight.$numberDecimal, '101.75001');
-
-      assert.equal(witnesses[1].account, "vitalik");
-      assert.equal(witnesses[1].approvalWeight.$numberDecimal, "100.00001");
-
-      res = await fixture.database.find({
-          contract: 'witnesses',
-          table: 'accounts',
-          query: {
-          }
-        });
-
-      accounts = res;
-
-      assert.equal(accounts[0].account, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-      assert.equal(accounts[0].approvals, 2);
-      assert.equal(accounts[0].approvalWeight, "100.00001");
-
-      assert.equal(accounts[1].account, "ned");
-      assert.equal(accounts[1].approvals, 1);
-      assert.equal(accounts[1].approvalWeight, "1.75000");
-
-      res = await fixture.database.find({
-          contract: 'witnesses',
-          table: 'approvals',
-          query: {
-          }
-        });
-
-      approvals = res;
-
-      assert.equal(approvals[0].from, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-      assert.equal(approvals[0].to, "dan");
-
-      assert.equal(approvals[1].from, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-      assert.equal(approvals[1].to, "vitalik");
-
-      assert.equal(approvals[2].from, "ned");
-      assert.equal(approvals[2].to, "dan");
-
-      res = await fixture.database.find({
-          contract: 'witnesses',
-          table: 'params',
-          query: {
-          }
-        });
-
-      params = res;
-
-      assert.equal(params[0].numberOfApprovedWitnesses, 2);
-      assert.equal(params[0].totalApprovalWeight, "201.75002");
-
-      transactions = [];
-      transactions.push(new Transaction(37899128, fixture.getNextTxId(), 'harpagon', 'whatever', 'whatever', ''));
-
-      block = {
-        refHiveBlockNumber: 37899128,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-10-01T00:00:00',
-        transactions,
-      };
-
-      await fixture.sendBlock(block);
-
-      res = await fixture.database.find({
-          contract: 'witnesses',
-          table: 'witnesses',
-          query: {
-          }
-        });
-
-      witnesses = res;
-
-      assert.equal(witnesses[0].account, "dan");
       assert.equal(witnesses[0].approvalWeight.$numberDecimal, '100.75001');
 
       assert.equal(witnesses[1].account, "vitalik");
@@ -1011,6 +936,81 @@ describe('witnesses', function () {
 
       assert.equal(params[0].numberOfApprovedWitnesses, 2);
       assert.equal(params[0].totalApprovalWeight, "200.75002");
+
+      transactions = [];
+      transactions.push(new Transaction(37899128, fixture.getNextTxId(), 'harpagon', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 37899128,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-10-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      res = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'witnesses',
+          query: {
+          }
+        });
+
+      witnesses = res;
+
+      assert.equal(witnesses[0].account, "dan");
+      assert.equal(witnesses[0].approvalWeight.$numberDecimal, '100.25001');
+
+      assert.equal(witnesses[1].account, "vitalik");
+      assert.equal(witnesses[1].approvalWeight.$numberDecimal, "100.00001");
+
+      res = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'accounts',
+          query: {
+          }
+        });
+
+      accounts = res;
+
+      assert.equal(accounts[0].account, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(accounts[0].approvals, 2);
+      assert.equal(accounts[0].approvalWeight, "100.00001");
+
+      assert.equal(accounts[1].account, "ned");
+      assert.equal(accounts[1].approvals, 1);
+      assert.equal(accounts[1].approvalWeight, "0.25000");
+
+      res = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'approvals',
+          query: {
+          }
+        });
+
+      approvals = res;
+
+      assert.equal(approvals[0].from, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(approvals[0].to, "dan");
+
+      assert.equal(approvals[1].from, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(approvals[1].to, "vitalik");
+
+      assert.equal(approvals[2].from, "ned");
+      assert.equal(approvals[2].to, "dan");
+
+      res = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'params',
+          query: {
+          }
+        });
+
+      params = res;
+
+      assert.equal(params[0].numberOfApprovedWitnesses, 2);
+      assert.equal(params[0].totalApprovalWeight, "200.25002");
       
       resolve();
     })

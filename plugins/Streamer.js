@@ -299,44 +299,10 @@ const addBlockToBuffer = async (block) => {
   buffer.push(finalBlock);
 };
 
-// start at index 1, and rotate.
-const lookaheadBufferSize = 20;
-let lookaheadStartIndex = 0;
-let lookaheadStartBlock = currentHiveBlock;
-const blockLookaheadBuffer = Array(lookaheadBufferSize);
-const getBlock = async (blockNumber) => {
-  // schedule lookahead block fetch
-  let scanIndex = lookaheadStartIndex;
-  for (let i = 0; i < lookaheadBufferSize; i += 1) {
-    if (!blockLookaheadBuffer[scanIndex]) {
-      //console.log(`fetch block ${lookaheadStartBlock + i} to put in ${scanIndex}`);
-      blockLookaheadBuffer[scanIndex] = client.database.getBlock(lookaheadStartBlock + i);
-    }
-    scanIndex += 1;
-    if (scanIndex >= lookaheadBufferSize) scanIndex -= lookaheadBufferSize;
-  }
-  let lookupIndex = blockNumber - lookaheadStartBlock + lookaheadStartIndex;
-  if (lookupIndex >= lookaheadBufferSize) lookupIndex -= lookaheadBufferSize;
-  if (lookupIndex >= 0 && lookupIndex < lookaheadBufferSize) {
-    const block = await blockLookaheadBuffer[lookupIndex];
-    if (block) {
-      //console.log(`got block ${blockNumber} from lookahead index ${lookupIndex}`);
-      return block;
-    } else {
-      // retry
-      //console.log(`block ${blockNumber} not found, retry`);
-      blockLookaheadBuffer[lookupIndex] = null;
-      return null;
-    }
-  }
-  //console.log(`block ${blockNumber} not in lookahead range (${lookaheadStartBlock},${lookaheadStartBlock + 99}`);
-  return client.database.getBlock(blockNumber);
-};
-
 const streamBlocks = async (reject) => {
   if (stopStream) return;
   try {
-    const block = await getBlock(currentHiveBlock);
+    const block = await client.database.getBlock(currentHiveBlock);
     let addBlockToBuf = false;
 
     if (block) {
@@ -353,7 +319,7 @@ const streamBlocks = async (reject) => {
         }
       } else {
         // get the previous block
-        const prevBlock = await getBlock(currentHiveBlock - 1);
+        const prevBlock = await client.database.getBlock(currentHiveBlock - 1);
 
         if (prevBlock && prevBlock.block_id === block.previous) {
           addBlockToBuf = true;
@@ -367,10 +333,6 @@ const streamBlocks = async (reject) => {
         await addBlockToBuffer(block);
       }
       currentHiveBlock += 1;
-      blockLookaheadBuffer[lookaheadStartIndex] = null;
-      lookaheadStartIndex += 1;
-      if (lookaheadStartIndex >= lookaheadBufferSize) lookaheadStartIndex -= lookaheadBufferSize;
-      lookaheadStartBlock += 1;
       streamBlocks(reject);
     } else {
       blockStreamerHandler = setTimeout(() => {
@@ -393,8 +355,6 @@ const startStreaming = (conf) => {
     startHiveBlock,
   } = conf;
   currentHiveBlock = startHiveBlock;
-  lookaheadStartIndex = 0;
-  lookaheadStartBlock = currentHiveBlock;
   chainIdentifier = chainId;
   const node = streamNodes[0];
   initHiveClient(node);

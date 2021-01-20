@@ -160,7 +160,7 @@ const stop = async () => {
 
   await unloadPlugin(blockchain);
 
-  return res ? res.payload : null;
+  return res.payload;
 };
 
 const saveConfig = (lastBlockParsed) => {
@@ -196,7 +196,6 @@ program
   .parse(process.argv);
 
 const requestedPlugins = program.plugins.split(',');
-console.log(requestedPlugins);
 if (program.replay !== undefined) {
   replayBlocksLog();
 } else {

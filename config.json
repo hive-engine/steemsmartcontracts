@@ -7,10 +7,12 @@
     "blocksLogFilePath": "./blocks.log",
     "javascriptVMTimeout": 10000,
     "streamNodes": [
-        "https://api.hive.blog",
-        "https://api.openhive.network",
+        "https://api.deathwing.me",
+        "https://rpc.ecency.com",
+        "https://hived.privex.io",
+        "https://hived.emre.sh",
         "https://anyx.io",
-        "https://api.hivekings.com"
+        "https://api.hive.blog"
     ],
     "startHiveBlock": 50562493,
     "genesisHiveBlock": 41967000,

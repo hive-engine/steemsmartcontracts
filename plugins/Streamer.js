@@ -346,7 +346,7 @@ const throttledGetBlock = async (blockNumber) => {
       inFlightRequests[n] = 0;
       totalRequests[n] = 0;
       totalTime[n] = 0;
-      capacity += 4;
+      capacity += maxQps;
     }
   });
   if (totalInFlightRequests < capacity) {

@@ -1291,7 +1291,7 @@ describe('witnesses', function () {
         assert.equal(blockFromNode.roundHash, calculatedRoundHash);
         assert.equal(blockFromNode.signingKey, wif.createPublic().toString());
         assert.equal(blockFromNode.roundSignature, signatures[signatures.length - 1][1]);
-        await tableAsserts.assertUserBalances({ account: blockFromNode.witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0.01902587", stake: 0});
+        await tableAsserts.assertUserBalances({ account: blockFromNode.witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0.00951293", stake: 0});
         
         blockNum += 1;
         i +=1;

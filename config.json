@@ -9,9 +9,7 @@
     "streamNodes": [
         "https://api.deathwing.me",
         "https://rpc.ecency.com",
-        "https://hived.privex.io",
         "https://hived.emre.sh",
-        "https://anyx.io",
         "https://api.hive.blog"
     ],
     "startHiveBlock": 41967000,

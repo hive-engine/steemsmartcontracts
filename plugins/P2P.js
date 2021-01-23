@@ -374,7 +374,17 @@ const proposeRoundHandler = async (args, callback) => {
           lastBlockRound = params.lastBlockRound;
 
           const startblockNum = params.lastVerifiedBlockNumber + 1;
-          const calculatedRoundHash = await calculateRoundHash(startblockNum, lastBlockRound);
+          let calculatedRoundHash = null;
+          let attempt = 1;
+          while (!calculatedRoundHash && attempt <= 3) {
+            if (attempt > 1) {
+                console.log("null round hash, waiting for block");
+                await new Promise(r => setTimeout(r, 3000));
+            }
+            calculatedRoundHash = await calculateRoundHash(startblockNum, lastBlockRound);
+            attempt += 1;
+          }
+          if (!calculatedRoundHash) console.error('null while verifying round hash proposal');
 
           if (calculatedRoundHash === roundHash) {
             if (round > lastVerifiedRoundNumber) {

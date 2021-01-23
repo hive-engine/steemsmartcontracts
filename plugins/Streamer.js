@@ -30,6 +30,15 @@ let blockStreamerHandler = null;
 let updaterGlobalPropsHandler = null;
 let lastBlockSentToBlockchain = 0;
 
+// For block prefetch mechanism
+const maxQps = 3;
+let capacity = 0;
+let totalInFlightRequests = 0;
+const inFlightRequests = {};
+const pendingRequests = [];
+const totalRequests = {};
+const totalTime = {};
+
 const getCurrentBlock = () => currentHiveBlock;
 
 const stop = () => {
@@ -278,7 +287,7 @@ const updateGlobalProps = async () => {
       // eslint-disable-next-line no-console
       console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
       const nodes = Object.keys(totalRequests);
-      nodes.forEach(node => {
+      nodes.forEach((node) => {
         // eslint-disable-next-line no-console
         console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]} with ${totalRequests[node]} requests`);
       });
@@ -304,14 +313,6 @@ const addBlockToBuffer = async (block) => {
   }
   buffer.push(finalBlock);
 };
-
-const maxQps = 3;
-let capacity = 0;
-let totalInFlightRequests = 0;
-const inFlightRequests = {};
-const pendingRequests = [];
-const totalRequests = {};
-const totalTime = {};
 
 const throttledGetBlockFromNode = async (blockNumber, node) => {
   if (inFlightRequests[node] < maxQps) {

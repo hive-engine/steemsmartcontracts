@@ -275,7 +275,7 @@ const updateGlobalProps = async () => {
       const globProps = await client.database.getDynamicGlobalProperties();
       hiveHeadBlockNumber = globProps.head_block_number;
       const delta = hiveHeadBlockNumber - currentHiveBlock;
-      // eslint-disable-next-line
+      // eslint-disable-next-line no-console
       console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
     }
   } catch (ex) {
@@ -312,7 +312,6 @@ const throttledGetBlockFromNode = async (blockNumber, node) => {
   if (inFlightRequests[node] < maxQps) {
     totalInFlightRequests += 1;
     inFlightRequests[node] += 1;
-    // console.log('actually calling ' + blockNumber);
     let res = null;
     const timeStart = Date.now();
     try {
@@ -320,15 +319,16 @@ const throttledGetBlockFromNode = async (blockNumber, node) => {
       totalRequests[node] += 1;
       totalTime[node] += Date.now() - timeStart;
       if (totalRequests[node] % 100 === 0) {
+        // eslint-disable-next-line no-console
         console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]}`);
       }
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(`Error fetching block ${blockNumber} on node ${node}`);
+      // eslint-disable-next-line no-console
       console.error(err);
     }
-    
-    //console.timeEnd(`${node}_${blockNumber}`);
-    // console.log('done ' + blockNumber);
+
     inFlightRequests[node] -= 1;
     totalInFlightRequests -= 1;
     if (pendingRequests.length > 0) {
@@ -373,7 +373,6 @@ const getBlock = async (blockNumber) => {
   let scanIndex = lookaheadStartIndex;
   for (let i = 0; i < lookaheadBufferSize; i += 1) {
     if (!blockLookaheadBuffer[scanIndex]) {
-      // console.log(`fetch block ${lookaheadStartBlock + i} to put in ${scanIndex}`);
       blockLookaheadBuffer[scanIndex] = throttledGetBlock(lookaheadStartBlock + i);
     }
     scanIndex += 1;
@@ -384,15 +383,12 @@ const getBlock = async (blockNumber) => {
   if (lookupIndex >= 0 && lookupIndex < lookaheadBufferSize) {
     const block = await blockLookaheadBuffer[lookupIndex];
     if (block) {
-      // console.log(`got block ${blockNumber} from lookahead index ${lookupIndex}`);
       return block;
     }
     // retry
-    // console.log(`block ${blockNumber} not found, retry`);
     blockLookaheadBuffer[lookupIndex] = null;
     return null;
   }
-  // console.log(`block ${blockNumber} not in lookahead range (${lookaheadStartBlock},${lookaheadStartBlock + 99}`);
   return client.database.getBlock(blockNumber);
 };
 

@@ -277,6 +277,11 @@ const updateGlobalProps = async () => {
       const delta = hiveHeadBlockNumber - currentHiveBlock;
       // eslint-disable-next-line no-console
       console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
+      const nodes = Object.keys(totalRequests);
+      nodes.forEach(node => {
+        // eslint-disable-next-line no-console
+        console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]} with ${totalRequests[node]} requests`);
+      });
     }
   } catch (ex) {
     console.error('An error occured while trying to fetch the Hive blockchain global properties'); // eslint-disable-line no-console
@@ -318,10 +323,6 @@ const throttledGetBlockFromNode = async (blockNumber, node) => {
       res = await clients[node].database.getBlock(blockNumber);
       totalRequests[node] += 1;
       totalTime[node] += Date.now() - timeStart;
-      if (totalRequests[node] % 100 === 0) {
-        // eslint-disable-next-line no-console
-        console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]}`);
-      }
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(`Error fetching block ${blockNumber} on node ${node}`);

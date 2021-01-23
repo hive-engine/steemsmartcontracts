@@ -30,6 +30,15 @@ let blockStreamerHandler = null;
 let updaterGlobalPropsHandler = null;
 let lastBlockSentToBlockchain = 0;
 
+// For block prefetch mechanism
+const maxQps = 3;
+let capacity = 0;
+let totalInFlightRequests = 0;
+const inFlightRequests = {};
+const pendingRequests = [];
+const totalRequests = {};
+const totalTime = {};
+
 const getCurrentBlock = () => currentHiveBlock;
 
 const stop = () => {
@@ -277,6 +286,11 @@ const updateGlobalProps = async () => {
       const delta = hiveHeadBlockNumber - currentHiveBlock;
       // eslint-disable-next-line
       console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
+      const nodes = Object.keys(totalRequests);
+      nodes.forEach((node) => {
+        // eslint-disable-next-line no-console
+        console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]} with ${totalRequests[node]} requests`);
+      });
     }
   } catch (ex) {
     console.error('An error occured while trying to fetch the Hive blockchain global properties'); // eslint-disable-line no-console
@@ -300,14 +314,6 @@ const addBlockToBuffer = async (block) => {
   buffer.push(finalBlock);
 };
 
-const maxQps = 3;
-let capacity = 0;
-let totalInFlightRequests = 0;
-const inFlightRequests = {};
-const pendingRequests = [];
-const totalRequests = {};
-const totalTime = {};
-
 const throttledGetBlockFromNode = async (blockNumber, node) => {
   if (inFlightRequests[node] < maxQps) {
     totalInFlightRequests += 1;
@@ -319,9 +325,6 @@ const throttledGetBlockFromNode = async (blockNumber, node) => {
       res = await clients[node].database.getBlock(blockNumber);
       totalRequests[node] += 1;
       totalTime[node] += Date.now() - timeStart;
-      if (totalRequests[node] % 100 === 0) {
-        console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]}`);
-      }
     } catch (err) {
       console.error(`Error fetching block ${blockNumber} on node ${node}`);
       console.error(err);

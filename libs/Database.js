@@ -289,7 +289,7 @@ class Database {
    */
   async findContract(payload) {
     const { name } = payload;
-    if (this.contractCache[name]) {
+    if (this.session && this.contractCache[name]) {
       return this.contractCache[name];
     }
     try {
@@ -512,13 +512,15 @@ class Database {
           query._id = query.$loki; // eslint-disable-line no-underscore-dangle
           delete query.$loki;
         }
-        const cacheKey = objectCacheKey(contract, table, query);
-        if (cacheKey) {
-          if (this.objectCache[cacheKey]) {
-            return this.objectCache[cacheKey];
+        if (this.session) {
+          const cacheKey = objectCacheKey(contract, table, query);
+          if (cacheKey) {
+            if (this.objectCache[cacheKey]) {
+              return this.objectCache[cacheKey];
+            }
+          } else {
+            await this.flushCache();
           }
-        } else {
-          await this.flushCache();
         }
         const finalTableName = `${contract}_${table}`;
 
@@ -633,6 +635,9 @@ class Database {
   }
 
   async flushCache() {
+    if (!this.session) {
+      return;
+    }
     const keys = Object.keys(this.objectCache);
     for (let i = 0; i < keys.length; i += 1) {
       const k = keys[i];
@@ -648,6 +653,9 @@ class Database {
   }
 
   async flushContractCache() {
+    if (!this.session) {
+      return;
+    }
     const contracts = this.database.collection('contracts');
     const keys = Object.keys(this.contractCache);
     for (let i = 0; i < keys.length; i += 1) {

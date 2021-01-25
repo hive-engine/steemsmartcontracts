@@ -31,7 +31,7 @@ let updaterGlobalPropsHandler = null;
 let lastBlockSentToBlockchain = 0;
 
 // For block prefetch mechanism
-const maxQps = 3;
+const maxQps = 1;
 let capacity = 0;
 let totalInFlightRequests = 0;
 const inFlightRequests = {};

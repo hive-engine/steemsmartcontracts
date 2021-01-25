@@ -833,7 +833,7 @@ actions.stake = async (payload) => {
           // eslint-disable-next-line no-template-curly-in-string
           if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
             await api.executeSmartContract(
-              'witnesses', 'updateWitnessesApprovals', { account: api.sender },
+              'witnesses', 'updateWitnessesApprovals', { account: finalTo },
             );
           }
           await api.executeSmartContract('mining', 'handleStakeChange',
@@ -1035,7 +1035,7 @@ const processCancelUnstake = async (unstake) => {
       // eslint-disable-next-line no-template-curly-in-string
       if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
         await api.executeSmartContract(
-          'witnesses', 'updateWitnessesApprovals', { account: api.sender },
+          'witnesses', 'updateWitnessesApprovals', { account: account },
         );
       }
       await api.executeSmartContract('mining', 'handleStakeChange',

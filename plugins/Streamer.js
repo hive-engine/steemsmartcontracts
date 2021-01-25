@@ -11,6 +11,7 @@ const { PLUGIN_NAME, PLUGIN_ACTIONS } = require('./Streamer.constants');
 
 const ipc = new IPC(PLUGIN_NAME);
 let client = null;
+let clients = null;
 let database = null;
 class ForkException {
   constructor(message) {
@@ -28,6 +29,15 @@ let chainIdentifier = '';
 let blockStreamerHandler = null;
 let updaterGlobalPropsHandler = null;
 let lastBlockSentToBlockchain = 0;
+
+// For block prefetch mechanism
+const maxQps = 1;
+let capacity = 0;
+let totalInFlightRequests = 0;
+const inFlightRequests = {};
+const pendingRequests = [];
+const totalRequests = {};
+const totalTime = {};
 
 const getCurrentBlock = () => currentHiveBlock;
 
@@ -274,8 +284,13 @@ const updateGlobalProps = async () => {
       const globProps = await client.database.getDynamicGlobalProperties();
       hiveHeadBlockNumber = globProps.head_block_number;
       const delta = hiveHeadBlockNumber - currentHiveBlock;
-      // eslint-disable-next-line
+      // eslint-disable-next-line no-console
       console.log(`head_block_number ${hiveHeadBlockNumber}`, `currentBlock ${currentHiveBlock}`, `Hive blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
+      const nodes = Object.keys(totalRequests);
+      nodes.forEach((node) => {
+        // eslint-disable-next-line no-console
+        console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]} with ${totalRequests[node]} requests`);
+      });
     }
   } catch (ex) {
     console.error('An error occured while trying to fetch the Hive blockchain global properties'); // eslint-disable-line no-console
@@ -299,10 +314,90 @@ const addBlockToBuffer = async (block) => {
   buffer.push(finalBlock);
 };
 
+const throttledGetBlockFromNode = async (blockNumber, node) => {
+  if (inFlightRequests[node] < maxQps) {
+    totalInFlightRequests += 1;
+    inFlightRequests[node] += 1;
+    let res = null;
+    const timeStart = Date.now();
+    try {
+      res = await clients[node].database.getBlock(blockNumber);
+      totalRequests[node] += 1;
+      totalTime[node] += Date.now() - timeStart;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`Error fetching block ${blockNumber} on node ${node}`);
+      // eslint-disable-next-line no-console
+      console.error(err);
+    }
+
+    inFlightRequests[node] -= 1;
+    totalInFlightRequests -= 1;
+    if (pendingRequests.length > 0) {
+      pendingRequests.shift()();
+    }
+    return res;
+  }
+  return null;
+};
+
+const throttledGetBlock = async (blockNumber) => {
+  const nodes = Object.keys(clients);
+  nodes.forEach((n) => {
+    if (inFlightRequests[n] === undefined) {
+      inFlightRequests[n] = 0;
+      totalRequests[n] = 0;
+      totalTime[n] = 0;
+      capacity += maxQps;
+    }
+  });
+  if (totalInFlightRequests < capacity) {
+    // select node in order
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      if (inFlightRequests[node] < maxQps) {
+        return throttledGetBlockFromNode(blockNumber, node);
+      }
+    }
+  }
+  await new Promise(resolve => pendingRequests.push(resolve));
+  return throttledGetBlock(blockNumber);
+};
+
+
+// start at index 1, and rotate.
+const lookaheadBufferSize = 100;
+let lookaheadStartIndex = 0;
+let lookaheadStartBlock = currentHiveBlock;
+const blockLookaheadBuffer = Array(lookaheadBufferSize);
+const getBlock = async (blockNumber) => {
+  // schedule lookahead block fetch
+  let scanIndex = lookaheadStartIndex;
+  for (let i = 0; i < lookaheadBufferSize; i += 1) {
+    if (!blockLookaheadBuffer[scanIndex]) {
+      blockLookaheadBuffer[scanIndex] = throttledGetBlock(lookaheadStartBlock + i);
+    }
+    scanIndex += 1;
+    if (scanIndex >= lookaheadBufferSize) scanIndex -= lookaheadBufferSize;
+  }
+  let lookupIndex = blockNumber - lookaheadStartBlock + lookaheadStartIndex;
+  if (lookupIndex >= lookaheadBufferSize) lookupIndex -= lookaheadBufferSize;
+  if (lookupIndex >= 0 && lookupIndex < lookaheadBufferSize) {
+    const block = await blockLookaheadBuffer[lookupIndex];
+    if (block) {
+      return block;
+    }
+    // retry
+    blockLookaheadBuffer[lookupIndex] = null;
+    return null;
+  }
+  return client.database.getBlock(blockNumber);
+};
+
 const streamBlocks = async (reject) => {
   if (stopStream) return;
   try {
-    const block = await client.database.getBlock(currentHiveBlock);
+    const block = await getBlock(currentHiveBlock);
     let addBlockToBuf = false;
 
     if (block) {
@@ -319,7 +414,7 @@ const streamBlocks = async (reject) => {
         }
       } else {
         // get the previous block
-        const prevBlock = await client.database.getBlock(currentHiveBlock - 1);
+        const prevBlock = await getBlock(currentHiveBlock - 1);
 
         if (prevBlock && prevBlock.block_id === block.previous) {
           addBlockToBuf = true;
@@ -333,6 +428,10 @@ const streamBlocks = async (reject) => {
         await addBlockToBuffer(block);
       }
       currentHiveBlock += 1;
+      blockLookaheadBuffer[lookaheadStartIndex] = null;
+      lookaheadStartIndex += 1;
+      if (lookaheadStartIndex >= lookaheadBufferSize) lookaheadStartIndex -= lookaheadBufferSize;
+      lookaheadStartBlock += 1;
       streamBlocks(reject);
     } else {
       blockStreamerHandler = setTimeout(() => {
@@ -344,8 +443,14 @@ const streamBlocks = async (reject) => {
   }
 };
 
-const initHiveClient = (node) => {
-  client = new dhive.Client(node);
+const initHiveClient = (streamNodes, node) => {
+  if (!clients) {
+    clients = {};
+    streamNodes.forEach((n) => {
+      clients[n] = new dhive.Client(n);
+    });
+  }
+  client = clients[node];
 };
 
 const startStreaming = (conf) => {
@@ -355,9 +460,11 @@ const startStreaming = (conf) => {
     startHiveBlock,
   } = conf;
   currentHiveBlock = startHiveBlock;
+  lookaheadStartIndex = 0;
+  lookaheadStartBlock = currentHiveBlock;
   chainIdentifier = chainId;
   const node = streamNodes[0];
-  initHiveClient(node);
+  initHiveClient(streamNodes, node);
 
   return new Promise((resolve, reject) => { // eslint-disable-line no-unused-vars
     console.log('Starting Hive streaming at ', node); // eslint-disable-line no-console

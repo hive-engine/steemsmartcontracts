@@ -1035,7 +1035,7 @@ const processCancelUnstake = async (unstake) => {
       // eslint-disable-next-line no-template-curly-in-string
       if (symbol === "'${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}$'") {
         await api.executeSmartContract(
-          'witnesses', 'updateWitnessesApprovals', { account: account },
+          'witnesses', 'updateWitnessesApprovals', { account },
         );
       }
       await api.executeSmartContract('mining', 'handleStakeChange',

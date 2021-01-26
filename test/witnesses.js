@@ -562,6 +562,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "vitalik", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899123, fixture.getNextTxId(), 'ned', 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "0.00001", "isSignedWithActiveKey": true }`));
 
       let block = {
@@ -630,11 +631,54 @@ describe('witnesses', function () {
 
       transactions = [];
       transactions.push(new Transaction(37899124, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(37899124, fixture.getNextTxId(), 'ned', 'witnesses', 'approve', `{ "witness": "dan", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(37899124, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'delegate', `{ "to": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
 
       block = {
         refHiveBlockNumber: 37899124,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      res = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'witnesses',
+          query: {
+          }
+        });
+
+      witnesses = res;
+
+      assert.equal(witnesses[0].account, "dan");
+      assert.equal(witnesses[0].approvalWeight.$numberDecimal, '101.00001');
+
+      assert.equal(witnesses[1].account, "vitalik");
+      assert.equal(witnesses[1].approvalWeight.$numberDecimal, "100.00001");
+
+      res = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'accounts',
+          query: {
+          }
+        });
+
+      let accounts = res;
+
+      assert.equal(accounts[0].account, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(accounts[0].approvals, 2);
+      assert.equal(accounts[0].approvalWeight, "100.00001");
+
+      assert.equal(accounts[1].account, "ned");
+      assert.equal(accounts[1].approvals, 1);
+      assert.equal(accounts[1].approvalWeight, "1.00000");
+
+      transactions = [];
+      transactions.push(new Transaction(37899125, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'delegate', `{ "to": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: 37899125,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -665,7 +709,7 @@ describe('witnesses', function () {
           }
         });
 
-      let accounts = res;
+      accounts = res;
 
       assert.equal(accounts[0].account, CONSTANTS.HIVE_ENGINE_ACCOUNT);
       assert.equal(accounts[0].approvals, 2);
@@ -706,10 +750,10 @@ describe('witnesses', function () {
       assert.equal(params[0].totalApprovalWeight, "199.00002");
 
       transactions = [];
-      transactions.push(new Transaction(37899125, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'undelegate', `{ "from": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899126, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'undelegate', `{ "from": "ned", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "2", "isSignedWithActiveKey": true }`));
 
       block = {
-        refHiveBlockNumber: 37899125,
+        refHiveBlockNumber: 37899126,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -788,10 +832,10 @@ describe('witnesses', function () {
       assert.equal(params[0].totalApprovalWeight, "197.00002");
 
       transactions = [];
-      transactions.push(new Transaction(37899126, fixture.getNextTxId(), 'harpagon', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(37899127, fixture.getNextTxId(), 'harpagon', 'whatever', 'whatever', ''));
 
       block = {
-        refHiveBlockNumber: 37899126,
+        refHiveBlockNumber: 37899127,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-08-01T00:00:00',
@@ -863,10 +907,10 @@ describe('witnesses', function () {
       assert.equal(params[0].totalApprovalWeight, "201.00002");
 
       transactions = [];
-      transactions.push(new Transaction(37899127, fixture.getNextTxId(), 'ned', 'tokens', 'unstake', `{ "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899128, fixture.getNextTxId(), 'ned', 'tokens', 'unstake', `{ "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1", "isSignedWithActiveKey": true }`));
 
       block = {
-        refHiveBlockNumber: 37899127,
+        refHiveBlockNumber: 37899128,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-08-02T00:00:00',
@@ -938,10 +982,10 @@ describe('witnesses', function () {
       assert.equal(params[0].totalApprovalWeight, "200.75002");
 
       transactions = [];
-      transactions.push(new Transaction(37899128, fixture.getNextTxId(), 'harpagon', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(37899129, fixture.getNextTxId(), 'harpagon', 'whatever', 'whatever', ''));
 
       block = {
-        refHiveBlockNumber: 37899128,
+        refHiveBlockNumber: 37899129,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-10-01T00:00:00',

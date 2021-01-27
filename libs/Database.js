@@ -204,7 +204,7 @@ class Database {
       lastBlock.otherHashChangeRefHiveBlocks = [];
     }
     lastBlock.otherHashChangeRefHiveBlocks.push(refHiveBlockNumber);
-    await this.chain.updateOne({ _id: lastBlock._id }, { $set: { otherHashChangeRefHiveBlocks: lastBlock.otherHashChangeRefHiveBlocks }}, { session: this.session });
+    await this.chain.updateOne({ _id: lastBlock._id }, { $set: { otherHashChangeRefHiveBlocks: lastBlock.otherHashChangeRefHiveBlocks } }, { session: this.session }); // eslint-disable-line no-underscore-dangle
   }
 
   async getLatestBlockInfo() {

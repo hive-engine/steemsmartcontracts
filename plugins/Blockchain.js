@@ -12,6 +12,7 @@ const actions = {};
 
 const ipc = new IPC(PLUGIN_NAME);
 let database = null;
+let compareDatabase = null;
 let javascriptVMTimeout = 0;
 let producing = false;
 let stopRequested = false;
@@ -42,6 +43,28 @@ function addBlock(block) {
   return database.addBlock(block);
 }
 
+let mainBlock = null;
+
+const blockData = (t) => ({ refHiveBlockNumber: t.refHiveBlockNumber, transactionId: t.transactionId, sender: t.sender, contract: t.contract, payload: t.payload, executedCodeHash: t.executedCodeHash, logs: t.logs });
+function compareBlocks(block1, block2) {
+  return JSON.stringify(block1.transactions.map(blockData).concat(block1.virtualTransactions.map(blockData))) === JSON.stringify(block2.transactions.map(blockData).concat(block2.virtualTransactions.map(blockData)));
+}
+
+async function getCompareBlock(blockNumber) {
+    const compareBlock = await compareDatabase.getBlockInfo(blockNumber);
+    if (compareBlock) return compareBlock;
+    return (await axios({
+      url: 'https://api.hive-engine.com/rpc/blockchain',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      data: {
+        jsonrpc: '2.0', id: 10, method: 'getBlockInfo', params: { blockNumber },
+      },
+    })).data.result;
+}
+
 // produce all the pending transactions, that will result in the creation of a block
 async function producePendingTransactions(
   refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, timestamp,
@@ -68,26 +91,17 @@ async function producePendingTransactions(
 
     const session = database.startSession();
 
-    const mainBlock = !enableHashVerification ? null : (await axios({
-      url: 'https://api.hive-engine.com/rpc/blockchain',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      data: {
-        jsonrpc: '2.0', id: 10, method: 'getBlockInfo', params: { blockNumber: newBlock.blockNumber },
-      },
-    })).data.result;
+    mainBlock = !enableHashVerification ? null : (mainBlock && mainBlock.blockNumber === newBlock.blockNumber ? mainBlock : await getCompareBlock(newBlock.blockNumber));
     try {
       await session.withTransaction(async () => {
         await newBlock.produceBlock(database, javascriptVMTimeout, mainBlock);
 
         if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
           if (mainBlock && newBlock.hash) {
-            console.log(`Sidechain Block ${mainBlock.blockNumber}, Main db hash: ${mainBlock.databaseHash}, Main block hash: ${mainBlock.hash}, This db hash: ${newBlock.databaseHash}, This block hash: ${newBlock.hash}`); // eslint-disable-line no-console
+            //console.log(`Sidechain Block ${mainBlock.blockNumber}, Main db hash: ${mainBlock.databaseHash}, Main block hash: ${mainBlock.hash}, This db hash: ${newBlock.databaseHash}, This block hash: ${newBlock.hash}`); // eslint-disable-line no-console
 
-            if (mainBlock.databaseHash !== newBlock.databaseHash
-                || mainBlock.hash !== newBlock.hash) {
+            //if (mainBlock.databaseHash !== newBlock.databaseHash || mainBlock.hash !== newBlock.hash) {
+            if (!compareBlocks(mainBlock, newBlock)) {
               throw new Error(`Block mismatch with api \nMain: ${JSON.stringify(mainBlock, null, 2)}, \nThis: ${JSON.stringify(newBlock, null, 2)}`);
             }
           }
@@ -162,6 +176,8 @@ const init = async (conf, callback) => {
 
   database = new Database();
   await database.init(databaseURL, databaseName);
+  compareDatabase = new Database();
+  await compareDatabase.init(databaseURL, 'hsctest');
 
   await createGenesisBlock(conf);
 

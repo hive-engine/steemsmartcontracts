@@ -9,19 +9,20 @@ const privateSigningKey = dhive.PrivateKey.fromString(process.env.ACTIVE_SIGNING
 const publicSigningKey = privateSigningKey.createPublic().toString();
 
 function broadcastWitnessAction(contractAction, contractPayload) {
-    const client = new dhive.Client('https://api.hive.blog');
-    const transaction = {
-      required_auths: [witnessAccount],
-      required_posting_auths: [],
-      id: 'ssc-mainnet-hive',
-      json: JSON.stringify({
-        contractName: 'witnesses',
-        contractAction,
-        contractPayload,
-      }),
-    };
+  const client = new dhive.Client('https://api.hive.blog');
+  const transaction = {
+    required_auths: [witnessAccount],
+    required_posting_auths: [],
+    id: 'ssc-mainnet-hive',
+    json: JSON.stringify({
+      contractName: 'witnesses',
+      contractAction,
+      contractPayload,
+    }),
+  };
 
-    client.broadcast.json(transaction, privateSigningKey, (x, y) => console.log(x ? x : y));
+  // eslint-disable-next-line no-console
+  client.broadcast.json(transaction, privateSigningKey, (x, y) => console.log(x || y));
 }
 
 program.version(packagejson.version);
@@ -34,22 +35,22 @@ program
 
 program
   .command('register')
-  .action(witness => broadcastWitnessAction('register', {
-      IP: ip,
-      RPCPort: 5000,
-      P2PPort: 5001,
-      signingKey: publicSigningKey,
-      enabled: true,
-    }));
+  .action(() => broadcastWitnessAction('register', {
+    IP: ip,
+    RPCPort: 5000,
+    P2PPort: 5001,
+    signingKey: publicSigningKey,
+    enabled: true,
+  }));
 
 program
   .command('unregister')
-  .action(witness => broadcastWitnessAction('register', {
-      IP: ip,
-      RPCPort: 5000,
-      P2PPort: 5001,
-      signingKey: publicSigningKey,
-      enabled: false,
-    }));
+  .action(() => broadcastWitnessAction('register', {
+    IP: ip,
+    RPCPort: 5000,
+    P2PPort: 5001,
+    signingKey: publicSigningKey,
+    enabled: false,
+  }));
 
 program.parse(process.argv);

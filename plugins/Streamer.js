@@ -326,7 +326,7 @@ const throttledGetBlockFromNode = async (blockNumber, node) => {
       totalTime[node] += Date.now() - timeStart;
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error(`Error fetching block ${blockNumber} on node ${node}, took ${ Date.now() - timeStart } ms`);
+      console.error(`Error fetching block ${blockNumber} on node ${node}, took ${Date.now() - timeStart} ms`);
       // eslint-disable-next-line no-console
       console.error(err);
     }

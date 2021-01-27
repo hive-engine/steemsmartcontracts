@@ -78,7 +78,7 @@ class Block {
   async blockAdjustments(database) {
     if (this.refHiveBlockNumber === 43447729 || this.refHiveBlockNumber === 44870101) {
       // main node skipped this due to space issue
-      this.transactions = []; 
+      this.transactions = [];
     }
 
     // To keep in sync with primary node history after hack
@@ -188,7 +188,8 @@ class Block {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
-          if (mainBlock && currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
+          if (mainBlock && currentDatabaseHash
+              !== mainBlock.virtualTransactions[relIndex].databaseHash) {
             console.warn(mainBlock.virtualTransactions[relIndex]); // eslint-disable-line no-console
             console.warn(transaction); // eslint-disable-line no-console
             throw new Error('tx hash mismatch with api');
@@ -206,8 +207,7 @@ class Block {
       this.merkleRoot = merkleRoots.hash;
       this.databaseHash = merkleRoots.databaseHash;
       this.hash = this.calculateHash();
-    } else if (currentDatabaseHash != this.previousDatabaseHash) {
-      //throw new Error("Database hash changed without sidechain block at " + this.refHiveBlockNumber);
+    } else if (currentDatabaseHash !== this.previousDatabaseHash) {
       await database.noteHashChange(this.refHiveBlockNumber);
     }
   }

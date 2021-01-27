@@ -178,7 +178,7 @@ const verifyRoundHandler = async (witnessAccount, data) => {
       && roundHash && typeof roundHash === 'string' && roundHash.length === 64) {
       // get witness signing key
       const witness = await findOne('witnesses', 'witnesses', { account: witnessAccount });
-      if (witness !== null) {
+      if (witness !== null && lastProposedRound) {
         const { signingKey } = witness;
         if (lastProposedRound.roundHash === roundHash) {
           // check if the signature is valid
@@ -239,7 +239,7 @@ const proposeRound = async (witness, round, retry = 0) => {
 
     if (currentRound === round.round) {
       if (response.data.result) {
-        verifyRoundHandler(witness, response.data.result);
+        await verifyRoundHandler(witness, response.data.result);
       } else {
         console.error(`Error posting to ${witness} / round ${round.round} / ${response.data.error.code} / ${response.data.error.message}`);
 

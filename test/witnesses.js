@@ -14,7 +14,7 @@ const { setupContractPayload } = require('../libs/util/contractUtil');
 const { Fixture, conf } = require('../libs/util/testing/Fixture');
 const { TableAsserts } = require('../libs/util/testing/TableAsserts');
 
-// must match witness contract
+// Will replace contract locally.
 const NB_WITNESSES = 5;
 
 const signPayload = (signingKey, payload, isPayloadSHA256 = false) => {
@@ -34,7 +34,8 @@ const signPayload = (signingKey, payload, isPayloadSHA256 = false) => {
 
 const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
-const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js');
+const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js',
+    (contractCode) => contractCode.replace('NB_TOP_WITNESSES = 6', 'NB_TOP_WITNESSES = 4'));
 
 function addGovernanceTokenTransactions(fixture, transactions, blockNumber) {
     transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', `{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "precision": 5, "maxSupply": "10000000", "isSignedWithActiveKey": true }`));

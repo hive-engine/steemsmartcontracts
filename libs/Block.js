@@ -75,22 +75,31 @@ class Block {
     return this.calculateMerkleRoot(newTransactions);
   }
 
-  // produce the block (deploy a smart contract or execute a smart contract)
-  async produceBlock(database, jsVMTimeout, mainBlock) {
-    const nbTransactions = this.transactions.length;
+  async blockAdjustments(database) {
+    if (this.refHiveBlockNumber === 43447729 || this.refHiveBlockNumber === 44870101) {
+      // main node skipped this due to space issue
+      this.transactions = [];
+    }
 
     // To keep in sync with primary node history after hack
     if (this.refHiveBlockNumber === 50352631) {
       const tokenBalances = database.database.collection('tokens_balances');
-      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '1.05000000' } });
-      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '1010.00000000' } });
+      await tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '1.05000000' } });
+      await tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '1010.00000000' } });
     } else if (this.refHiveBlockNumber === 50354478) {
       const tokenBalances = database.database.collection('tokens_balances');
-      tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '0.50000000' } });
+      await tokenBalances.updateOne({ _id: 8416 }, { $set: { account: 'nightowl1', balance: '0.50000000' } });
     } else if (this.refHiveBlockNumber === 50354625) {
       const tokenBalances = database.database.collection('tokens_balances');
-      tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '500000.00000000' } });
+      await tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '500000.00000000' } });
     }
+  }
+
+  // produce the block (deploy a smart contract or execute a smart contract)
+  async produceBlock(database, jsVMTimeout, mainBlock) {
+    await this.blockAdjustments(database);
+
+    const nbTransactions = this.transactions.length;
 
     let currentDatabaseHash = this.previousDatabaseHash;
 
@@ -179,8 +188,8 @@ class Block {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
-          if (mainBlock
-              && currentDatabaseHash !== mainBlock.virtualTransactions[relIndex].databaseHash) {
+          if (mainBlock && currentDatabaseHash
+              !== mainBlock.virtualTransactions[relIndex].databaseHash) {
             console.warn(mainBlock.virtualTransactions[relIndex]); // eslint-disable-line no-console
             console.warn(transaction); // eslint-disable-line no-console
             throw new Error('tx hash mismatch with api');
@@ -198,6 +207,8 @@ class Block {
       this.merkleRoot = merkleRoots.hash;
       this.databaseHash = merkleRoots.databaseHash;
       this.hash = this.calculateHash();
+    } else if (currentDatabaseHash !== this.previousDatabaseHash) {
+      await database.noteHashChange(this.refHiveBlockNumber);
     }
   }
 

@@ -79,10 +79,12 @@ async function getHashes() {
     await database.init(databaseURL, databaseName);
     const contracts = database.database.collection('contracts');
     const chain = database.database.collection('chain');
-    const localBlock  = (await chain.find().sort({ _id: -1}).limit(1).toArray())[0]._id;
+    // eslint-disable-next-line no-underscore-dangle
+    const localBlock = (await chain.find().sort({ _id: -1 }).limit(1).toArray())[0]._id;
 
     for (let i = 0; i < contractNames.length; i += 1) {
       const contract = contractNames[i];
+      // eslint-disable-next-line no-underscore-dangle
       const contractInDb = await contracts.findOne({ _id: contract });
       console.log(`Checking contract ${contract}`);
       const tables = hashes1[i];
@@ -97,7 +99,9 @@ async function getHashes() {
         }
       }
     }
-    const localBlockAfterFetch  = (await chain.find().sort({ _id: -1}).limit(1).toArray())[0]._id;
+    // eslint-disable-next-line no-underscore-dangle
+    const localBlockAfterFetch = (await chain.find().sort({ _id: -1 }).limit(1).toArray())[0]._id;
+
     console.log(`Local block before hash fetch: ${localBlock}. Block after: ${localBlockAfterFetch}`);
     database.close();
   }

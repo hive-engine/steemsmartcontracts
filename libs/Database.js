@@ -198,6 +198,15 @@ class Database {
     await this.addTransactions(finalBlock);
   }
 
+  async noteHashChange(refHiveBlockNumber) {
+    const lastBlock = await this.getLatestBlockInfo();
+    if (!lastBlock.otherHashChangeRefHiveBlocks) {
+      lastBlock.otherHashChangeRefHiveBlocks = [];
+    }
+    lastBlock.otherHashChangeRefHiveBlocks.push(refHiveBlockNumber);
+    await this.chain.updateOne({ _id: lastBlock._id }, { $set: { otherHashChangeRefHiveBlocks: lastBlock.otherHashChangeRefHiveBlocks } }, { session: this.session }); // eslint-disable-line no-underscore-dangle
+  }
+
   async getLatestBlockInfo() {
     try {
       const _idNewBlock = await this.getLastSequence('chain'); // eslint-disable-line no-underscore-dangle

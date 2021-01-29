@@ -540,13 +540,12 @@ const manageWitnessesSchedule = async () => {
           // calculate a random weight if not done yet
           if (schedule.length >= NB_TOP_WITNESSES
             && randomWeight === null) {
-            const min = api.BigNumber(accWeight)
-              .plus(GOVERNANCE_TOKEN_MIN_VALUE);
-
-            randomWeight = api.BigNumber(totalApprovalWeight)
-              .minus(min)
-              .times(random)
-              .plus(min)
+            randomWeight = api.BigNumber(accWeight)
+              .plus(GOVERNANCE_TOKEN_MIN_VALUE)
+              .plus(api.BigNumber(totalApprovalWeight)
+                .minus(accWeight)
+                .times(random)
+                .toFixed(GOVERNANCE_TOKEN_PRECISION, 1))
               .toFixed(GOVERNANCE_TOKEN_PRECISION);
           }
 

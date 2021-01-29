@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const { Base64 } = require('js-base64');
 const { CONSTANTS } = require('../Constants');
 
-function setupContractPayload(name, file) {
+function setupContractPayload(name, file, additionalReplacements=null) {
   let contractCode = fs.readFileSync(file);
   contractCode = contractCode.toString();
   contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);
@@ -11,6 +11,9 @@ function setupContractPayload(name, file) {
   contractCode = contractCode.replace(/'\$\{CONSTANTS.GOVERNANCE_TOKEN_SYMBOL\}\$'/g, CONSTANTS.GOVERNANCE_TOKEN_SYMBOL);
   contractCode = contractCode.replace(/'\$\{CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE\}\$'/g, CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE);
   contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
+  if (additionalReplacements) {
+    contractCode = additionalReplacements(contractCode);
+  }
 
   const base64ContractCode = Base64.encode(contractCode);
 

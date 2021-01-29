@@ -344,7 +344,7 @@ const changeCurrentWitness = async () => {
   const random = api.random();
   const randomWeight = api.BigNumber(totalApprovalWeight)
     .times(random)
-    .toFixed(GOVERNANCE_TOKEN_PRECISION);
+    .toFixed(GOVERNANCE_TOKEN_PRECISION, 1);
 
   let offset = 0;
   let accWeight = 0;

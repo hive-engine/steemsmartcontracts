@@ -51,9 +51,9 @@ function compareBlocks(block1, block2) {
 }
 
 async function getCompareBlock(blockNumber) {
-    const compareBlock = await compareDatabase.getBlockInfo(blockNumber);
+    let compareBlock = await compareDatabase.getBlockInfo(blockNumber);
     if (compareBlock) return compareBlock;
-    return (await axios({
+    compareBlock = (await axios({
       url: 'https://api.hive-engine.com/rpc/blockchain',
       method: 'POST',
       headers: {
@@ -63,6 +63,10 @@ async function getCompareBlock(blockNumber) {
         jsonrpc: '2.0', id: 10, method: 'getBlockInfo', params: { blockNumber },
       },
     })).data.result;
+    if (compareBlock) return compareBlock;
+    console.log("Retry fetch for primary node sidechain block " + blockNumber);
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    return getCompareBlock(blockNumber);
 }
 
 // produce all the pending transactions, that will result in the creation of a block

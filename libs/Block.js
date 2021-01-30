@@ -111,7 +111,7 @@ class Block {
       currentDatabaseHash = transaction.databaseHash;
 
       if (transaction.contract !== 'comments' || transaction.logs === '{}') {
-        if (mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
+        if (false && mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
           console.warn(mainBlock.transactions[relIndex]); // eslint-disable-line no-console
           console.warn(transaction); // eslint-disable-line no-console
           throw new Error('tx hash mismatch with api');
@@ -188,7 +188,7 @@ class Block {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
-          if (mainBlock && currentDatabaseHash
+          if (false && mainBlock && currentDatabaseHash
               !== mainBlock.virtualTransactions[relIndex].databaseHash) {
             console.warn(mainBlock.virtualTransactions[relIndex]); // eslint-disable-line no-console
             console.warn(transaction); // eslint-disable-line no-console

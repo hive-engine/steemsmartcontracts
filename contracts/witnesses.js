@@ -2,10 +2,10 @@
 /* global actions, api */
 
 const NB_APPROVALS_ALLOWED = 30;
-const NB_TOP_WITNESSES = 4;
+const NB_TOP_WITNESSES = 6;
 const NB_BACKUP_WITNESSES = 1;
 const NB_WITNESSES = NB_TOP_WITNESSES + NB_BACKUP_WITNESSES;
-const NB_WITNESSES_SIGNATURES_REQUIRED = 3;
+const NB_WITNESSES_SIGNATURES_REQUIRED = 5;
 const MAX_ROUNDS_MISSED_IN_A_ROW = 3; // after that the witness is disabled
 const MAX_ROUND_PROPOSITION_WAITING_PERIOD = 40; // 20 blocks
 const NB_TOKENS_TO_REWARD = '0.00951293'; // inflation.js tokens per block
@@ -41,29 +41,6 @@ actions.createSSC = async () => {
     };
 
     await api.db.insert('params', params);
-  } else {
-    // TODO: cleanup when launching for mainnet / next update
-    const witnesses = await api.db.find('witnesses', { });
-
-    for (let index = 0; index < witnesses.length; index += 1) {
-      const witness = witnesses[index];
-      witness.missedRounds = 0;
-      witness.missedRoundsInARow = 0;
-      await api.db.update('witnesses', witness);
-    }
-
-    const schedules = await api.db.find('schedules', { });
-
-    for (let index = 0; index < schedules.length; index += 1) {
-      const schedule = schedules[index];
-      await api.db.remove('schedules', schedule);
-    }
-
-    const params = await api.db.findOne('params', {});
-    params.currentWitness = null;
-    params.blockNumberWitnessChange = 0;
-    params.lastWitnesses = [];
-    await api.db.update('params', params);
   }
 };
 
@@ -81,14 +58,6 @@ actions.resetSchedule = async () => {
   params.currentWitness = null;
   params.blockNumberWitnessChange = 0;
   params.lastWitnesses = [];
-  await api.db.update('params', params);
-};
-
-actions.setTestHpg = async () => {
-  if (api.sender !== api.owner) return;
-
-  const params = await api.db.findOne('params', {});
-  params.currentWitness = 'test.hpg';
   await api.db.update('params', params);
 };
 
@@ -344,7 +313,7 @@ const changeCurrentWitness = async () => {
   const random = api.random();
   const randomWeight = api.BigNumber(totalApprovalWeight)
     .times(random)
-    .toFixed(GOVERNANCE_TOKEN_PRECISION);
+    .toFixed(GOVERNANCE_TOKEN_PRECISION, 1);
 
   let offset = 0;
   let accWeight = 0;
@@ -540,13 +509,12 @@ const manageWitnessesSchedule = async () => {
           // calculate a random weight if not done yet
           if (schedule.length >= NB_TOP_WITNESSES
             && randomWeight === null) {
-            const min = api.BigNumber(accWeight)
-              .plus(GOVERNANCE_TOKEN_MIN_VALUE);
-
-            randomWeight = api.BigNumber(totalApprovalWeight)
-              .minus(min)
-              .times(random)
-              .plus(min)
+            randomWeight = api.BigNumber(accWeight)
+              .plus(GOVERNANCE_TOKEN_MIN_VALUE)
+              .plus(api.BigNumber(totalApprovalWeight)
+                .minus(accWeight)
+                .times(random)
+                .toFixed(GOVERNANCE_TOKEN_PRECISION, 1))
               .toFixed(GOVERNANCE_TOKEN_PRECISION);
           }
 

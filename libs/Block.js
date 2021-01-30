@@ -140,8 +140,7 @@ class Block {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
     }
 
-    // TODO: Determine block to start witness schedule.
-    if (this.refHiveBlockNumber >= 99999999) {
+    if (this.refHiveBlockNumber >= 51022551) {
       virtualTransactions
         .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
     }

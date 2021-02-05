@@ -16,7 +16,6 @@ const { Database } = require('../libs/Database');
 const PLUGIN_NAME = 'P2P';
 const PLUGIN_PATH = require.resolve(__filename);
 const POST_TIMEOUT = 10000;
-const NB_WITNESSES_SIGNATURES_REQUIRED = 5;
 
 const ipc = new IPC(PLUGIN_NAME);
 let serverP2P = null;
@@ -187,7 +186,8 @@ const verifyRoundHandler = async (witnessAccount, data) => {
             lastProposedRound.signatures.push([witnessAccount, signature]);
 
             // if all the signatures have been gathered
-            if (lastProposedRound.signatures.length >= NB_WITNESSES_SIGNATURES_REQUIRED) {
+            if (lastProposedRound.signatures.length
+                >= lastProposedRound.witnessSignaturesRequired) {
               // send round to sidechain
               const json = {
                 contractName: 'witnesses',
@@ -299,6 +299,10 @@ const manageRoundProposition = async () => {
     // check if this witness is part of the round
     const witnessFound = schedules.find(w => w.witness === WITNESS_ACCOUNT);
 
+    // If schedule size > 7, use new params table for signatures required.
+    // After transition, always use params table.
+    const witnessSignaturesRequired = schedules.length > 7 ? params.witnessSignaturesRequired : 5;
+
     if (witnessFound !== undefined
       && lastProposedRound === null
       && currentWitness === WITNESS_ACCOUNT
@@ -316,6 +320,7 @@ const manageRoundProposition = async () => {
           round: currentRound,
           roundHash: calculatedRoundHash,
           signatures: [[WITNESS_ACCOUNT, signature]],
+          witnessSignaturesRequired,
         };
 
         const round = {

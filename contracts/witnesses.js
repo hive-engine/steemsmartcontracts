@@ -5,7 +5,7 @@ const NB_APPROVALS_ALLOWED = 30;
 const NB_TOP_WITNESSES = 10;
 const NB_BACKUP_WITNESSES = 1;
 const NB_WITNESSES = NB_TOP_WITNESSES + NB_BACKUP_WITNESSES;
-const NB_WITNESSES_SIGNATURES_REQUIRED = 5;
+const NB_WITNESSES_SIGNATURES_REQUIRED = 9;
 const MAX_ROUNDS_MISSED_IN_A_ROW = 3; // after that the witness is disabled
 const MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20; // number of blocks
 const NB_TOKENS_TO_REWARD = '0.00951293'; // inflation.js tokens per block
@@ -665,17 +665,23 @@ actions.proposeRound = async (payload) => {
   } = payload;
 
   const params = await api.db.findOne('params', {});
+  const {
+    lastVerifiedBlockNumber,
+    round,
+    lastBlockRound,
+    currentWitness,
+  } = params;
+  const schedules = await api.db.find('schedules', { round });
+
+  const numberOfWitnessSlots = schedules.length;
+  // Directly use params after transition to 11 witnesses.
+  const witnessSignaturesRequired = numberOfWitnessSlots > 7 ? params.witnessSignaturesRequired : 5;
+
   if (isSignedWithActiveKey === true
     && roundHash && typeof roundHash === 'string' && roundHash.length === 64
     && Array.isArray(signatures)
-    && signatures.length <= params.numberOfWitnessSlots
-    && signatures.length >= params.witnessSignaturesRequired) {
-    const {
-      lastVerifiedBlockNumber,
-      round,
-      lastBlockRound,
-      currentWitness,
-    } = params;
+    && signatures.length <= numberOfWitnessSlots
+    && signatures.length >= witnessSignaturesRequired) {
     let currentBlock = lastVerifiedBlockNumber + 1;
     let calculatedRoundHash = '';
 
@@ -696,9 +702,6 @@ actions.proposeRound = async (payload) => {
       }
 
       if (calculatedRoundHash !== '' && calculatedRoundHash === roundHash) {
-        // get the witnesses on schedule
-        const schedules = await api.db.find('schedules', { round });
-
         // check the signatures
         let signaturesChecked = 0;
         const verifiedBlockInformation = [];
@@ -732,7 +735,7 @@ actions.proposeRound = async (payload) => {
           }
         }
 
-        if (signaturesChecked >= params.witnessSignaturesRequired) {
+        if (signaturesChecked >= witnessSignaturesRequired) {
           // mark blocks of the verified round as verified by the current witness
           for (let index = 0; index < verifiedBlockInformation.length; index += 1) {
             await api.verifyBlock(verifiedBlockInformation[index]);

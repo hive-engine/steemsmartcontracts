@@ -300,7 +300,7 @@ const manageRoundProposition = async () => {
     const witnessFound = schedules.find(w => w.witness === WITNESS_ACCOUNT);
 
     // If schedule size > 7, use new params table for signatures required.
-    // After transition, always use params table.
+    // After completing transition, modify this to always use params table.
     const witnessSignaturesRequired = schedules.length > 7 ? params.witnessSignaturesRequired : 5;
 
     if (witnessFound !== undefined

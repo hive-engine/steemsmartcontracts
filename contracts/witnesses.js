@@ -149,51 +149,69 @@ actions.updateWitnessesApprovals = async (payload) => {
 
 actions.register = async (payload) => {
   const {
-    IP, RPCPort, P2PPort, signingKey, enabled, isSignedWithActiveKey,
+    IP, RPCPort, P2PPort, RPCEndpoint, P2PEndpoint, signingKey, enabled, isSignedWithActiveKey,
   } = payload;
 
   if (api.assert(isSignedWithActiveKey === true, 'active key required')
-    && api.assert(IP && typeof IP === 'string' && api.validator.isIP(IP), 'IP is invalid')
-    && api.assert(RPCPort && Number.isInteger(RPCPort) && RPCPort >= 0 && RPCPort <= 65535, 'RPCPort must be an integer between 0 and 65535')
-    && api.assert(P2PPort && Number.isInteger(P2PPort) && P2PPort >= 0 && P2PPort <= 65535, 'P2PPort must be an integer between 0 and 65535')
+    && api.assert(P2PEndpoint || (IP && typeof IP === 'string' && api.validator.isIP(IP)), 'IP is invalid')
+    && api.assert(RPCEndpoint || (RPCPort && Number.isInteger(RPCPort) && RPCPort >= 0 && RPCPort <= 65535), 'RPCPort must be an integer between 0 and 65535')
+    && api.assert(P2PEndpoint || (P2PPort && Number.isInteger(P2PPort) && P2PPort >= 0 && P2PPort <= 65535), 'P2PPort must be an integer between 0 and 65535')
+    && api.assert(!RPCEndpoint || (typeof RPCEndpoint === 'string' && api.validator.isURL(RPCEndpoint, { protocols: ['https'] })), 'RPCEndpoint is invalid')
+    && api.assert(!P2PEndpoint || (typeof P2PEndpoint === 'string' && api.validator.isURL(P2PEndpoint, { protocols: ['https'] })), 'P2PEndpoint is invalid')
     && api.assert(api.validator.isAlphanumeric(signingKey) && signingKey.length === 53, 'invalid signing key')
     && api.assert(typeof enabled === 'boolean', 'enabled must be a boolean')) {
     // check if there is already a witness with the same signing key
     let witness = await api.db.findOne('witnesses', { signingKey });
 
-    if (api.assert(witness === null || witness.account === api.sender, 'a witness is already using this signing key')) {
+    if (!api.assert(witness === null || witness.account === api.sender, 'a witness is already using this signing key')) {
+      return;
+    }
+
+    if (IP && P2PPort) {
       // check if there is already a witness with the same IP/Port
       witness = await api.db.findOne('witnesses', { IP, P2PPort });
-
-      if (api.assert(witness === null || witness.account === api.sender, 'a witness is already using this IP/Port')) {
-        witness = await api.db.findOne('witnesses', { account: api.sender });
-
-        // if the witness is already registered
-        if (witness) {
-          witness.IP = IP;
-          witness.RPCPort = RPCPort;
-          witness.P2PPort = P2PPort;
-          witness.signingKey = signingKey;
-          witness.enabled = enabled;
-          await api.db.update('witnesses', witness);
-        } else {
-          witness = {
-            account: api.sender,
-            approvalWeight: { $numberDecimal: '0' },
-            signingKey,
-            IP,
-            RPCPort,
-            P2PPort,
-            enabled,
-            missedRounds: 0,
-            missedRoundsInARow: 0,
-            verifiedRounds: 0,
-            lastRoundVerified: null,
-            lastBlockVerified: null,
-          };
-          await api.db.insert('witnesses', witness);
-        }
+      if (!api.assert(witness === null || witness.account === api.sender, 'a witness is already using this IP/Port')) {
+        return;
       }
+    }
+    if (P2PEndpoint) {
+      // check if there is already a witness with the same P2P endpoint
+      witness = await api.db.findOne('witnesses', { P2PEndpoint });
+      if (!api.assert(witness === null || witness.account === api.sender, 'a witness is already using this P2PEndpoint')) {
+        return;
+      }
+    }
+
+    witness = await api.db.findOne('witnesses', { account: api.sender });
+
+    // if the witness is already registered
+    if (witness) {
+      witness.IP = IP;
+      witness.RPCPort = RPCPort;
+      witness.P2PPort = P2PPort;
+      witness.RPCEndpoint = RPCEndpoint;
+      witness.P2PEndpoint = P2PEndpoint;
+      witness.signingKey = signingKey;
+      witness.enabled = enabled;
+      await api.db.update('witnesses', witness);
+    } else {
+      witness = {
+        account: api.sender,
+        approvalWeight: { $numberDecimal: '0' },
+        signingKey,
+        IP,
+        RPCPort,
+        P2PPort,
+        RPCEndpoint,
+        P2PEndpoint,
+        enabled,
+        missedRounds: 0,
+        missedRoundsInARow: 0,
+        verifiedRounds: 0,
+        lastRoundVerified: null,
+        lastBlockVerified: null,
+      };
+      await api.db.insert('witnesses', witness);
     }
   }
 };

@@ -106,6 +106,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), 'vitalik', 'witnesses', 'register', `{ "IP": "123.255.123.253", "RPCPort": 7000, "P2PPort": 8000, "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq", "enabled": false, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), 'bob', 'witnesses', 'register', `{ "RPCEndpoint": "https://rpc.hive-engine.com", "P2PEndpoint": "https://p2p.hive-engine.com", "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabr", "enabled": true, "isSignedWithActiveKey": true }`));
 
       let block = {
         refHiveBlockNumber: 37899120,
@@ -142,10 +143,18 @@ describe('witnesses', function () {
       assert.equal(witnesses[1].signingKey, 'STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq');
       assert.equal(witnesses[1].enabled, false);
 
+      assert.equal(witnesses[2].account, 'bob');
+      assert.equal(witnesses[2].approvalWeight.$numberDecimal, '0');
+      assert.equal(witnesses[2].RPCEndpoint, "https://rpc.hive-engine.com");
+      assert.equal(witnesses[2].P2PEndpoint, "https://p2p.hive-engine.com");
+      assert.equal(witnesses[2].signingKey, 'STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabr');
+      assert.equal(witnesses[2].enabled, true);
+
       transactions = [];
 
       transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.123", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": false, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'vitalik', 'witnesses', 'register', `{ "IP": "123.255.123.124", "RPCPort": 7000, "P2PPort": 8000, "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), 'bob', 'witnesses', 'register', `{ "RPCEndpoint": "https://rpc.hive-engine.com", "P2PEndpoint": "https://p2p.hive-engine.com", "signingKey": "STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabr", "enabled": false, "isSignedWithActiveKey": true }`));
 
       block = {
         refHiveBlockNumber: 37899121,
@@ -182,6 +191,89 @@ describe('witnesses', function () {
       assert.equal(witnesses[1].signingKey, 'STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabq');
       assert.equal(witnesses[1].enabled, true);
 
+      assert.equal(witnesses[2].account, 'bob');
+      assert.equal(witnesses[2].approvalWeight.$numberDecimal, '0');
+      assert.equal(witnesses[2].RPCEndpoint, "https://rpc.hive-engine.com");
+      assert.equal(witnesses[2].P2PEndpoint, "https://p2p.hive-engine.com");
+      assert.equal(witnesses[2].signingKey, 'STM8T4zKJuXgjLiKbp6fcsTTUtDY7afwc4XT9Xpf6uakYxwxfBabr');
+      assert.equal(witnesses[2].enabled, false);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should not register witnesses', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      let transactions = [];
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), 'other', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "P2PEndpoint": "https://p2p.hive-engine.com", "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+
+      let block = {
+        refHiveBlockNumber: 37899120,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": false }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "http://notip.com", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "RPCEndpoint": "https://badurl", "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "P2PEndpoint": "https://badurl", "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.255", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pS", "enabled": true, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "RPCEndpoint": "https://rpc.hive-engine.com", "P2PEndpoint": "https://p2p.hive-engine.com", "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pS", "enabled": true, "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: 37899121,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      let res = await fixture.database.getLatestBlockInfo();
+      let txs = res.transactions;
+
+      TableAsserts.assertError(txs[0], 'active key required');
+      TableAsserts.assertError(txs[1], 'IP is invalid');
+      TableAsserts.assertError(txs[2], 'RPCPort must be an integer between 0 and 65535');
+      TableAsserts.assertError(txs[3], 'P2PPort must be an integer between 0 and 65535');
+      TableAsserts.assertError(txs[4], 'RPCEndpoint is invalid');
+      TableAsserts.assertError(txs[5], 'P2PEndpoint is invalid');
+      TableAsserts.assertError(txs[6], 'invalid signing key');
+      TableAsserts.assertError(txs[7], 'enabled must be a boolean');
+      TableAsserts.assertError(txs[8], 'a witness is already using this signing key');
+      TableAsserts.assertError(txs[9], 'a witness is already using this IP/Port');
+      TableAsserts.assertError(txs[10], 'a witness is already using this P2PEndpoint');
+
+      res = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'witnesses',
+          query: {
+          }
+        });
+      // Only the first witness should exist.
+      assert(res.length === 1);
       resolve();
     })
       .then(() => {

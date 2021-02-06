@@ -26,6 +26,12 @@ class TableAsserts {
     if (delegationsOut) assert.equal(res.delegationsOut, delegationsOut, `${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
   }
 
+  static assertError(tx, message) {
+    const logs = JSON.parse(tx.logs);
+    assert(logs.errors, `No error in logs. Error expected with message ${message}`);
+    assert.equal(logs.errors[0], message, `Error expected with message ${message}. Instead got ${logs.errors[0]}`);
+  }
+
   async assertNoErrorInLastBlock() {
     const lastBlock = await this.fixture.database.getLatestBlockInfo();
     const { transactions } = lastBlock;

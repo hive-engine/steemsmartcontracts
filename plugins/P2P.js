@@ -222,7 +222,7 @@ const proposeRound = async (witness, round, retry = 0) => {
         round,
       },
     };
-    const url = `http://${witnessRec.IP}:${witnessRec.P2PPort}/p2p`;
+    const url = witnessRec.P2PEndpoint ? `${witnessRec.P2PEndpoint}/p2p` : `http://${witnessRec.IP}:${witnessRec.P2PPort}/p2p`;
 
     console.log(url);
     const response = await axios({

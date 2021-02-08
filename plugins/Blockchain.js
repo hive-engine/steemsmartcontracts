@@ -45,7 +45,7 @@ function addBlock(block) {
 
 let mainBlock = null;
 
-const blockData = (t) => ({ refHiveBlockNumber: t.refHiveBlockNumber, transactionId: t.transactionId, sender: t.sender, contract: t.contract, payload: t.payload, executedCodeHash: t.executedCodeHash, logs: t.logs });
+const blockData = (t) => ({ refHiveBlockNumber: t.refHiveBlockNumber, transactionId: t.transactionId, sender: t.sender, contract: t.contract, payload: t.payload, executedCodeHash: t.executedCodeHash, logs: t.logs, hash: t.hash, databaseHash: t.databaseHash });
 function compareBlocks(block1, block2) {
   return JSON.stringify(block1.transactions.map(blockData).concat(block1.virtualTransactions.map(blockData))) === JSON.stringify(block2.transactions.map(blockData).concat(block2.virtualTransactions.map(blockData)));
 }
@@ -106,10 +106,10 @@ async function producePendingTransactions(
 
         if (newBlock.transactions.length > 0 || newBlock.virtualTransactions.length > 0) {
           if (mainBlock && newBlock.hash) {
-            //console.log(`Sidechain Block ${mainBlock.blockNumber}, Main db hash: ${mainBlock.databaseHash}, Main block hash: ${mainBlock.hash}, This db hash: ${newBlock.databaseHash}, This block hash: ${newBlock.hash}`); // eslint-disable-line no-console
+            console.log(`Sidechain Block ${mainBlock.blockNumber}, Main db hash: ${mainBlock.databaseHash}, Main block hash: ${mainBlock.hash}, This db hash: ${newBlock.databaseHash}, This block hash: ${newBlock.hash}`); // eslint-disable-line no-console
 
-            //if (mainBlock.databaseHash !== newBlock.databaseHash || mainBlock.hash !== newBlock.hash) {
-            if (!compareBlocks(mainBlock, newBlock)) {
+            if (mainBlock.databaseHash !== newBlock.databaseHash || mainBlock.hash !== newBlock.hash) {
+            //if (!compareBlocks(mainBlock, newBlock)) {
               throw new Error(`Block mismatch with api \nMain: ${JSON.stringify(mainBlock, null, 2)}, \nThis: ${JSON.stringify(newBlock, null, 2)}`);
             }
           }

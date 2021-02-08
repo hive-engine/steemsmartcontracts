@@ -2,12 +2,12 @@
 /* global actions, api */
 
 const NB_APPROVALS_ALLOWED = 30;
-const NB_TOP_WITNESSES = 6;
+const NB_TOP_WITNESSES = 10;
 const NB_BACKUP_WITNESSES = 1;
 const NB_WITNESSES = NB_TOP_WITNESSES + NB_BACKUP_WITNESSES;
-const NB_WITNESSES_SIGNATURES_REQUIRED = 5;
+const NB_WITNESSES_SIGNATURES_REQUIRED = 9;
 const MAX_ROUNDS_MISSED_IN_A_ROW = 3; // after that the witness is disabled
-const MAX_ROUND_PROPOSITION_WAITING_PERIOD = 40; // 20 blocks
+const MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20; // number of blocks
 const NB_TOKENS_TO_REWARD = '0.00951293'; // inflation.js tokens per block
 const NB_TOKENS_NEEDED_BEFORE_REWARDING = '0.04756465'; // 5x to reward
 // eslint-disable-next-line no-template-curly-in-string
@@ -41,6 +41,15 @@ actions.createSSC = async () => {
     };
 
     await api.db.insert('params', params);
+  } else {
+    const params = await api.db.findOne('params', {});
+    params.numberOfApprovalsPerAccount = NB_APPROVALS_ALLOWED;
+    params.numberOfTopWitnesses = NB_TOP_WITNESSES;
+    params.numberOfWitnessSlots = NB_WITNESSES;
+    params.witnessSignaturesRequired = NB_WITNESSES_SIGNATURES_REQUIRED;
+    params.maxRoundsMissedInARow = MAX_ROUNDS_MISSED_IN_A_ROW;
+    params.maxRoundPropositionWaitingPeriod = MAX_ROUND_PROPOSITION_WAITING_PERIOD;
+    await api.db.update('params', params);
   }
 };
 
@@ -191,6 +200,7 @@ actions.register = async (payload) => {
 
 actions.approve = async (payload) => {
   const { witness } = payload;
+  const params = await api.db.findOne('params', {});
 
   if (api.assert(witness && typeof witness === 'string' && witness.length >= 3 && witness.length <= 16, 'invalid witness account')) {
     // check if witness exists
@@ -209,8 +219,7 @@ actions.approve = async (payload) => {
         acct = await api.db.insert('accounts', acct);
       }
 
-      // a user can approve NB_APPROVALS_ALLOWED witnesses only
-      if (api.assert(acct.approvals < NB_APPROVALS_ALLOWED, `you can only approve ${NB_APPROVALS_ALLOWED} witnesses`)) {
+      if (api.assert(acct.approvals < params.numberOfApprovalsPerAccount, `you can only approve ${params.numberOfApprovalsPerAccount} witnesses`)) {
         let approval = await api.db.findOne('approvals', { from: api.sender, to: witness });
 
         if (api.assert(approval === null, 'you already approved this witness')) {
@@ -306,6 +315,8 @@ const changeCurrentWitness = async () => {
     lastWitnesses,
     lastBlockRound,
     round,
+    maxRoundsMissedInARow,
+    maxRoundPropositionWaitingPeriod,
   } = params;
 
   let witnessFound = false;
@@ -362,8 +373,8 @@ const changeCurrentWitness = async () => {
         await api.db.update('schedules', schedule);
         params.currentWitness = witness.account;
         params.lastWitnesses.push(witness.account);
-        params.blockNumberWitnessChange = api.refHiveBlockNumber
-          + MAX_ROUND_PROPOSITION_WAITING_PERIOD;
+        params.blockNumberWitnessChange = api.blockNumber
+          + maxRoundPropositionWaitingPeriod;
         await api.db.update('params', params);
 
         // update the current witness
@@ -371,8 +382,8 @@ const changeCurrentWitness = async () => {
         scheduledWitness.missedRounds += 1;
         scheduledWitness.missedRoundsInARow += 1;
 
-        // disable the witness if missed MAX_ROUNDS_MISSED_IN_A_ROW
-        if (scheduledWitness.missedRoundsInARow >= MAX_ROUNDS_MISSED_IN_A_ROW) {
+        // disable the witness if missed maxRoundsMissedInARow
+        if (scheduledWitness.missedRoundsInARow >= maxRoundsMissedInARow) {
           scheduledWitness.missedRoundsInARow = 0;
           scheduledWitness.enabled = false;
         }
@@ -417,8 +428,8 @@ const changeCurrentWitness = async () => {
         await api.db.update('schedules', sched);
         params.currentWitness = newWitness;
         params.lastWitnesses.push(newWitness);
-        params.blockNumberWitnessChange = api.refHiveBlockNumber
-          + MAX_ROUND_PROPOSITION_WAITING_PERIOD;
+        params.blockNumberWitnessChange = api.blockNumber
+          + maxRoundPropositionWaitingPeriod;
         await api.db.update('params', params);
 
         // update the current witness
@@ -426,8 +437,8 @@ const changeCurrentWitness = async () => {
         scheduledWitness.missedRounds += 1;
         scheduledWitness.missedRoundsInARow += 1;
 
-        // disable the witness if missed MAX_ROUNDS_MISSED_IN_A_ROW
-        if (scheduledWitness.missedRoundsInARow >= MAX_ROUNDS_MISSED_IN_A_ROW) {
+        // disable the witness if missed maxRoundsMissedInARow
+        if (scheduledWitness.missedRoundsInARow >= maxRoundsMissedInARow) {
           scheduledWitness.missedRoundsInARow = 0;
           scheduledWitness.enabled = false;
         }
@@ -450,6 +461,9 @@ const manageWitnessesSchedule = async () => {
     lastVerifiedBlockNumber,
     blockNumberWitnessChange,
     lastBlockRound,
+    numberOfTopWitnesses,
+    numberOfWitnessSlots,
+    maxRoundPropositionWaitingPeriod,
   } = params;
 
   // check the current schedule
@@ -462,7 +476,7 @@ const manageWitnessesSchedule = async () => {
     schedule = [];
 
     // there has to be enough top witnesses to start a schedule
-    if (numberOfApprovedWitnesses >= NB_WITNESSES) {
+    if (numberOfApprovedWitnesses >= numberOfWitnessSlots) {
       /*
         example:
         -> total approval weight = 10,000
@@ -507,7 +521,7 @@ const manageWitnessesSchedule = async () => {
           const witness = witnesses[index];
 
           // calculate a random weight if not done yet
-          if (schedule.length >= NB_TOP_WITNESSES
+          if (schedule.length >= numberOfTopWitnesses
             && randomWeight === null) {
             randomWeight = api.BigNumber(accWeight)
               .plus(GOVERNANCE_TOKEN_MIN_VALUE)
@@ -525,7 +539,7 @@ const manageWitnessesSchedule = async () => {
           // if the witness is enabled
           if (witness.enabled === true) {
             // if we haven't found all the top witnesses yet
-            if (schedule.length < NB_TOP_WITNESSES
+            if (schedule.length < numberOfTopWitnesses
               || api.BigNumber(randomWeight).lte(accWeight)) {
               schedule.push({
                 witness: witness.account,
@@ -534,12 +548,12 @@ const manageWitnessesSchedule = async () => {
             }
           }
 
-          if (schedule.length >= NB_WITNESSES) {
+          if (schedule.length >= numberOfWitnessSlots) {
             index = witnesses.length;
           }
         }
 
-        if (schedule.length < NB_WITNESSES) {
+        if (schedule.length < numberOfWitnessSlots) {
           offset += 100;
           witnesses = await api.db.find(
             'witnesses',
@@ -557,11 +571,11 @@ const manageWitnessesSchedule = async () => {
             ],
           );
         }
-      } while (witnesses.length > 0 && schedule.length < NB_WITNESSES);
+      } while (witnesses.length > 0 && schedule.length < numberOfWitnessSlots);
     }
 
     // if there are enough witnesses scheduled
-    if (schedule.length === NB_WITNESSES) {
+    if (schedule.length === numberOfWitnessSlots) {
       // shuffle the witnesses
       let j; let x;
       for (let i = schedule.length - 1; i > 0; i -= 1) {
@@ -576,7 +590,7 @@ const manageWitnessesSchedule = async () => {
       let lastWitnesses = params.lastWitnesses;
       const previousRoundWitness = lastWitnesses.length > 0 ? lastWitnesses[lastWitnesses.length - 1] : '';
 
-      if (lastWitnesses.length >= NB_WITNESSES) {
+      if (lastWitnesses.length >= numberOfWitnessSlots) {
         lastWitnesses = [];
       }
 
@@ -625,18 +639,18 @@ const manageWitnessesSchedule = async () => {
       params.currentWitness = lastWitnessRoundSchedule.witness;
       lastWitnesses.push(lastWitnessRoundSchedule.witness);
       params.lastWitnesses = lastWitnesses;
-      params.blockNumberWitnessChange = api.refHiveBlockNumber
-        + MAX_ROUND_PROPOSITION_WAITING_PERIOD;
+      params.blockNumberWitnessChange = api.blockNumber
+        + maxRoundPropositionWaitingPeriod;
       await api.db.update('params', params);
       api.emit('newSchedule', { });
     }
-  } else if (api.refHiveBlockNumber >= blockNumberWitnessChange) {
+  } else if (api.blockNumber >= blockNumberWitnessChange) {
     if (api.blockNumber > lastBlockRound) {
       // otherwise we change the current witness if it has not proposed the round in time
       await changeCurrentWitness();
     } else {
-      params.blockNumberWitnessChange = api.refHiveBlockNumber
-        + MAX_ROUND_PROPOSITION_WAITING_PERIOD;
+      params.blockNumberWitnessChange = api.blockNumber
+        + maxRoundPropositionWaitingPeriod;
       await api.db.update('params', params);
       api.emit('awaitingRoundEnd', { });
     }
@@ -650,18 +664,24 @@ actions.proposeRound = async (payload) => {
     signatures,
   } = payload;
 
+  const params = await api.db.findOne('params', {});
+  const {
+    lastVerifiedBlockNumber,
+    round,
+    lastBlockRound,
+    currentWitness,
+  } = params;
+  const schedules = await api.db.find('schedules', { round });
+
+  const numberOfWitnessSlots = schedules.length;
+  // Directly use params after transition to 11 witnesses.
+  const witnessSignaturesRequired = numberOfWitnessSlots > 7 ? params.witnessSignaturesRequired : 5;
+
   if (isSignedWithActiveKey === true
     && roundHash && typeof roundHash === 'string' && roundHash.length === 64
     && Array.isArray(signatures)
-    && signatures.length <= NB_WITNESSES
-    && signatures.length >= NB_WITNESSES_SIGNATURES_REQUIRED) {
-    const params = await api.db.findOne('params', {});
-    const {
-      lastVerifiedBlockNumber,
-      round,
-      lastBlockRound,
-      currentWitness,
-    } = params;
+    && signatures.length <= numberOfWitnessSlots
+    && signatures.length >= witnessSignaturesRequired) {
     let currentBlock = lastVerifiedBlockNumber + 1;
     let calculatedRoundHash = '';
 
@@ -682,9 +702,6 @@ actions.proposeRound = async (payload) => {
       }
 
       if (calculatedRoundHash !== '' && calculatedRoundHash === roundHash) {
-        // get the witnesses on schedule
-        const schedules = await api.db.find('schedules', { round });
-
         // check the signatures
         let signaturesChecked = 0;
         const verifiedBlockInformation = [];
@@ -718,7 +735,7 @@ actions.proposeRound = async (payload) => {
           }
         }
 
-        if (signaturesChecked >= NB_WITNESSES_SIGNATURES_REQUIRED) {
+        if (signaturesChecked >= witnessSignaturesRequired) {
           // mark blocks of the verified round as verified by the current witness
           for (let index = 0; index < verifiedBlockInformation.length; index += 1) {
             await api.verifyBlock(verifiedBlockInformation[index]);

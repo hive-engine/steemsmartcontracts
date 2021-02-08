@@ -369,7 +369,7 @@ const throttledGetBlock = async (blockNumber) => {
 const lookaheadBufferSize = 100;
 let lookaheadStartIndex = 0;
 let lookaheadStartBlock = currentHiveBlock;
-const blockLookaheadBuffer = Array(lookaheadBufferSize);
+let blockLookaheadBuffer = Array(lookaheadBufferSize);
 const getBlock = async (blockNumber) => {
   // schedule lookahead block fetch
   let scanIndex = lookaheadStartIndex;
@@ -462,6 +462,7 @@ const startStreaming = (conf) => {
   currentHiveBlock = startHiveBlock;
   lookaheadStartIndex = 0;
   lookaheadStartBlock = currentHiveBlock;
+  blockLookaheadBuffer = Array(lookaheadBufferSize);
   chainIdentifier = chainId;
   const node = streamNodes[0];
   initHiveClient(streamNodes, node);

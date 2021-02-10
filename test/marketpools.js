@@ -403,14 +403,19 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": false }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "x", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "x", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:TKN", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));
-
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));      
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -428,12 +433,13 @@ describe('marketpools tests', function () {
       assertError(txs[6], 'you must use a transaction signed with your active key');
       assertError(txs[7], 'invalid baseQuantity');
       assertError(txs[8], 'invalid quoteQuantity');
-      assertError(txs[9], 'no existing pool for tokenPair');
+      assertError(txs[9], 'quoteSymbol does not exist');
+      assertError(txs[15], 'constant price 1, expected 16.00000000');
       
       res = await database1.findOne({
         contract: 'marketpools',
         table: 'liquidityPosition',
-        query: { 'tokenPair': 'GLD:SLV' },
+        query: { tokenPair: "GLD:SLV", account: "whale" },
       });
   
       assert.ok(!res, 'uncaught errors, invalid LP created');
@@ -447,7 +453,7 @@ describe('marketpools tests', function () {
 
   });
 
-  it('should add liquidity and store positions', (done) => {
+  it('should add liquidity and update positions', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
@@ -462,8 +468,11 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -491,9 +500,11 @@ describe('marketpools tests', function () {
         }
       });
       assert.ok(lpos, 'newly created LP not found');
-      assert.ok(lpool.basePrice === '16', `pool price not as expected - ${lpool.basePrice}`);
-      assert.ok(lpool.baseQuantity === '1000', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
-      assert.ok(lpool.quoteQuantity === '16000', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
+      assert.ok(lpos.baseQuantity === '1000', `LP baseQuantity not as expected - ${lpos.baseQuantity}`);
+      assert.ok(lpos.quoteQuantity === '16000', `LP quoteQuantity not as expected - ${lpos.quoteQuantity}`);
+      assert.ok(lpool.basePrice === '16.00000000', `pool price not as expected - ${lpool.basePrice}`);
+      assert.ok(lpool.baseQuantity === '1001', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
+      assert.ok(lpool.quoteQuantity === '16016', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
 
       resolve();
     })
@@ -503,9 +514,84 @@ describe('marketpools tests', function () {
         done();
       });
 
-  });  
+  });
 
-  it('should swap for exact output amount', (done) => {
+  it('should remove liquidity and update positions', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "2", "quoteQuantity": "32", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      
+      await assertNoErrorInLastBlock();
+      let lpos = await database1.findOne({
+        contract: 'marketpools',
+        table: 'liquidityPosition',
+        query: {
+          tokenPair: "GLD:SLV",
+          account: "investor"
+        }
+      });
+      let lpos2 = await database1.findOne({
+        contract: 'marketpools',
+        table: 'liquidityPosition',
+        query: {
+          tokenPair: "GLD:SLV",
+          account: "whale"
+        }
+      });      
+      let lpool = await database1.findOne({
+        contract: 'marketpools',
+        table: 'pools',
+        query: {
+          _id: 1
+        }
+      });
+      assert.ok(lpos, 'active LP not found');
+      assert.ok(!lpos2, 'supposed to be deleted LP found');
+      assert.ok(lpos.baseQuantity === '998', `LP baseQuantity not as expected - ${lpos.baseQuantity}`);
+      assert.ok(lpos.quoteQuantity === '15968', `LP quoteQuantity not as expected - ${lpos.quoteQuantity}`);
+      assert.ok(lpool.basePrice === '16.00000000', `pool price not as expected - ${lpool.basePrice}`);
+      assert.ok(lpool.baseQuantity === '998', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
+      assert.ok(lpool.quoteQuantity === '15968', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+
+  });
+
+  it('should swap tokens in either direction', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
@@ -518,10 +604,11 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "investor", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "investor", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "100", "to": "buyer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "20000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "buyer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "buyer", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "100", "quoteQuantity": "1000", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -535,7 +622,13 @@ describe('marketpools tests', function () {
 
       await assertNoErrorInLastBlock();
       transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapForQuote', '{ "tokenPair": "GLD:SLV", "quoteOut": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenOut": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenIn": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "1", "isSignedWithActiveKey": true}'));
+      // for (let i = 0; i <= 100; i++) {
+      //   transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "1", "isSignedWithActiveKey": true}'));
+      // }
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -551,19 +644,19 @@ describe('marketpools tests', function () {
       await assertNoErrorInLastBlock();
 
       // verify swap execution
-      await assertUserBalance('buyer', 'SLV', 1);
-      await assertUserBalance('buyer', 'GLD', 99.93749609);
-      await assertContractBalance('marketpools', 'SLV', 15999);
-      await assertContractBalance('marketpools', 'GLD', 1000.06250391);
+      await assertUserBalance('buyer', 'SLV', 999.98010970);
+      await assertUserBalance('buyer', 'GLD', 1000.00198899);
+      await assertContractBalance('marketpools', 'SLV', 1000.01989030);
+      await assertContractBalance('marketpools', 'GLD', 99.99801101);
 
       // verify pool stats execution
       await assertPoolStats('GLD:SLV', {
-        baseQuantity: 1000.06250391,
-        quoteQuantity: 15999,
-        basePrice: 15.99800006,
-        quotePrice: 0.06250781,
-        baseVolume: 0.06250391,
-        quoteVolume: 1,
+        baseQuantity: 99.99801100987021029561,
+        quoteQuantity: 1000.019890296913939448,
+        basePrice: 10.00039781,
+        quotePrice: 0.09999602,
+        baseVolume: 2.19820325,
+        quoteVolume: 22.18212990,
       });
      
       resolve();

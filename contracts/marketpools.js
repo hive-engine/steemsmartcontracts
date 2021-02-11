@@ -224,12 +224,14 @@ actions.removeLiquidity = async (payload) => {
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
   const pool = await api.db.findOne('pools', { tokenPair });
   if (api.assert(pool, 'no existing pool for tokenPair')) {
-    if (!validateLiquiditySwap(pool, baseQuantity, quoteQuantity)) return;
+    if (!api.assert(api.BigNumber(pool.baseQuantity).gt(0)
+      && api.BigNumber(pool.quoteQuantity).gt(0), 'insufficient liquidity')
+      || !validateLiquiditySwap(pool, baseQuantity, quoteQuantity)) return;
 
     const lp = await api.db.findOne('liquidityPosition', { account: api.sender, tokenPair });
-    if (api.assert(lp, 'no existing liquidity position for this account/tokenPair')
-      && api.assert(api.BigNumber(lp.baseQuantity).minus(baseQuantity).gte(0), 'not enough baseSymbol to remove')
-      && api.assert(api.BigNumber(lp.quoteQuantity).minus(quoteQuantity).gte(0), 'not enough quoteSymbol to remove')) {
+    if (api.assert(lp, 'no existing liquidity position')
+      && api.assert(api.BigNumber(lp.baseQuantity).minus(baseQuantity).gte(0)
+      && api.BigNumber(lp.quoteQuantity).minus(quoteQuantity).gte(0), 'not enough liquidity in position')) {
       lp.baseQuantity = api.BigNumber(lp.baseQuantity).minus(baseQuantity);
       lp.quoteQuantity = api.BigNumber(lp.quoteQuantity).minus(quoteQuantity);
       if (api.BigNumber(lp.baseQuantity).eq(0) && api.BigNumber(lp.quoteQuantity).eq(0)) {

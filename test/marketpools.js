@@ -453,6 +453,64 @@ describe('marketpools tests', function () {
 
   });
 
+  it('should not add liquidity beyond oracle deviation', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "investor", "quantity": "50000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "GLD", "quantity": "100", "price": "8741", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "SLV", "quantity": "100", "price": "128.0651", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "GLD", "quantity": "1", "price": "8741", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "SLV", "quantity": "1", "price": "128.0651","isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block })
+
+      let res = await database1.getLatestBlockInfo();
+      // console.log(res);
+      let txs = res.transactions;
+
+      assertError(txs[15], 'exceeded max deviation from order book');
+      
+      res = await database1.findOne({
+        contract: 'marketpools',
+        table: 'liquidityPosition',
+        query: { tokenPair: "GLD:SLV", account: "whale" },
+      });
+  
+      assert.ok(!res, 'uncaught errors, invalid LP created');
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+
+  });
+
   it('should add liquidity and update positions', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
@@ -464,12 +522,17 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.HIVE_PEGGED_SYMBOL}", "to": "investor", "quantity": "50000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "whale", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "GLD", "quantity": "100", "price": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "SLV", "quantity": "100", "price": "160", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "GLD", "quantity": "1", "price": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "SLV", "quantity": "1", "price": "160","isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
@@ -640,7 +703,7 @@ describe('marketpools tests', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       let res = await database1.getLatestBlockInfo();
-      console.log(res);
+      // console.log(res);
       await assertNoErrorInLastBlock();
 
       // verify swap execution
@@ -666,331 +729,5 @@ describe('marketpools tests', function () {
         database1.close();
         done();
       });
-  });  
-/*
-  it('should not accept deposits when inactive or invalid', (done) => {
-    new Promise(async (resolve) => {
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
-
-      let transactions = [];
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
-
-      let block = {
-        refHiveBlockNumber: 12345678901,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      await assertNoErrorInLastBlock();
-
-      const id = await getLastPoolId();
-      transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": 100, "isSignedWithActiveKey": true}`));
-
-      block = {
-        refHiveBlockNumber: 12345678902,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      let res = await database1.getLatestBlockInfo();
-      let txs = res.transactions;
-
-      assertError(txs[0], 'distribution must be active to deposit');
-
-      // should still be as initialized
-      await assertUserBalance('donchate', 'TKN', 500);
-      await assertUserBalance('dantheman', 'TKN');
-
-      transactions = [];
-      transactions.push(new Transaction(12345678903, getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678903, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": 100, "isSignedWithActiveKey": false}`));
-      transactions.push(new Transaction(12345678903, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100x", "isSignedWithActiveKey": true}`));
-
-      block = {
-        refHiveBlockNumber: 12345678903,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      res = await database1.getLatestBlockInfo();
-      txs = res.transactions;
-
-      assertError(txs[1], 'you must use a custom_json signed with your active key');
-      assertError(txs[2], 'invalid quantity');
-
-      // should still be as initialized
-      await assertUserBalance('donchate', 'TKN', 500);
-      await assertUserBalance('dantheman', 'TKN');
-     
-      resolve();
-    })
-      .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
-        done();
-      });
   });
-
-  it('should distribute payments on deposit exceeding tokenMinPayout', (done) => {
-    new Promise(async (resolve) => {
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
-
-      let transactions = [];
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
-
-      let block = {
-        refHiveBlockNumber: 12345678901,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      await assertNoErrorInLastBlock();
-
-      const id = await getLastPoolId();
-      transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }`));
-
-      block = {
-        refHiveBlockNumber: 12345678902,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      // should be no errors
-      await assertNoErrorInLastBlock();
-
-      // should be redistributed
-      await assertUserBalance('donchate', 'TKN', 450);
-      await assertUserBalance('dantheman', 'TKN', 50);
-
-      // contract should be flushed
-      await assertTokenBalance(id, 'TKN', 0);
-      
-      resolve();
-    })
-      .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
-        done();
-      });
-  });
-  
-  it('should hold payments on deposit not exceeding tokenMinPayout', (done) => {
-    new Promise(async (resolve) => {
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
-
-      let transactions = [];
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));      
-
-      let block = {
-        refHiveBlockNumber: 12345678901,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      await assertNoErrorInLastBlock();
-
-      const id = await getLastPoolId();
-      transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "5", "isSignedWithActiveKey": true }`));
-
-      block = {
-        refHiveBlockNumber: 12345678902,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      // should be no errors
-      await assertNoErrorInLastBlock();
-
-      // should be as initialized
-      await assertUserBalance('donchate', 'TKN', 495);
-      await assertUserBalance('dantheman', 'TKN');
-
-      // should have tokenBalance
-      await assertTokenBalance(id, 'TKN', 5);
-      
-      resolve();
-    })
-      .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
-        done();
-      });
-  });    
-
-  it('should distribute payments on flush', (done) => {
-    new Promise(async (resolve) => {
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
-
-      let transactions = [];
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
-
-      let block = {
-        refHiveBlockNumber: 12345678901,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      await assertNoErrorInLastBlock();
-
-      const id = await getLastPoolId();
-      transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "5", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'flush', `{ "id": ${id}, "symbol": "TKN", "isSignedWithActiveKey": true }`));
-
-      block = {
-        refHiveBlockNumber: 12345678902,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      // should be no errors
-      await assertNoErrorInLastBlock();
-
-      // should be redistributed
-      await assertUserBalance('donchate', 'TKN', 497.5);
-      await assertUserBalance('dantheman', 'TKN', 2.5);
-
-      // contract should be flushed
-      await assertTokenBalance(id, 'TKN', 0);
-      
-      resolve();
-    })
-      .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
-        done();
-      });
-  });
-
-  it('should distribute payments to both users and contracts for multiple tokens', (done) => {
-    new Promise(async (resolve) => {
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
-
-      let transactions = [];
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10},{"symbol": "TKNA", "quantity": 5}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 25},{"account": "airdrops", "type": "contract", "pct": 25}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKNA", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
-
-      let block = {
-        refHiveBlockNumber: 12345678901,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      await assertNoErrorInLastBlock();
-
-      const id = await getLastPoolId();
-      transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKNA", "quantity": "100", "isSignedWithActiveKey": true }`));
-
-      block = {
-        refHiveBlockNumber: 12345678902,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
-
-      // should be no errors
-      await assertNoErrorInLastBlock();
-
-      // should be redistributed
-      await assertUserBalance('donchate', 'TKN', 450);
-      await assertUserBalance('donchate', 'TKNA', 450);
-      await assertUserBalance('dantheman', 'TKN', 25);
-      await assertUserBalance('dantheman', 'TKNA', 25);
-      await assertContractBalance('airdrops', 'TKN', 25);
-      await assertContractBalance('airdrops', 'TKNA', 25);
-
-      // contract should be flushed
-      await assertTokenBalance(id, 'TKN', 0);
-      
-      resolve();
-    })
-      .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
-        done();
-      });
-  });  
-*/
 });

@@ -25,31 +25,6 @@ actions.updateParams = async (payload) => {
   await api.db.update('params', params);
 };
 
-async function validateTokenPair(tokenPair) {
-  if (!api.assert(typeof (tokenPair) === 'string' && tokenPair.indexOf(':') !== -1, 'invalid tokenPair format')) return false;
-  const [baseSymbol, quoteSymbol] = tokenPair.split(':');
-  if (!api.assert(baseSymbol !== quoteSymbol, 'tokenPair cannot be the same token')
-    || !api.assert(await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol }), 'baseSymbol does not exist')
-    || !api.assert(await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol }), 'quoteSymbol does not exist')) {
-    return false;
-  }
-  return true;
-}
-
-// function getAmountOut(amountIn, liquidityIn, liquidityOut) {
-//   if (!api.assert(api.BigNumber(amountIn).gt(0), 'insufficient input amount')
-//     || !api.assert(api.BigNumber(liquidityIn).gt(0) && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
-//   const k = api.BigNumber(liquidityIn).times(liquidityOut);
-//   return api.BigNumber(-k).dividedBy(api.BigNumber(liquidityIn).plus(amountIn)).plus(liquidityOut);
-// }
-
-// function getAmountIn(amountOut, liquidityIn, liquidityOut) {
-//   if (!api.assert(api.BigNumber(amountOut).gt(0), 'insufficient output amount')
-//     || !api.assert(api.BigNumber(liquidityIn).gt(0) && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
-//   const k = api.BigNumber(liquidityIn).times(liquidityOut);
-//   return api.BigNumber(k).dividedBy(api.BigNumber(liquidityOut).minus(amountOut)).minus(liquidityIn);
-// }
-
 function getAmountIn(amountOut, liquidityIn, liquidityOut) {
   if (!api.assert(api.BigNumber(amountOut).gt(0), 'insufficient output amount')
     || !api.assert(api.BigNumber(liquidityIn).gt(0) && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
@@ -64,6 +39,24 @@ function getAmountOut(amountIn, liquidityIn, liquidityOut) {
   const num = api.BigNumber(amountIn).times(liquidityOut);
   const den = api.BigNumber(liquidityIn).plus(amountIn);
   return num.dividedBy(den);
+}
+
+async function validateOracle(pool, newPrice, maxDeviation = 0.01) {
+  const [baseSymbol, quoteSymbol] = pool.tokenPair.split(':');
+  // eslint-disable-next-line no-template-curly-in-string
+  const baseMetrics = baseSymbol !== "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"
+    ? await api.db.findOneInTable('market', 'metrics', { symbol: baseSymbol })
+    : { lastPrice: 1 };
+  // eslint-disable-next-line no-template-curly-in-string
+  const quoteMetrics = quoteSymbol !== "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"
+    ? await api.db.findOneInTable('market', 'metrics', { symbol: quoteSymbol })
+    : { lastPrice: 1 };
+  if (!baseMetrics || !quoteMetrics) return null; // no oracle available
+  const oracle = api.BigNumber(quoteMetrics.lastPrice).dividedBy(baseMetrics.lastPrice);
+  const dev = api.BigNumber(api.BigNumber(newPrice - oracle).abs()).dividedBy(oracle);
+  // api.debug(`${oracle} -> ${dev} / ${maxDeviation}`);
+  if (!api.assert(api.BigNumber(dev).lte(maxDeviation), 'exceeded max deviation from order book')) return false;
+  return true;
 }
 
 function validateLiquiditySwap(pool, baseDelta, quoteDelta) {
@@ -81,6 +74,17 @@ function validateSwap(pool, baseDelta, quoteDelta) {
   // api.debug(`K - ${k}`);
   if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision)).eq(k),
     `constant product ${api.BigNumber(baseAdjusted).times(quoteAdjusted)}, expected ${k}`)) return false;
+  return true;
+}
+
+async function validateTokenPair(tokenPair) {
+  if (!api.assert(typeof (tokenPair) === 'string' && tokenPair.indexOf(':') !== -1, 'invalid tokenPair format')) return false;
+  const [baseSymbol, quoteSymbol] = tokenPair.split(':');
+  if (!api.assert(baseSymbol !== quoteSymbol, 'tokenPair cannot be the same token')
+    || !api.assert(await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol }), 'baseSymbol does not exist')
+    || !api.assert(await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol }), 'quoteSymbol does not exist')) {
+    return false;
+  }
   return true;
 }
 
@@ -164,6 +168,8 @@ actions.addLiquidity = async (payload) => {
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
   const pool = await api.db.findOne('pools', { tokenPair });
   if (api.assert(pool, 'no existing pool for tokenPair')) {
+    if (api.BigNumber(pool.baseQuantity).eq(0) && api.BigNumber(pool.quoteQuantity).eq(0)
+      && await validateOracle(pool, api.BigNumber(quoteQuantity).dividedBy(baseQuantity)) === false) return;
     if (api.BigNumber(pool.baseQuantity).gt(0) && api.BigNumber(pool.quoteQuantity).gt(0)
       && !validateLiquiditySwap(pool, baseQuantity, quoteQuantity)) return;
 

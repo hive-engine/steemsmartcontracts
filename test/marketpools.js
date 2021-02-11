@@ -654,7 +654,7 @@ describe('marketpools tests', function () {
 
   });
 
-  it('should swap tokens in either direction', (done) => {
+  it('should not swap tokens with errors', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
@@ -672,6 +672,73 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "buyer", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "100", "quoteQuantity": "1000", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "1010", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenOut": "1000", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenIn": "2000", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "2000", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLDSLV", "tokenSymbol": "GLD", "tokenIn": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "isSignedWithActiveKey": true}'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T01:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      let res = await database1.getLatestBlockInfo();
+      // console.log(res);
+      let txs = res.transactions;
+
+      assertError(txs[0], 'insufficient liquidity');
+      assertError(txs[1], 'insufficient liquidity');
+      assertError(txs[2], 'insufficient input balance');
+      assertError(txs[3], 'insufficient input balance');
+      assertError(txs[4], 'invalid tokenPair format');
+      assertError(txs[5], 'exceeded max slippage for swap');
+     
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('should swap tokens in either direction', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "10000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "20000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "buyer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "buyer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "10000", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -707,19 +774,19 @@ describe('marketpools tests', function () {
       await assertNoErrorInLastBlock();
 
       // verify swap execution
-      await assertUserBalance('buyer', 'SLV', 999.98010970);
-      await assertUserBalance('buyer', 'GLD', 1000.00198899);
-      await assertContractBalance('marketpools', 'SLV', 1000.01989030);
-      await assertContractBalance('marketpools', 'GLD', 99.99801101);
+      await assertUserBalance('buyer', 'SLV', 999.99800110);
+      await assertUserBalance('buyer', 'GLD', 1000.00019989);
+      await assertContractBalance('marketpools', 'SLV', 10000.00199890);
+      await assertContractBalance('marketpools', 'GLD', 999.99980011);
 
       // verify pool stats execution
       await assertPoolStats('GLD:SLV', {
-        baseQuantity: 99.99801100987021029561,
-        quoteQuantity: 1000.019890296913939448,
-        basePrice: 10.00039781,
-        quotePrice: 0.09999602,
-        baseVolume: 2.19820325,
-        quoteVolume: 22.18212990,
+        baseQuantity: 999.9998001100099870021,
+        quoteQuantity: 10000.00199890029969013994,
+        baseVolume: 2.19982003,
+        quoteVolume: 22.01802112,
+        basePrice: 10.00000400,
+        quotePrice: 0.09999996,        
       });
      
       resolve();

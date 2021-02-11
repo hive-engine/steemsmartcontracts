@@ -27,7 +27,9 @@ actions.updateParams = async (payload) => {
 
 function getAmountIn(amountOut, liquidityIn, liquidityOut) {
   if (!api.assert(api.BigNumber(amountOut).gt(0), 'insufficient output amount')
-    || !api.assert(api.BigNumber(liquidityIn).gt(0) && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
+    || !api.assert(api.BigNumber(liquidityIn).gt(0)
+      && api.BigNumber(liquidityOut).gt(0)
+      && api.BigNumber(amountOut).lt(liquidityOut), 'insufficient liquidity')) return false;
   const num = api.BigNumber(liquidityIn).times(amountOut);
   const den = api.BigNumber(liquidityOut).minus(amountOut);
   return num.dividedBy(den);
@@ -35,10 +37,13 @@ function getAmountIn(amountOut, liquidityIn, liquidityOut) {
 
 function getAmountOut(amountIn, liquidityIn, liquidityOut) {
   if (!api.assert(api.BigNumber(amountIn).gt(0), 'insufficient output amount')
-    || !api.assert(api.BigNumber(liquidityIn).gt(0) && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
+    || !api.assert(api.BigNumber(liquidityIn).gt(0)
+      && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
   const num = api.BigNumber(amountIn).times(liquidityOut);
   const den = api.BigNumber(liquidityIn).plus(amountIn);
-  return num.dividedBy(den);
+  const amountOut = num.dividedBy(den);
+  if (!api.assert(api.BigNumber(amountOut).lte(liquidityOut), 'insufficient liquidity')) return false;
+  return amountOut;
 }
 
 async function validateOracle(pool, newPrice, maxDeviation = 0.01) {
@@ -67,11 +72,14 @@ function validateLiquiditySwap(pool, baseDelta, quoteDelta) {
   return true;
 }
 
-function validateSwap(pool, baseDelta, quoteDelta) {
+function validateSwap(pool, baseDelta, quoteDelta, maxSlippage = 0.01) {
   const k = api.BigNumber(pool.baseQuantity).times(pool.quoteQuantity).toFixed(pool.precision);
   const baseAdjusted = api.BigNumber(pool.baseQuantity).plus(baseDelta);
   const quoteAdjusted = api.BigNumber(pool.quoteQuantity).plus(quoteDelta);
-  // api.debug(`K - ${k}`);
+  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision);
+  const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision);
+  const slippage = api.BigNumber(api.BigNumber(pAdjusted - p).abs()).dividedBy(p);
+  if (!api.assert(api.BigNumber(slippage).lte(maxSlippage), 'exceeded max slippage for swap')) return false;
   if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision)).eq(k),
     `constant product ${api.BigNumber(baseAdjusted).times(quoteAdjusted)}, expected ${k}`)) return false;
   return true;
@@ -270,18 +278,21 @@ actions.swapTokensForExactTokens = async (payload) => {
     symbolIn = quoteSymbol;
     symbolOut = baseSymbol;
   }
-  if (api.assert(pool, 'no existing pool for tokenPair')) {
-    const tokenInAdjusted = api.BigNumber(getAmountIn(tokenOut, liquidityIn, liquidityOut));
-    const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
-    const senderBaseFunded = api.BigNumber(senderBase.balance).gte(tokenInAdjusted);
-    const tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenOut).times(-1), tokenInAdjusted] : [tokenInAdjusted, api.BigNumber(tokenOut).times(-1)];
-    if (senderBaseFunded && validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) {
-      await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenInAdjusted.toFixed(pool.precision), to: 'marketpools' });
-      await api.transferTokens(api.sender, symbolOut, tokenOut, 'user');
-      updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
-      api.emit('swapTokensForExactTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
-    }
-  }
+  if (!api.assert(pool, 'no existing pool for tokenPair')) return;
+
+  const tokenInAdjusted = api.BigNumber(getAmountIn(tokenOut, liquidityIn, liquidityOut));
+  if (!tokenInAdjusted.isFinite()) return;
+
+  const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
+  const senderBaseFunded = api.BigNumber(senderBase.balance).gte(tokenInAdjusted);
+  const tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenOut).times(-1), tokenInAdjusted] : [tokenInAdjusted, api.BigNumber(tokenOut).times(-1)];
+  if (!api.assert(senderBaseFunded, 'insufficient input balance')
+    || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) return;
+
+  await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenInAdjusted.toFixed(pool.precision), to: 'marketpools' });
+  await api.transferTokens(api.sender, symbolOut, tokenOut, 'user');
+  updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
+  api.emit('swapTokensForExactTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
 };
 
 actions.swapExactTokensForTokens = async (payload) => {
@@ -316,16 +327,20 @@ actions.swapExactTokensForTokens = async (payload) => {
     symbolIn = quoteSymbol;
     symbolOut = baseSymbol;
   }
-  if (api.assert(pool, 'no existing pool for tokenPair')) {
-    const tokenOutAdjusted = api.BigNumber(getAmountOut(tokenIn, liquidityIn, liquidityOut));
-    const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
-    const senderBaseFunded = api.BigNumber(senderBase.balance).gte(tokenIn);
-    const tokenPairDelta = tokenSymbol === baseSymbol ? [tokenIn, api.BigNumber(tokenOutAdjusted).times(-1)] : [api.BigNumber(tokenOutAdjusted).times(-1), tokenIn];
-    if (senderBaseFunded && validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) {
-      await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenIn, to: 'marketpools' });
-      await api.transferTokens(api.sender, symbolOut, tokenOutAdjusted.toFixed(pool.precision), 'user');
-      updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
-      api.emit('swapExactTokensForTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
-    }
-  }
+
+  if (!api.assert(pool, 'no existing pool for tokenPair')) return;
+
+  const tokenOutAdjusted = api.BigNumber(getAmountOut(tokenIn, liquidityIn, liquidityOut));
+  if (!tokenOutAdjusted.isFinite()) return;
+
+  const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
+  const senderBaseFunded = api.BigNumber(senderBase.balance).gte(tokenIn);
+  const tokenPairDelta = tokenSymbol === baseSymbol ? [tokenIn, api.BigNumber(tokenOutAdjusted).times(-1)] : [api.BigNumber(tokenOutAdjusted).times(-1), tokenIn];
+  if (!api.assert(senderBaseFunded, 'insufficient input balance')
+    || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) return;
+
+  await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenIn, to: 'marketpools' });
+  await api.transferTokens(api.sender, symbolOut, tokenOutAdjusted.toFixed(pool.precision), 'user');
+  updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
+  api.emit('swapExactTokensForTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
 };

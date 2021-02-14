@@ -278,8 +278,11 @@ actions.swapTokensForExactTokens = async (payload) => {
   }
 
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
+  const tokenOutToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol });
+  if (!api.assert(api.BigNumber(tokenOut).dp() <= tokenOutToken.precision, 'tokenOut precision mismatch')) return;
+
   const pool = await api.db.findOne('pools', { tokenPair });
-  if (!api.assert(pool, 'no existing pool for tokenPair')) return;  
+  if (!api.assert(pool, 'no existing pool for tokenPair')) return;
   let liquidityIn;
   let liquidityOut;
   let symbolIn;
@@ -300,15 +303,18 @@ actions.swapTokensForExactTokens = async (payload) => {
   if (!tokenInAdjusted.isFinite()) return;
 
   const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
-  const senderBaseFunded = api.BigNumber(senderBase.balance).gte(tokenInAdjusted);
+  const senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenInAdjusted);
   const tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenOut).times(-1), tokenInAdjusted] : [tokenInAdjusted, api.BigNumber(tokenOut).times(-1)];
   if (!api.assert(senderBaseFunded, 'insufficient input balance')
     || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) return;
 
-  await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenInAdjusted.toFixed(pool.precision), to: 'marketpools' });
-  await api.transferTokens(api.sender, symbolOut, tokenOut, 'user');
-  updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
-  api.emit('swapTokensForExactTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
+  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenInAdjusted.toFixed(pool.precision), to: 'marketpools' });
+  if (res.errors === undefined
+    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === tokenInAdjusted.toFixed(pool.precision)) !== undefined) {
+    await api.transferTokens(api.sender, symbolOut, tokenOut, 'user');
+    updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
+    api.emit('swapTokensForExactTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
+  }
 };
 
 actions.swapExactTokensForTokens = async (payload) => {
@@ -328,6 +334,7 @@ actions.swapExactTokensForTokens = async (payload) => {
 
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
   const pool = await api.db.findOne('pools', { tokenPair });
+  if (!api.assert(pool, 'no existing pool for tokenPair')) return;
   let liquidityIn;
   let liquidityOut;
   let symbolIn;
@@ -344,19 +351,20 @@ actions.swapExactTokensForTokens = async (payload) => {
     symbolOut = baseSymbol;
   }
 
-  if (!api.assert(pool, 'no existing pool for tokenPair')) return;
-
   const tokenOutAdjusted = api.BigNumber(getAmountOut(tokenIn, liquidityIn, liquidityOut));
   if (!tokenOutAdjusted.isFinite()) return;
 
   const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
-  const senderBaseFunded = api.BigNumber(senderBase.balance).gte(tokenIn);
+  const senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenIn);
   const tokenPairDelta = tokenSymbol === baseSymbol ? [tokenIn, api.BigNumber(tokenOutAdjusted).times(-1)] : [api.BigNumber(tokenOutAdjusted).times(-1), tokenIn];
   if (!api.assert(senderBaseFunded, 'insufficient input balance')
     || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) return;
 
-  await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenIn, to: 'marketpools' });
-  await api.transferTokens(api.sender, symbolOut, tokenOutAdjusted.toFixed(pool.precision), 'user');
-  updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
-  api.emit('swapExactTokensForTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
+  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenIn, to: 'marketpools' });
+  if (res.errors === undefined
+    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === tokenIn) !== undefined) {
+    await api.transferTokens(api.sender, symbolOut, tokenOutAdjusted.toFixed(pool.precision), 'user');
+    updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
+    api.emit('swapExactTokensForTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
+  }
 };

@@ -777,6 +777,7 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "2000", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLDSLV", "tokenSymbol": "GLD", "tokenIn": "1", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2.1234567899", "isSignedWithActiveKey": true}'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -797,6 +798,7 @@ describe('marketpools tests', function () {
       assertError(txs[3], 'insufficient input balance');
       assertError(txs[4], 'invalid tokenPair format');
       assertError(txs[5], 'exceeded max slippage for swap');
+      assertError(txs[6], 'tokenOut precision mismatch');
      
       resolve();
     })

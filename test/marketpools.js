@@ -778,6 +778,7 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2.1234567899", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "maxSlippage": "0", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "isSignedWithActiveKey": true}'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -800,6 +801,7 @@ describe('marketpools tests', function () {
       assertError(txs[5], 'exceeded max slippage for swap');
       assertError(txs[6], 'tokenOut precision mismatch');
       assertError(txs[7], 'maxSlippage must be greater than 0 and less than 50');
+      assertError(txs[8], 'maxSlippage must be greater than 0 and less than 50');
      
       resolve();
     })

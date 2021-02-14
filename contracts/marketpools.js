@@ -72,7 +72,7 @@ function validateLiquiditySwap(pool, baseDelta, quoteDelta) {
   return true;
 }
 
-function validateSwap(pool, baseDelta, quoteDelta, maxSlippage = 0.01) {
+function validateSwap(pool, baseDelta, quoteDelta, maxSlippage) {
   const k = api.BigNumber(pool.baseQuantity).times(pool.quoteQuantity).toFixed(pool.precision);
   const baseAdjusted = api.BigNumber(pool.baseQuantity).plus(baseDelta);
   const quoteAdjusted = api.BigNumber(pool.quoteQuantity).plus(quoteDelta);
@@ -143,7 +143,6 @@ actions.create = async (payload) => {
       quoteVolume: 0,
       quotePrice: 0, // Quote per Base (reverse price)
       precision: Math.min(baseToken.precision, quoteToken.precision),
-      active: true,
       creator: api.sender,
     };
     await api.db.insert('pools', newPool);
@@ -267,12 +266,14 @@ actions.swapTokensForExactTokens = async (payload) => {
     tokenPair,
     tokenSymbol,
     tokenOut,
+    maxSlippage,
     isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     || !api.assert(typeof (tokenSymbol) === 'string', 'invalid token')
     || !api.assert(tokenOut && api.BigNumber(tokenOut).gt(0), 'insufficient tokenOut')
+    || !api.assert(maxSlippage && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50), 'maxSlippage must be greater than 0 and less than 50')
     || !await validateTokenPair(tokenPair)) {
     return;
   }
@@ -306,7 +307,7 @@ actions.swapTokensForExactTokens = async (payload) => {
   const senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenInAdjusted);
   const tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenOut).times(-1), tokenInAdjusted] : [tokenInAdjusted, api.BigNumber(tokenOut).times(-1)];
   if (!api.assert(senderBaseFunded, 'insufficient input balance')
-    || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) return;
+    || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1], api.BigNumber(maxSlippage).dividedBy(100))) return;
 
   const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenInAdjusted.toFixed(pool.precision), to: 'marketpools' });
   if (res.errors === undefined
@@ -322,12 +323,14 @@ actions.swapExactTokensForTokens = async (payload) => {
     tokenPair,
     tokenSymbol,
     tokenIn,
+    maxSlippage,
     isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     || !api.assert(typeof (tokenSymbol) === 'string', 'invalid token')
     || !api.assert(tokenIn && api.BigNumber(tokenIn).gt(0), 'insufficient tokenIn')
+    || !api.assert(maxSlippage && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50), 'maxSlippage must be greater than 0 and less than 50')
     || !await validateTokenPair(tokenPair)) {
     return;
   }
@@ -358,7 +361,7 @@ actions.swapExactTokensForTokens = async (payload) => {
   const senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenIn);
   const tokenPairDelta = tokenSymbol === baseSymbol ? [tokenIn, api.BigNumber(tokenOutAdjusted).times(-1)] : [api.BigNumber(tokenOutAdjusted).times(-1), tokenIn];
   if (!api.assert(senderBaseFunded, 'insufficient input balance')
-    || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1])) return;
+    || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1], api.BigNumber(maxSlippage).dividedBy(100))) return;
 
   const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenIn, to: 'marketpools' });
   if (res.errors === undefined

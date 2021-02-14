@@ -296,7 +296,6 @@ describe('marketpools tests', function () {
         table: 'pools',
         query: { tokenPair: { '$ne': 'GLD:SLV' } }
       });
-      console.log(res);
   
       assert.ok(!res || res.length === 0, 'uncaught errors, invalid pool created');
       resolve();
@@ -771,13 +770,14 @@ describe('marketpools tests', function () {
 
       await assertNoErrorInLastBlock();
       transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "1010", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenOut": "1000", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenIn": "2000", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "2000", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLDSLV", "tokenSymbol": "GLD", "tokenIn": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2.1234567899", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "1010", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenOut": "1000", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenIn": "2000", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "2000", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLDSLV", "tokenSymbol": "GLD", "tokenIn": "1", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2.1234567899", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "2", "maxSlippage": "0", "isSignedWithActiveKey": true}'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -799,6 +799,7 @@ describe('marketpools tests', function () {
       assertError(txs[4], 'invalid tokenPair format');
       assertError(txs[5], 'exceeded max slippage for swap');
       assertError(txs[6], 'tokenOut precision mismatch');
+      assertError(txs[7], 'maxSlippage must be greater than 0 and less than 50');
      
       resolve();
     })
@@ -840,10 +841,10 @@ describe('marketpools tests', function () {
 
       await assertNoErrorInLastBlock();
       transactions = [];
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenOut": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenIn": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenOut": "1", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokensForExactTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenOut": "1", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenIn": "1", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "1", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
       // for (let i = 0; i <= 100; i++) {
       //   transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapExactTokensForTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenIn": "1", "isSignedWithActiveKey": true}'));
       // }

@@ -268,6 +268,8 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:GLD", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "TKN:SLV", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:TKN", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'create', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -287,13 +289,16 @@ describe('marketpools tests', function () {
       assertError(txs[7], 'tokenPair cannot be the same token');
       assertError(txs[8], 'baseSymbol does not exist');
       assertError(txs[9], 'quoteSymbol does not exist');
+      assertError(txs[11], 'a pool already exists for this tokenPair');
       
       res = await database1.find({
         contract: 'marketpools',
-        table: 'pools'
+        table: 'pools',
+        query: { tokenPair: { '$ne': 'GLD:SLV' } }
       });
+      console.log(res);
   
-      assert.ok(!res, 'uncaught errors, invalid pool created');
+      assert.ok(!res || res.length === 0, 'uncaught errors, invalid pool created');
       resolve();
     })
       .then(() => {
@@ -416,6 +421,8 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "100000", "quoteQuantity": "1600000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000.1234567899", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -435,6 +442,8 @@ describe('marketpools tests', function () {
       assertError(txs[8], 'invalid quoteQuantity');
       assertError(txs[9], 'quoteSymbol does not exist');
       assertError(txs[15], 'constant price 1, expected 16.00000000');
+      assertError(txs[16], 'insufficient token balance');
+      assertError(txs[17], 'baseQuantity precision mismatch');
       
       res = await database1.findOne({
         contract: 'marketpools',
@@ -606,7 +615,8 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "2000", "quoteQuantity": "32000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500.1234567899", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));      
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -630,6 +640,7 @@ describe('marketpools tests', function () {
       assertError(txs[17], 'not enough liquidity in position');
       assertError(txs[18], 'no existing liquidity position');
       assertError(txs[19], 'constant price 1, expected 16.00000000');
+      assertError(txs[20], 'baseQuantity precision mismatch');
       
       let lpos = await database1.findOne({
         contract: 'marketpools',

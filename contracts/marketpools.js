@@ -42,18 +42,18 @@ function getAmountOut(amountIn, liquidityIn, liquidityOut) {
   const num = api.BigNumber(amountIn).times(liquidityOut);
   const den = api.BigNumber(liquidityIn).plus(amountIn);
   const amountOut = num.dividedBy(den);
-  if (!api.assert(api.BigNumber(amountOut).lte(liquidityOut), 'insufficient liquidity')) return false;
+  if (!api.assert(api.BigNumber(amountOut).lt(liquidityOut), 'insufficient liquidity')) return false;
   return amountOut;
 }
 
 async function validateOracle(pool, newPrice, maxDeviation = 0.01) {
   const [baseSymbol, quoteSymbol] = pool.tokenPair.split(':');
   // eslint-disable-next-line no-template-curly-in-string
-  const baseMetrics = baseSymbol !== "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"
+  const baseMetrics = baseSymbol !== "'${CONSTANTS.HIVE_PEGGED_SYMBOL}$'"
     ? await api.db.findOneInTable('market', 'metrics', { symbol: baseSymbol })
     : { lastPrice: 1 };
   // eslint-disable-next-line no-template-curly-in-string
-  const quoteMetrics = quoteSymbol !== "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"
+  const quoteMetrics = quoteSymbol !== "'${CONSTANTS.HIVE_PEGGED_SYMBOL}$'"
     ? await api.db.findOneInTable('market', 'metrics', { symbol: quoteSymbol })
     : { lastPrice: 1 };
   if (!baseMetrics || !quoteMetrics) return null; // no oracle available
@@ -129,6 +129,7 @@ actions.create = async (payload) => {
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && await validateTokenPair(tokenPair)
+    && api.assert(await api.db.findOne('pools', { tokenPair }) === null, 'a pool already exists for this tokenPair')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     const [baseSymbol, quoteSymbol] = tokenPair.split(':');
     const baseToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol });
@@ -169,17 +170,25 @@ actions.addLiquidity = async (payload) => {
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     || !api.assert(baseQuantity && api.BigNumber(baseQuantity).gt(0), 'invalid baseQuantity')
     || !api.assert(quoteQuantity && api.BigNumber(quoteQuantity).gt(0), 'invalid quoteQuantity')
-    || !await validateTokenPair(tokenPair)) {
-    return;
-  }
+    || !await validateTokenPair(tokenPair)) return;
 
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
+  const baseToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol });
+  const quoteToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol });
+  if (!api.assert(api.BigNumber(baseQuantity).dp() <= baseToken.precision, 'baseQuantity precision mismatch')
+    || !api.assert(api.BigNumber(quoteQuantity).dp() <= quoteToken.precision, 'quoteQuantity precision mismatch')) return;
+
   const pool = await api.db.findOne('pools', { tokenPair });
   if (api.assert(pool, 'no existing pool for tokenPair')) {
     if (api.BigNumber(pool.baseQuantity).eq(0) && api.BigNumber(pool.quoteQuantity).eq(0)
       && await validateOracle(pool, api.BigNumber(quoteQuantity).dividedBy(baseQuantity)) === false) return;
     if (api.BigNumber(pool.baseQuantity).gt(0) && api.BigNumber(pool.quoteQuantity).gt(0)
       && !validateLiquiditySwap(pool, baseQuantity, quoteQuantity)) return;
+
+    const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: baseSymbol });
+    const senderQuote = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: quoteSymbol });
+    const senderFunded = api.BigNumber(senderBase.balance).gte(baseQuantity) && api.BigNumber(senderQuote.balance).gte(quoteQuantity);
+    if (!api.assert(senderFunded, 'insufficient token balance')) return;
 
     // update liquidity position
     const lp = await api.db.findOne('liquidityPosition', { account: api.sender, tokenPair });
@@ -222,6 +231,11 @@ actions.removeLiquidity = async (payload) => {
   }
 
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
+  const baseToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol });
+  const quoteToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol });
+  if (!api.assert(api.BigNumber(baseQuantity).dp() <= baseToken.precision, 'baseQuantity precision mismatch')
+    || !api.assert(api.BigNumber(quoteQuantity).dp() <= quoteToken.precision, 'quoteQuantity precision mismatch')) return;
+
   const pool = await api.db.findOne('pools', { tokenPair });
   if (api.assert(pool, 'no existing pool for tokenPair')) {
     if (!api.assert(api.BigNumber(pool.baseQuantity).gt(0)
@@ -265,6 +279,7 @@ actions.swapTokensForExactTokens = async (payload) => {
 
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
   const pool = await api.db.findOne('pools', { tokenPair });
+  if (!api.assert(pool, 'no existing pool for tokenPair')) return;  
   let liquidityIn;
   let liquidityOut;
   let symbolIn;
@@ -280,7 +295,6 @@ actions.swapTokensForExactTokens = async (payload) => {
     symbolIn = quoteSymbol;
     symbolOut = baseSymbol;
   }
-  if (!api.assert(pool, 'no existing pool for tokenPair')) return;
 
   const tokenInAdjusted = api.BigNumber(getAmountIn(tokenOut, liquidityIn, liquidityOut));
   if (!tokenInAdjusted.isFinite()) return;

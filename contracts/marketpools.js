@@ -219,7 +219,7 @@ actions.addLiquidity = async (payload) => {
     const baseRes = await api.executeSmartContract('tokens', 'transferToContract', { symbol: baseSymbol, quantity: baseQuantity, to: 'marketpools' });
     const quoteRes = await api.executeSmartContract('tokens', 'transferToContract', { symbol: quoteSymbol, quantity: quoteQuantity, to: 'marketpools' });
     if (!api.assert(baseRes.errors === undefined && quoteRes.errors === undefined, 'deposit transfer errors')) return;
-    updatePoolStats(pool, baseQuantity, quoteQuantity, false);
+    await updatePoolStats(pool, baseQuantity, quoteQuantity, false);
     api.emit('addLiquidity', { memo: `Add ${baseSymbol} and ${quoteSymbol}` });
   }
 };
@@ -265,7 +265,7 @@ actions.removeLiquidity = async (payload) => {
 
       await api.transferTokens(api.sender, baseSymbol, baseQuantity, 'user');
       await api.transferTokens(api.sender, quoteSymbol, quoteQuantity, 'user');
-      updatePoolStats(pool, -baseQuantity, -quoteQuantity, false);
+      await updatePoolStats(pool, -baseQuantity, -quoteQuantity, false);
       api.emit('removeLiquidity', { memo: `Remove ${baseSymbol} and ${quoteSymbol}` });
     }
   }
@@ -340,7 +340,7 @@ actions.swapTokens = async (payload) => {
   if (res.errors === undefined
     && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision)) !== undefined) {
     await api.transferTokens(api.sender, symbolOut, api.BigNumber(tokenQuantity.out).toFixed(tokenOut.precision), 'user');
-    updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
+    await updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
     api.emit('swapTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
   }
 };

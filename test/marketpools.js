@@ -865,7 +865,7 @@ describe('marketpools tests', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       let res = await database1.getLatestBlockInfo();
-      console.log(res);
+      // console.log(res);
       await assertNoErrorInLastBlock();
 
       // verify swap execution

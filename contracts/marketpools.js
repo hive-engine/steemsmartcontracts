@@ -1,11 +1,13 @@
 /* eslint-disable max-len */
 /* global actions, api */
 
+const TradeType = ['exactInput', 'exactOutput'];
+
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('pools');
   if (tableExists === false) {
     await api.db.createTable('pools', ['tokenPair']);
-    await api.db.createTable('liquidityPosition', ['account', 'tokenPair']);
+    await api.db.createTable('liquidityPositions', ['account', 'tokenPair']);
     await api.db.createTable('params');
 
     const params = {};
@@ -96,6 +98,14 @@ async function validateTokenPair(tokenPair) {
   return true;
 }
 
+async function validatePool(tokenPair) {
+  const [baseSymbol, quoteSymbol] = tokenPair.split(':');
+  const pool = await api.db.findOne('pools', { tokenPair });
+  const revPool = await api.db.findOne('pools', { tokenPair: [quoteSymbol, baseSymbol].join(':') });
+  if (!api.assert(pool === null && revPool === null, 'a pool already exists for this tokenPair')) return false;
+  return true;
+}
+
 async function updatePoolStats(pool, baseAdjusted, quoteAdjusted, swap = true) {
   const uPool = pool;
   // precise quantities are needed here for K calculation
@@ -111,7 +121,7 @@ async function updatePoolStats(pool, baseAdjusted, quoteAdjusted, swap = true) {
   await api.db.update('pools', uPool);
 }
 
-actions.create = async (payload) => {
+actions.createPool = async (payload) => {
   const {
     tokenPair, isSignedWithActiveKey,
   } = payload;
@@ -129,7 +139,7 @@ actions.create = async (payload) => {
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && await validateTokenPair(tokenPair)
-    && api.assert(await api.db.findOne('pools', { tokenPair }) === null, 'a pool already exists for this tokenPair')
+    && await validatePool(tokenPair)
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     const [baseSymbol, quoteSymbol] = tokenPair.split(':');
     const baseToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol });
@@ -190,11 +200,11 @@ actions.addLiquidity = async (payload) => {
     if (!api.assert(senderFunded, 'insufficient token balance')) return;
 
     // update liquidity position
-    const lp = await api.db.findOne('liquidityPosition', { account: api.sender, tokenPair });
+    const lp = await api.db.findOne('liquidityPositions', { account: api.sender, tokenPair });
     if (lp) {
       lp.baseQuantity = api.BigNumber(lp.baseQuantity).plus(baseQuantity);
       lp.quoteQuantity = api.BigNumber(lp.quoteQuantity).plus(quoteQuantity);
-      await api.db.update('liquidityPosition', lp);
+      await api.db.update('liquidityPositions', lp);
     } else {
       const newlp = {
         account: api.sender,
@@ -202,7 +212,7 @@ actions.addLiquidity = async (payload) => {
         baseQuantity,
         quoteQuantity,
       };
-      await api.db.insert('liquidityPosition', newlp);
+      await api.db.insert('liquidityPositions', newlp);
     }
 
     // deposit requested tokens to contract
@@ -241,16 +251,16 @@ actions.removeLiquidity = async (payload) => {
       && api.BigNumber(pool.quoteQuantity).gt(0), 'insufficient liquidity')
       || !validateLiquiditySwap(pool, baseQuantity, quoteQuantity)) return;
 
-    const lp = await api.db.findOne('liquidityPosition', { account: api.sender, tokenPair });
+    const lp = await api.db.findOne('liquidityPositions', { account: api.sender, tokenPair });
     if (api.assert(lp, 'no existing liquidity position')
       && api.assert(api.BigNumber(lp.baseQuantity).minus(baseQuantity).gte(0)
       && api.BigNumber(lp.quoteQuantity).minus(quoteQuantity).gte(0), 'not enough liquidity in position')) {
       lp.baseQuantity = api.BigNumber(lp.baseQuantity).minus(baseQuantity);
       lp.quoteQuantity = api.BigNumber(lp.quoteQuantity).minus(quoteQuantity);
       if (api.BigNumber(lp.baseQuantity).eq(0) && api.BigNumber(lp.quoteQuantity).eq(0)) {
-        await api.db.remove('liquidityPosition', lp);
+        await api.db.remove('liquidityPositions', lp);
       } else {
-        await api.db.update('liquidityPosition', lp);
+        await api.db.update('liquidityPositions', lp);
       }
 
       await api.transferTokens(api.sender, baseSymbol, baseQuantity, 'user');
@@ -261,76 +271,21 @@ actions.removeLiquidity = async (payload) => {
   }
 };
 
-actions.swapTokensForExactTokens = async (payload) => {
+actions.swapTokens = async (payload) => {
   const {
     tokenPair,
     tokenSymbol,
-    tokenOut,
+    tokenAmount,
+    tradeType,
     maxSlippage,
     isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     || !api.assert(typeof (tokenSymbol) === 'string', 'invalid token')
-    || !api.assert(tokenOut && api.BigNumber(tokenOut).gt(0), 'insufficient tokenOut')
+    || !api.assert(tokenAmount && api.BigNumber(tokenAmount).gt(0), 'insufficient tokenAmount')
     || !api.assert(maxSlippage && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50), 'maxSlippage must be greater than 0 and less than 50')
-    || !await validateTokenPair(tokenPair)) {
-    return;
-  }
-
-  const [baseSymbol, quoteSymbol] = tokenPair.split(':');
-  const tokenOutToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol });
-  if (!api.assert(api.BigNumber(tokenOut).dp() <= tokenOutToken.precision, 'tokenOut precision mismatch')) return;
-
-  const pool = await api.db.findOne('pools', { tokenPair });
-  if (!api.assert(pool, 'no existing pool for tokenPair')) return;
-  let liquidityIn;
-  let liquidityOut;
-  let symbolIn;
-  let symbolOut;
-  if (tokenSymbol !== baseSymbol) {
-    liquidityIn = pool.baseQuantity;
-    liquidityOut = pool.quoteQuantity;
-    symbolIn = baseSymbol;
-    symbolOut = quoteSymbol;
-  } else {
-    liquidityIn = pool.quoteQuantity;
-    liquidityOut = pool.baseQuantity;
-    symbolIn = quoteSymbol;
-    symbolOut = baseSymbol;
-  }
-
-  const tokenInAdjusted = api.BigNumber(getAmountIn(tokenOut, liquidityIn, liquidityOut));
-  if (!tokenInAdjusted.isFinite()) return;
-
-  const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
-  const senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenInAdjusted);
-  const tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenOut).times(-1), tokenInAdjusted] : [tokenInAdjusted, api.BigNumber(tokenOut).times(-1)];
-  if (!api.assert(senderBaseFunded, 'insufficient input balance')
-    || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1], api.BigNumber(maxSlippage).dividedBy(100))) return;
-
-  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenInAdjusted.toFixed(pool.precision), to: 'marketpools' });
-  if (res.errors === undefined
-    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === tokenInAdjusted.toFixed(pool.precision)) !== undefined) {
-    await api.transferTokens(api.sender, symbolOut, tokenOut, 'user');
-    updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
-    api.emit('swapTokensForExactTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
-  }
-};
-
-actions.swapExactTokensForTokens = async (payload) => {
-  const {
-    tokenPair,
-    tokenSymbol,
-    tokenIn,
-    maxSlippage,
-    isSignedWithActiveKey,
-  } = payload;
-
-  if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    || !api.assert(typeof (tokenSymbol) === 'string', 'invalid token')
-    || !api.assert(tokenIn && api.BigNumber(tokenIn).gt(0), 'insufficient tokenIn')
-    || !api.assert(maxSlippage && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50), 'maxSlippage must be greater than 0 and less than 50')
+    || !api.assert(typeof (tradeType) === 'string' && TradeType.indexOf(tradeType) !== -1, 'invalid tradeType')
     || !await validateTokenPair(tokenPair)) {
     return;
   }
@@ -342,7 +297,8 @@ actions.swapExactTokensForTokens = async (payload) => {
   let liquidityOut;
   let symbolIn;
   let symbolOut;
-  if (tokenSymbol === baseSymbol) {
+  const tradeDirection = tradeType === 'exactInput' ? tokenSymbol === baseSymbol : tokenSymbol !== baseSymbol;
+  if (tradeDirection) {
     liquidityIn = pool.baseQuantity;
     liquidityOut = pool.quoteQuantity;
     symbolIn = baseSymbol;
@@ -354,20 +310,37 @@ actions.swapExactTokensForTokens = async (payload) => {
     symbolOut = baseSymbol;
   }
 
-  const tokenOutAdjusted = api.BigNumber(getAmountOut(tokenIn, liquidityIn, liquidityOut));
-  if (!tokenOutAdjusted.isFinite()) return;
+  const tokenIn = await api.db.findOneInTable('tokens', 'tokens', { symbol: symbolIn });
+  const tokenOut = await api.db.findOneInTable('tokens', 'tokens', { symbol: symbolOut });
 
   const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
-  const senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenIn);
-  const tokenPairDelta = tokenSymbol === baseSymbol ? [tokenIn, api.BigNumber(tokenOutAdjusted).times(-1)] : [api.BigNumber(tokenOutAdjusted).times(-1), tokenIn];
+  let senderBaseFunded = false;
+  let tokenPairDelta;
+  let tokenQuantity;
+  if (tradeType === 'exactInput') {
+    const tokenAmountAdjusted = api.BigNumber(getAmountOut(tokenAmount, liquidityIn, liquidityOut));
+    if (!tokenAmountAdjusted.isFinite()) return;
+    senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmount);
+    tokenPairDelta = tokenSymbol === baseSymbol ? [tokenAmount, api.BigNumber(tokenAmountAdjusted).times(-1)] : [api.BigNumber(tokenAmountAdjusted).times(-1), tokenAmount];
+    tokenQuantity = { in: tokenAmount, out: tokenAmountAdjusted };
+    if (!api.assert(api.BigNumber(tokenQuantity.in).dp() <= tokenIn.precision, 'symbolIn precision mismatch')) return;
+  } else if (tradeType === 'exactOutput') {
+    const tokenAmountAdjusted = api.BigNumber(getAmountIn(tokenAmount, liquidityIn, liquidityOut));
+    if (!tokenAmountAdjusted.isFinite()) return;
+    senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmountAdjusted);
+    tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenAmount).times(-1), tokenAmountAdjusted] : [tokenAmountAdjusted, api.BigNumber(tokenAmount).times(-1)];
+    tokenQuantity = { in: tokenAmountAdjusted, out: tokenAmount };
+    if (!api.assert(api.BigNumber(tokenQuantity.out).dp() <= tokenOut.precision, 'symbolOut precision mismatch')) return;
+  }
+
   if (!api.assert(senderBaseFunded, 'insufficient input balance')
     || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1], api.BigNumber(maxSlippage).dividedBy(100))) return;
 
-  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenIn, to: 'marketpools' });
+  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision), to: 'marketpools' });
   if (res.errors === undefined
-    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === tokenIn) !== undefined) {
-    await api.transferTokens(api.sender, symbolOut, tokenOutAdjusted.toFixed(pool.precision), 'user');
+    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision)) !== undefined) {
+    await api.transferTokens(api.sender, symbolOut, api.BigNumber(tokenQuantity.out).toFixed(tokenOut.precision), 'user');
     updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
-    api.emit('swapExactTokensForTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
+    api.emit('swapTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
   }
 };

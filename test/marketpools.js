@@ -484,11 +484,16 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "whale", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "GLD", "quantity": "100", "price": "8741", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "SLV", "quantity": "100", "price": "128.0651", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "GLD", "quantity": "1", "price": "8741", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "SLV", "quantity": "1", "price": "128.0651","isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "GLD", "quantity": "100", "price": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "SLV", "quantity": "100", "price": "0.625", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "GLD", "quantity": "1", "price": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "SLV", "quantity": "1", "price": "0.625","isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "10", "quoteQuantity": "150", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "GLD", "quantity": "100", "price": "0.80000000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "SLV", "quantity": "100", "price": "0.002044", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "GLD", "quantity": "1", "price": "0.80000000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "SLV", "quantity": "1", "price": "0.002044","isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "3913.89", "quoteQuantity": "10", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -501,10 +506,11 @@ describe('marketpools tests', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block })
 
       let res = await database1.getLatestBlockInfo();
-      // console.log(res);
+      console.log(res);
       let txs = res.transactions;
 
       assertError(txs[15], 'exceeded max deviation from order book');
+      assertError(txs[20], 'exceeded max deviation from order book');
       
       res = await database1.findOne({
         contract: 'marketpools',
@@ -542,9 +548,9 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "whale", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "whale", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "GLD", "quantity": "100", "price": "10", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "SLV", "quantity": "100", "price": "160", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'market', 'sell', '{ "symbol": "SLV", "quantity": "100", "price": "0.625", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "GLD", "quantity": "1", "price": "10", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "SLV", "quantity": "1", "price": "160","isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'market', 'buy', '{ "symbol": "SLV", "quantity": "1", "price": "0.625","isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));

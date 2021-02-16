@@ -59,8 +59,8 @@ async function validateOracle(pool, newPrice, maxDeviation = 0.01) {
     ? await api.db.findOneInTable('market', 'metrics', { symbol: quoteSymbol })
     : { lastPrice: 1 };
   if (!baseMetrics || !quoteMetrics) return null; // no oracle available
-  const oracle = api.BigNumber(quoteMetrics.lastPrice).dividedBy(baseMetrics.lastPrice);
-  const dev = api.BigNumber(api.BigNumber(newPrice - oracle).abs()).dividedBy(oracle);
+  const oracle = api.BigNumber(baseMetrics.lastPrice).dividedBy(quoteMetrics.lastPrice);
+  const dev = api.BigNumber(newPrice).minus(oracle).abs().dividedBy(oracle);
   // api.debug(`${oracle} -> ${dev} / ${maxDeviation}`);
   if (!api.assert(api.BigNumber(dev).lte(maxDeviation), 'exceeded max deviation from order book')) return false;
   return true;

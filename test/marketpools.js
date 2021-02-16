@@ -506,7 +506,7 @@ describe('marketpools tests', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block })
 
       let res = await database1.getLatestBlockInfo();
-      console.log(res);
+      // console.log(res);
       let txs = res.transactions;
 
       assertError(txs[15], 'exceeded max deviation from order book');
@@ -835,7 +835,7 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 5, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "100000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "10000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "20000", "to": "investor", "isSignedWithActiveKey": true }'));
@@ -879,9 +879,9 @@ describe('marketpools tests', function () {
 
       // verify swap execution
       await assertUserBalance('buyer', 'SLV', 999.99800110);
-      await assertUserBalance('buyer', 'GLD', 1000.00019989);
+      await assertUserBalance('buyer', 'GLD', 1000.0002);
       await assertContractBalance('marketpools', 'SLV', 10000.00199890);
-      await assertContractBalance('marketpools', 'GLD', 999.99980011);
+      await assertContractBalance('marketpools', 'GLD', 999.9998);
 
       // verify pool stats execution
       await assertPoolStats('GLD:SLV', {

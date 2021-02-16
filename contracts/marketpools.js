@@ -48,7 +48,7 @@ function getAmountOut(amountIn, liquidityIn, liquidityOut) {
   return amountOut;
 }
 
-async function validateOracle(pool, newPrice, maxDeviation = 0.01) {
+async function validateOracle(pool, newPrice, maxDeviation = api.BigNumber(0.01)) {
   const [baseSymbol, quoteSymbol] = pool.tokenPair.split(':');
   // eslint-disable-next-line no-template-curly-in-string
   const baseMetrics = baseSymbol !== "'${CONSTANTS.HIVE_PEGGED_SYMBOL}$'"
@@ -80,7 +80,7 @@ function validateSwap(pool, baseDelta, quoteDelta, maxSlippage) {
   const quoteAdjusted = api.BigNumber(pool.quoteQuantity).plus(quoteDelta);
   const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision);
   const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision);
-  const slippage = api.BigNumber(api.BigNumber(pAdjusted - p).abs()).dividedBy(p);
+  const slippage = api.BigNumber(pAdjusted).minus(p).abs().dividedBy(p);
   if (!api.assert(api.BigNumber(slippage).lte(maxSlippage), 'exceeded max slippage for swap')) return false;
   if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision)).eq(k),
     `constant product ${api.BigNumber(baseAdjusted).times(quoteAdjusted)}, expected ${k}`)) return false;
@@ -152,7 +152,7 @@ actions.createPool = async (payload) => {
       quoteQuantity: 0,
       quoteVolume: 0,
       quotePrice: 0, // Quote per Base (reverse price)
-      precision: Math.min(baseToken.precision, quoteToken.precision),
+      precision: Math.max(baseToken.precision, quoteToken.precision),
       creator: api.sender,
     };
     await api.db.insert('pools', newPool);
@@ -220,7 +220,7 @@ actions.addLiquidity = async (payload) => {
     const quoteRes = await api.executeSmartContract('tokens', 'transferToContract', { symbol: quoteSymbol, quantity: quoteQuantity, to: 'marketpools' });
     if (!api.assert(baseRes.errors === undefined && quoteRes.errors === undefined, 'deposit transfer errors')) return;
     await updatePoolStats(pool, baseQuantity, quoteQuantity, false);
-    api.emit('addLiquidity', { memo: `Add ${baseSymbol} and ${quoteSymbol}` });
+    api.emit('addLiquidity', { baseSymbol, quoteSymbol });
   }
 };
 
@@ -266,7 +266,7 @@ actions.removeLiquidity = async (payload) => {
       await api.transferTokens(api.sender, baseSymbol, baseQuantity, 'user');
       await api.transferTokens(api.sender, quoteSymbol, quoteQuantity, 'user');
       await updatePoolStats(pool, -baseQuantity, -quoteQuantity, false);
-      api.emit('removeLiquidity', { memo: `Remove ${baseSymbol} and ${quoteSymbol}` });
+      api.emit('removeLiquidity', { baseSymbol, quoteSymbol });
     }
   }
 };
@@ -341,6 +341,6 @@ actions.swapTokens = async (payload) => {
     && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision)) !== undefined) {
     await api.transferTokens(api.sender, symbolOut, api.BigNumber(tokenQuantity.out).toFixed(tokenOut.precision), 'user');
     await updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
-    api.emit('swapTokens', { memo: `Swap ${symbolIn} for ${symbolOut}` });
+    api.emit('swapTokens', { symbolIn, symbolOut });
   }
 };

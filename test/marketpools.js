@@ -424,6 +424,8 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "500", "quoteQuantity": "500", "isSignedWithActiveKey": true }'));      
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "100000", "quoteQuantity": "1600000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000.1234567899", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "halfwhale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'halfwhale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -445,6 +447,7 @@ describe('marketpools tests', function () {
       assertError(txs[15], 'constant price 1, expected 16.00000000');
       assertError(txs[16], 'insufficient token balance');
       assertError(txs[17], 'baseQuantity precision mismatch');
+      assertError(txs[19], 'insufficient token balance');
       
       res = await database1.findOne({
         contract: 'marketpools',

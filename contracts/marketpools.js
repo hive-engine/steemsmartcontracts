@@ -196,7 +196,7 @@ actions.addLiquidity = async (payload) => {
 
     const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: baseSymbol });
     const senderQuote = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: quoteSymbol });
-    const senderFunded = api.BigNumber(senderBase.balance).gte(baseQuantity) && api.BigNumber(senderQuote.balance).gte(quoteQuantity);
+    const senderFunded = senderBase && senderQuote && api.BigNumber(senderBase.balance).gte(baseQuantity) && api.BigNumber(senderQuote.balance).gte(quoteQuantity);
     if (!api.assert(senderFunded, 'insufficient token balance')) return;
 
     // update liquidity position

@@ -48,7 +48,7 @@ function getAmountOut(amountIn, liquidityIn, liquidityOut) {
   return amountOut;
 }
 
-async function validateOracle(pool, newPrice, maxDeviation = api.BigNumber(0.01)) {
+async function validateOracle(pool, newPrice, maxDeviation = api.BigNumber('0.01')) {
   const [baseSymbol, quoteSymbol] = pool.tokenPair.split(':');
   // eslint-disable-next-line no-template-curly-in-string
   const baseMetrics = baseSymbol !== "'${CONSTANTS.HIVE_PEGGED_SYMBOL}$'"
@@ -67,22 +67,22 @@ async function validateOracle(pool, newPrice, maxDeviation = api.BigNumber(0.01)
 }
 
 function validateLiquiditySwap(pool, baseDelta, quoteDelta) {
-  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision);
+  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
   // api.debug(`P - ${p}`);
-  if (!api.assert(api.BigNumber(api.BigNumber(quoteDelta).dividedBy(baseDelta).toFixed(pool.precision)).eq(p),
+  if (!api.assert(api.BigNumber(api.BigNumber(quoteDelta).dividedBy(baseDelta).toFixed(pool.precision, api.BigNumber.ROUND_DOWN)).eq(p),
     `constant price ${api.BigNumber(quoteDelta).dividedBy(baseDelta)}, expected ${p}`)) return false;
   return true;
 }
 
 function validateSwap(pool, baseDelta, quoteDelta, maxSlippage) {
-  const k = api.BigNumber(pool.baseQuantity).times(pool.quoteQuantity).toFixed(pool.precision);
+  const k = api.BigNumber(pool.baseQuantity).times(pool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const baseAdjusted = api.BigNumber(pool.baseQuantity).plus(baseDelta);
   const quoteAdjusted = api.BigNumber(pool.quoteQuantity).plus(quoteDelta);
-  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision);
-  const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision);
+  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+  const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
   const slippage = api.BigNumber(pAdjusted).minus(p).abs().dividedBy(p);
   if (!api.assert(api.BigNumber(slippage).lte(maxSlippage), 'exceeded max slippage for swap')) return false;
-  if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision)).eq(k),
+  if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP)).eq(k),
     `constant product ${api.BigNumber(baseAdjusted).times(quoteAdjusted)}, expected ${k}`)) return false;
   return true;
 }
@@ -112,11 +112,11 @@ async function updatePoolStats(pool, baseAdjusted, quoteAdjusted, swap = true) {
   uPool.baseQuantity = api.BigNumber(pool.baseQuantity).plus(baseAdjusted);
   uPool.quoteQuantity = api.BigNumber(pool.quoteQuantity).plus(quoteAdjusted);
   // remainder are statistical and can be rounded (updated for swaps only)
-  uPool.basePrice = api.BigNumber(uPool.quoteQuantity).dividedBy(uPool.baseQuantity).toFixed(pool.precision);
-  uPool.quotePrice = api.BigNumber(uPool.baseQuantity).dividedBy(uPool.quoteQuantity).toFixed(pool.precision);
+  uPool.basePrice = api.BigNumber(uPool.quoteQuantity).dividedBy(uPool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+  uPool.quotePrice = api.BigNumber(uPool.baseQuantity).dividedBy(uPool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
   if (swap) {
-    uPool.baseVolume = api.BigNumber(uPool.baseVolume).plus(Math.abs(baseAdjusted)).toFixed(pool.precision);
-    uPool.quoteVolume = api.BigNumber(uPool.quoteVolume).plus(Math.abs(quoteAdjusted)).toFixed(pool.precision);
+    uPool.baseVolume = api.BigNumber(uPool.baseVolume).plus(Math.abs(baseAdjusted)).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+    uPool.quoteVolume = api.BigNumber(uPool.quoteVolume).plus(Math.abs(quoteAdjusted)).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
   }
   await api.db.update('pools', uPool);
 }
@@ -336,10 +336,10 @@ actions.swapTokens = async (payload) => {
   if (!api.assert(senderBaseFunded, 'insufficient input balance')
     || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1], api.BigNumber(maxSlippage).dividedBy(100))) return;
 
-  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision), to: 'marketpools' });
+  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision, api.BigNumber.ROUND_DOWN), to: 'marketpools' });
   if (res.errors === undefined
-    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision)) !== undefined) {
-    await api.transferTokens(api.sender, symbolOut, api.BigNumber(tokenQuantity.out).toFixed(tokenOut.precision), 'user');
+    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision, api.BigNumber.ROUND_DOWN)) !== undefined) {
+    await api.transferTokens(api.sender, symbolOut, api.BigNumber(tokenQuantity.out).toFixed(tokenOut.precision, api.BigNumber.ROUND_DOWN), 'user');
     await updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1]);
     api.emit('swapTokens', { symbolIn, symbolOut });
   }

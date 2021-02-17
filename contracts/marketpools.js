@@ -327,7 +327,7 @@ actions.swapTokens = async (payload) => {
   } else if (tradeType === 'exactOutput') {
     const tokenAmountAdjusted = api.BigNumber(getAmountIn(tokenAmount, liquidityIn, liquidityOut));
     if (!tokenAmountAdjusted.isFinite()) return;
-    senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmountAdjusted);
+    senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmountAdjusted.toFixed(tokenIn.precision, api.BigNumber.ROUND_DOWN));
     tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenAmount).times(-1), tokenAmountAdjusted] : [tokenAmountAdjusted, api.BigNumber(tokenAmount).times(-1)];
     tokenQuantity = { in: tokenAmountAdjusted, out: tokenAmount };
     if (!api.assert(api.BigNumber(tokenQuantity.out).dp() <= tokenOut.precision, 'symbolOut precision mismatch')) return;

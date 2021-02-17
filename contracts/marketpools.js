@@ -109,11 +109,15 @@ async function validatePool(tokenPair) {
 async function updatePoolStats(pool, baseAdjusted, quoteAdjusted, swap = true) {
   const uPool = pool;
   // precise quantities are needed here for K calculation
+  // remainder are statistical and can be rounded (updated for swaps only)
   uPool.baseQuantity = api.BigNumber(pool.baseQuantity).plus(baseAdjusted);
   uPool.quoteQuantity = api.BigNumber(pool.quoteQuantity).plus(quoteAdjusted);
-  // remainder are statistical and can be rounded (updated for swaps only)
-  uPool.basePrice = api.BigNumber(uPool.quoteQuantity).dividedBy(uPool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
-  uPool.quotePrice = api.BigNumber(uPool.baseQuantity).dividedBy(uPool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+
+  // if all LP is removed, don't update the last price
+  if (uPool.baseQuantity.gt(0) && uPool.quoteQuantity.gt(0)) {
+    uPool.basePrice = api.BigNumber(uPool.quoteQuantity).dividedBy(uPool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+    uPool.quotePrice = api.BigNumber(uPool.baseQuantity).dividedBy(uPool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+  }
   if (swap) {
     uPool.baseVolume = api.BigNumber(uPool.baseVolume).plus(Math.abs(baseAdjusted)).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
     uPool.quoteVolume = api.BigNumber(uPool.quoteVolume).plus(Math.abs(quoteAdjusted)).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);

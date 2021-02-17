@@ -585,8 +585,8 @@ describe('marketpools tests', function () {
       assert.ok(lpos.baseQuantity === '1001', `LP baseQuantity not as expected - ${lpos.baseQuantity}`);
       assert.ok(lpos.quoteQuantity === '16016', `LP quoteQuantity not as expected - ${lpos.quoteQuantity}`);
       assert.ok(lpool.basePrice === '16.00000000', `pool price not as expected - ${lpool.basePrice}`);
-      assert.ok(lpool.baseQuantity === '1002', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
-      assert.ok(lpool.quoteQuantity === '16032', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
+      assert.ok(lpool.baseQuantity === '1002.00000000', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
+      assert.ok(lpool.quoteQuantity === '16032.00000000', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
 
       resolve();
     })
@@ -737,8 +737,8 @@ describe('marketpools tests', function () {
       assert.ok(lpos.baseQuantity === '998', `LP baseQuantity not as expected - ${lpos.baseQuantity}`);
       assert.ok(lpos.quoteQuantity === '15968', `LP quoteQuantity not as expected - ${lpos.quoteQuantity}`);
       assert.ok(lpool.basePrice === '16.00000000', `pool price not as expected - ${lpool.basePrice}`);
-      assert.ok(lpool.baseQuantity === '998', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
-      assert.ok(lpool.quoteQuantity === '15968', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
+      assert.ok(lpool.baseQuantity === '998.00000000', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
+      assert.ok(lpool.quoteQuantity === '15968.00000000', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
 
       resolve();
     })
@@ -882,8 +882,8 @@ describe('marketpools tests', function () {
 
       // verify pool stats execution
       await assertPoolStats('GLD:SLV', {
-        baseQuantity: 999.9998001100099870021,
-        quoteQuantity: 10000.00199890029969013994,
+        baseQuantity: 999.99980011,
+        quoteQuantity: 10000.0019989,
         baseVolume: 2.19982003,
         quoteVolume: 22.01802111,
         basePrice: 10.00000399,

@@ -67,9 +67,9 @@ async function validateOracle(pool, newPrice, maxDeviation = api.BigNumber('0.01
 }
 
 function validateLiquiditySwap(pool, baseDelta, quoteDelta) {
-  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   // api.debug(`P - ${p}`);
-  if (!api.assert(api.BigNumber(api.BigNumber(quoteDelta).dividedBy(baseDelta).toFixed(pool.precision, api.BigNumber.ROUND_DOWN)).eq(p),
+  if (!api.assert(api.BigNumber(api.BigNumber(quoteDelta).dividedBy(baseDelta).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP)).eq(p),
     `constant price ${api.BigNumber(quoteDelta).dividedBy(baseDelta)}, expected ${p}`)) return false;
   return true;
 }
@@ -78,8 +78,8 @@ function validateSwap(pool, baseDelta, quoteDelta, maxSlippage) {
   const k = api.BigNumber(pool.baseQuantity).times(pool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const baseAdjusted = api.BigNumber(pool.baseQuantity).plus(baseDelta);
   const quoteAdjusted = api.BigNumber(pool.quoteQuantity).plus(quoteDelta);
-  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
-  const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
+  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
+  const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const slippage = api.BigNumber(pAdjusted).minus(p).abs().dividedBy(p);
   if (!api.assert(api.BigNumber(slippage).lte(maxSlippage), 'exceeded max slippage for swap')) return false;
   if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP)).eq(k),
@@ -110,11 +110,11 @@ async function updatePoolStats(pool, baseAdjusted, quoteAdjusted, swap = true) {
   const uPool = pool;
   // precise quantities are needed here for K calculation
   // remainder are statistical and can be rounded (updated for swaps only)
-  uPool.baseQuantity = api.BigNumber(pool.baseQuantity).plus(baseAdjusted);
-  uPool.quoteQuantity = api.BigNumber(pool.quoteQuantity).plus(quoteAdjusted);
+  uPool.baseQuantity = api.BigNumber(pool.baseQuantity).plus(baseAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
+  uPool.quoteQuantity = api.BigNumber(pool.quoteQuantity).plus(quoteAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
 
   // if all LP is removed, don't update the last price
-  if (uPool.baseQuantity.gt(0) && uPool.quoteQuantity.gt(0)) {
+  if (api.BigNumber(uPool.baseQuantity).gt(0) && api.BigNumber(uPool.quoteQuantity).gt(0)) {
     uPool.basePrice = api.BigNumber(uPool.quoteQuantity).dividedBy(uPool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
     uPool.quotePrice = api.BigNumber(uPool.baseQuantity).dividedBy(uPool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_DOWN);
   }
@@ -269,7 +269,7 @@ actions.removeLiquidity = async (payload) => {
 
       await api.transferTokens(api.sender, baseSymbol, baseQuantity, 'user');
       await api.transferTokens(api.sender, quoteSymbol, quoteQuantity, 'user');
-      await updatePoolStats(pool, -baseQuantity, -quoteQuantity, false);
+      await updatePoolStats(pool, api.BigNumber(baseQuantity).negated(), api.BigNumber(quoteQuantity).negated(), false);
       api.emit('removeLiquidity', { baseSymbol, quoteSymbol });
     }
   }
@@ -325,14 +325,14 @@ actions.swapTokens = async (payload) => {
     const tokenAmountAdjusted = api.BigNumber(getAmountOut(tokenAmount, liquidityIn, liquidityOut));
     if (!tokenAmountAdjusted.isFinite()) return;
     senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmount);
-    tokenPairDelta = tokenSymbol === baseSymbol ? [tokenAmount, api.BigNumber(tokenAmountAdjusted).times(-1)] : [api.BigNumber(tokenAmountAdjusted).times(-1), tokenAmount];
+    tokenPairDelta = tokenSymbol === baseSymbol ? [tokenAmount, api.BigNumber(tokenAmountAdjusted).negated()] : [api.BigNumber(tokenAmountAdjusted).negated(), tokenAmount];
     tokenQuantity = { in: tokenAmount, out: tokenAmountAdjusted };
     if (!api.assert(api.BigNumber(tokenQuantity.in).dp() <= tokenIn.precision, 'symbolIn precision mismatch')) return;
   } else if (tradeType === 'exactOutput') {
     const tokenAmountAdjusted = api.BigNumber(getAmountIn(tokenAmount, liquidityIn, liquidityOut));
     if (!tokenAmountAdjusted.isFinite()) return;
     senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmountAdjusted.toFixed(tokenIn.precision, api.BigNumber.ROUND_DOWN));
-    tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenAmount).times(-1), tokenAmountAdjusted] : [tokenAmountAdjusted, api.BigNumber(tokenAmount).times(-1)];
+    tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenAmount).negated(), tokenAmountAdjusted] : [tokenAmountAdjusted, api.BigNumber(tokenAmount).negated()];
     tokenQuantity = { in: tokenAmountAdjusted, out: tokenAmount };
     if (!api.assert(api.BigNumber(tokenQuantity.out).dp() <= tokenOut.precision, 'symbolOut precision mismatch')) return;
   }

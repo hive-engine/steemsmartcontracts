@@ -934,7 +934,7 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1", "tradeType": "exactOutput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "1", "tradeType": "exactInput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1", "tradeType": "exactInput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
-      for (let i = 0; i <= 1000; i++) {
+      for (let i = 0; i <= 500; i++) {
         let rand = BigNumber.random().plus(1).toFixed(8);
         transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', `{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "${rand}", "tradeType": "exactOutput", "maxSlippage": "1", "isSignedWithActiveKey": true}`));
       }

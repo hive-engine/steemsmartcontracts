@@ -78,12 +78,12 @@ function validateSwap(pool, baseDelta, quoteDelta, maxSlippage) {
   const k = api.BigNumber(pool.baseQuantity).times(pool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const baseAdjusted = api.BigNumber(pool.baseQuantity).plus(baseDelta);
   const quoteAdjusted = api.BigNumber(pool.quoteQuantity).plus(quoteDelta);
+  const kAdjusted = api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const slippage = api.BigNumber(pAdjusted).minus(p).abs().dividedBy(p);
   if (!api.assert(api.BigNumber(slippage).lte(maxSlippage), 'exceeded max slippage for swap')) return false;
-  if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP)).eq(k),
-    `constant product ${api.BigNumber(baseAdjusted).times(quoteAdjusted)}, expected ${k}`)) return false;
+  if (!api.assert(api.BigNumber(kAdjusted).eq(k), `constant product ${kAdjusted}, expected ${k}`)) return false;
   return true;
 }
 

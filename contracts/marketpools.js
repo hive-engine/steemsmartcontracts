@@ -68,9 +68,9 @@ async function validateOracle(pool, newPrice, maxDeviation = api.BigNumber('0.01
 
 function validateLiquiditySwap(pool, baseDelta, quoteDelta) {
   const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
+  const pAdjusted = api.BigNumber(quoteDelta).dividedBy(baseDelta).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   // api.debug(`P - ${p}`);
-  if (!api.assert(api.BigNumber(api.BigNumber(quoteDelta).dividedBy(baseDelta).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP)).eq(p),
-    `constant price ${api.BigNumber(quoteDelta).dividedBy(baseDelta)}, expected ${p}`)) return false;
+  if (!api.assert(api.BigNumber(pAdjusted).eq(p), `constant price ${pAdjusted}, expected ${p}`)) return false;
   return true;
 }
 

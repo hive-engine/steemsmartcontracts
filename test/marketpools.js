@@ -460,7 +460,7 @@ describe('marketpools tests', function () {
       assertError(txs[7], 'invalid baseQuantity');
       assertError(txs[8], 'invalid quoteQuantity');
       assertError(txs[9], 'quoteSymbol does not exist');
-      assertError(txs[15], 'constant price 1, expected 16.00000000');
+      assertError(txs[15], 'constant price 1.00000000, expected 16.00000000');
       assertError(txs[16], 'insufficient token balance');
       assertError(txs[17], 'baseQuantity precision mismatch');
       assertError(txs[19], 'insufficient token balance');
@@ -596,10 +596,10 @@ describe('marketpools tests', function () {
       });
       await assertShareConsistency("GLD:SLV");
       assert.ok(lpos, 'newly created LP not found');
-      assert.ok(lpos.shares === '4004', `LP shares not as expected - ${lpos.shares}`);
+      assert.ok(lpos.shares === '4004.156385', `LP shares not as expected - ${lpos.shares}`);
       assert.ok(lpool.basePrice === '16.00000000', `pool price not as expected - ${lpool.basePrice}`);
-      assert.ok(lpool.baseQuantity === '1002.00000000', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
-      assert.ok(lpool.quoteQuantity === '16032.00000000', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
+      assert.ok(lpool.baseQuantity === '1002.03909625', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
+      assert.ok(lpool.quoteQuantity === '16032.62554000', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
 
       resolve();
     })
@@ -651,7 +651,7 @@ describe('marketpools tests', function () {
 
       assertError(txs[10], 'no existing liquidity position');
       assertError(txs[12], 'you must use a transaction signed with your active key');
-      assertError(txs[13], 'invalid sharesOut, must be > 0 <= 100');
+      assertError(txs[13], 'invalid sharesOut, must be a whole number > 0 <= 100');
       assertError(txs[15], 'no existing liquidity position');
       
       let lpos = await database1.findOne({

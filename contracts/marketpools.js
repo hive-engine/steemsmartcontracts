@@ -185,8 +185,8 @@ actions.addLiquidity = async (payload) => {
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    || !api.assert(baseQuantity && api.BigNumber(baseQuantity).gt(0), 'invalid baseQuantity')
-    || !api.assert(quoteQuantity && api.BigNumber(quoteQuantity).gt(0), 'invalid quoteQuantity')
+    || !api.assert(typeof baseQuantity === 'string' && api.BigNumber(baseQuantity).gt(0), 'invalid baseQuantity')
+    || !api.assert(typeof quoteQuantity === 'string' && api.BigNumber(quoteQuantity).gt(0), 'invalid quoteQuantity')
     || !await validateTokenPair(tokenPair)) return;
 
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
@@ -249,7 +249,8 @@ actions.removeLiquidity = async (payload) => {
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    || !api.assert(sharesOut && api.BigNumber(sharesOut).gt(0) && api.BigNumber(sharesOut).lte(100), 'invalid sharesOut, must be > 0 <= 100')
+    || !api.assert(typeof sharesOut === 'string' && api.BigNumber(sharesOut).isInteger()
+      && api.BigNumber(sharesOut).gt(0) && api.BigNumber(sharesOut).lte(100), 'invalid sharesOut, must be a whole number > 0 <= 100')
     || !await validateTokenPair(tokenPair)) {
     return;
   }
@@ -297,10 +298,10 @@ actions.swapTokens = async (payload) => {
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    || !api.assert(typeof (tokenSymbol) === 'string', 'invalid token')
-    || !api.assert(tokenAmount && api.BigNumber(tokenAmount).gt(0), 'insufficient tokenAmount')
-    || !api.assert(maxSlippage && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50), 'maxSlippage must be greater than 0 and less than 50')
-    || !api.assert(typeof (tradeType) === 'string' && TradeType.indexOf(tradeType) !== -1, 'invalid tradeType')
+    || !api.assert(typeof tokenSymbol === 'string', 'invalid token')
+    || !api.assert(typeof tokenAmount === 'string' && api.BigNumber(tokenAmount).gt(0), 'insufficient tokenAmount')
+    || !api.assert(typeof maxSlippage === 'string' && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50), 'maxSlippage must be greater than 0 and less than 50')
+    || !api.assert(typeof tradeType === 'string' && TradeType.indexOf(tradeType) !== -1, 'invalid tradeType')
     || !await validateTokenPair(tokenPair)) {
     return;
   }

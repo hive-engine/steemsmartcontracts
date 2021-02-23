@@ -96,8 +96,8 @@ class SmartContracts {
         // prepare the db object that will be available in the VM
         const db = {
           // create a new table for the smart contract
-          createTable: (tableName, indexes = []) => SmartContracts.createTable(
-            database, tables, name, tableName, indexes,
+          createTable: (tableName, indexes = [], params = {}) => SmartContracts.createTable(
+            database, tables, name, tableName, indexes, params,
           ),
           // perform a query find on a table of the smart contract
           find: (table, query, limit = 1000, offset = 0, indexes = []) => SmartContracts.find(
@@ -272,8 +272,8 @@ class SmartContracts {
       // prepare the db object that will be available in the VM
       const db = {
         // create a new table for the smart contract
-        createTable: (tableName, indexes = []) => SmartContracts.createTable(
-          database, tables, contract, tableName, indexes,
+        createTable: (tableName, indexes = [], params = {}) => SmartContracts.createTable(
+          database, tables, contract, tableName, indexes, params,
         ),
         // perform a query find on a table of the smart contract
         find: (table, query, limit = 1000, offset = 0, indexes = []) => SmartContracts.find(
@@ -675,11 +675,12 @@ class SmartContracts {
     return true;
   }
 
-  static async createTable(database, tables, contractName, tableName, indexes = []) {
+  static async createTable(database, tables, contractName, tableName, indexes = [], params = {}) {
     const result = await database.createTable({
       contractName,
       tableName,
       indexes,
+      params,
     });
 
     if (result === true) {
@@ -690,6 +691,7 @@ class SmartContracts {
           size: 0,
           hash: '',
           nbIndexes: indexes.length,
+          primaryKey: params.primaryKey,
         };
       }
     }

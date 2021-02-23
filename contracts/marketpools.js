@@ -222,10 +222,6 @@ actions.addLiquidity = async (payload) => {
           amountAdjusted = [baseOptimal, quoteQuantity];
         }
       }
-      const pPrecision = Math.min(baseToken.precision, quoteToken.precision);
-      const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pPrecision, api.BigNumber.ROUND_HALF_UP);
-      const pAdjusted = api.BigNumber(amountAdjusted[1]).dividedBy(amountAdjusted[0]).toFixed(pPrecision, api.BigNumber.ROUND_HALF_UP);
-      if (!api.assert(api.BigNumber(pAdjusted).eq(p), `constant price ${pAdjusted}, expected ${p}`)) return;
     } else {
       amountAdjusted = [baseQuantity, quoteQuantity];
     }

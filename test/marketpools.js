@@ -719,7 +719,7 @@ describe('marketpools tests', function () {
 
       assertError(txs[10], 'no existing liquidity position');
       assertError(txs[12], 'you must use a transaction signed with your active key');
-      assertError(txs[13], 'invalid sharesOut, must be a whole number > 0 <= 100');
+      assertError(txs[13], 'invalid sharesOut, must be > 0 <= 100');
       assertError(txs[15], 'no existing liquidity position');
       
       let lpos = await database1.findOne({

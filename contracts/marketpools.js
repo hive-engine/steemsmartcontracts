@@ -27,6 +27,13 @@ actions.updateParams = async (payload) => {
   await api.db.update('params', params);
 };
 
+function getQuote(amount, liquidityIn, liquidityOut) {
+  if (!api.assert(api.BigNumber(amount).gt(0), 'insufficient amount')
+    || !api.assert(api.BigNumber(liquidityIn).gt(0)
+      && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
+  return api.BigNumber(amount).times(liquidityOut).dividedBy(liquidityIn);
+}
+
 function getAmountIn(amountOut, liquidityIn, liquidityOut) {
   if (!api.assert(api.BigNumber(amountOut).gt(0), 'insufficient output amount')
     || !api.assert(api.BigNumber(liquidityIn).gt(0)
@@ -66,24 +73,16 @@ async function validateOracle(pool, newPrice, maxDeviation = api.BigNumber('0.01
   return true;
 }
 
-function validateLiquiditySwap(pool, baseDelta, quoteDelta) {
-  const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
-  // api.debug(`P - ${p}`);
-  if (!api.assert(api.BigNumber(api.BigNumber(quoteDelta).dividedBy(baseDelta).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP)).eq(p),
-    `constant price ${api.BigNumber(quoteDelta).dividedBy(baseDelta)}, expected ${p}`)) return false;
-  return true;
-}
-
 function validateSwap(pool, baseDelta, quoteDelta, maxSlippage) {
   const k = api.BigNumber(pool.baseQuantity).times(pool.quoteQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const baseAdjusted = api.BigNumber(pool.baseQuantity).plus(baseDelta);
   const quoteAdjusted = api.BigNumber(pool.quoteQuantity).plus(quoteDelta);
+  const kAdjusted = api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const p = api.BigNumber(pool.quoteQuantity).dividedBy(pool.baseQuantity).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const pAdjusted = api.BigNumber(quoteAdjusted).dividedBy(baseAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP);
   const slippage = api.BigNumber(pAdjusted).minus(p).abs().dividedBy(p);
   if (!api.assert(api.BigNumber(slippage).lte(maxSlippage), 'exceeded max slippage for swap')) return false;
-  if (!api.assert(api.BigNumber(api.BigNumber(baseAdjusted).times(quoteAdjusted).toFixed(pool.precision, api.BigNumber.ROUND_HALF_UP)).eq(k),
-    `constant product ${api.BigNumber(baseAdjusted).times(quoteAdjusted)}, expected ${k}`)) return false;
+  if (!api.assert(api.BigNumber(kAdjusted).eq(k), `constant product ${kAdjusted}, expected ${k}`)) return false;
   return true;
 }
 
@@ -181,13 +180,21 @@ actions.addLiquidity = async (payload) => {
     tokenPair,
     baseQuantity,
     quoteQuantity,
+    maxSlippage,
     isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    || !api.assert(baseQuantity && api.BigNumber(baseQuantity).gt(0), 'invalid baseQuantity')
-    || !api.assert(quoteQuantity && api.BigNumber(quoteQuantity).gt(0), 'invalid quoteQuantity')
+    || !api.assert(typeof baseQuantity === 'string' && api.BigNumber(baseQuantity).gt(0), 'invalid baseQuantity')
+    || !api.assert(typeof quoteQuantity === 'string' && api.BigNumber(quoteQuantity).gt(0), 'invalid quoteQuantity')
     || !await validateTokenPair(tokenPair)) return;
+
+  let addSlippage = api.BigNumber('0.01');
+  if (maxSlippage) {
+    if (!api.assert(typeof maxSlippage === 'string' && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50)
+      && api.BigNumber(maxSlippage).dp() <= 3, 'maxSlippage must be greater than 0 and less than 50')) return;
+    addSlippage = api.BigNumber(maxSlippage).dividedBy(100);
+  }
 
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
   const baseToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol });
@@ -199,21 +206,38 @@ actions.addLiquidity = async (payload) => {
   if (api.assert(pool, 'no existing pool for tokenPair')) {
     if (api.BigNumber(pool.baseQuantity).eq(0) && api.BigNumber(pool.quoteQuantity).eq(0)
       && await validateOracle(pool, api.BigNumber(quoteQuantity).dividedBy(baseQuantity)) === false) return;
-    if (api.BigNumber(pool.baseQuantity).gt(0) && api.BigNumber(pool.quoteQuantity).gt(0)
-      && !validateLiquiditySwap(pool, baseQuantity, quoteQuantity)) return;
+
+    let amountAdjusted;
+    const baseMin = api.BigNumber(baseQuantity).times(api.BigNumber('1').minus(addSlippage));
+    const quoteMin = api.BigNumber(quoteQuantity).times(api.BigNumber('1').minus(addSlippage));
+    if (api.BigNumber(pool.baseQuantity).gt(0) && api.BigNumber(pool.quoteQuantity).gt(0)) {
+      const quoteOptimal = getQuote(baseQuantity, pool.baseQuantity, pool.quoteQuantity).toFixed(quoteToken.precision, api.BigNumber.ROUND_HALF_UP);
+      if (api.BigNumber(quoteOptimal).lte(quoteQuantity)) {
+        if (!api.assert(api.BigNumber(quoteOptimal).gte(quoteMin), 'exceeded max slippage for adding liquidity')) return;
+        amountAdjusted = [baseQuantity, quoteOptimal];
+      } else {
+        const baseOptimal = getQuote(quoteQuantity, pool.quoteQuantity, pool.baseQuantity).toFixed(baseToken.precision, api.BigNumber.ROUND_HALF_UP);
+        if (api.BigNumber(baseOptimal).lte(baseQuantity)) {
+          if (!api.assert(api.BigNumber(baseOptimal).gte(baseMin), 'exceeded max slippage for adding liquidity')) return;
+          amountAdjusted = [baseOptimal, quoteQuantity];
+        }
+      }
+    } else {
+      amountAdjusted = [baseQuantity, quoteQuantity];
+    }
 
     const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: baseSymbol });
     const senderQuote = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: quoteSymbol });
-    const senderFunded = senderBase && senderQuote && api.BigNumber(senderBase.balance).gte(baseQuantity) && api.BigNumber(senderQuote.balance).gte(quoteQuantity);
+    const senderFunded = senderBase && senderQuote && api.BigNumber(senderBase.balance).gte(amountAdjusted[0]) && api.BigNumber(senderQuote.balance).gte(amountAdjusted[1]);
     if (!api.assert(senderFunded, 'insufficient token balance')) return;
 
     let newShares;
     if (api.BigNumber(pool.totalShares).eq(0)) {
-      newShares = api.BigNumber(baseQuantity).times(quoteQuantity).sqrt();
+      newShares = api.BigNumber(amountAdjusted[0]).times(amountAdjusted[1]).sqrt();
     } else {
       newShares = api.BigNumber.min(
-        api.BigNumber(baseQuantity).times(pool.totalShares).dividedBy(pool.baseQuantity),
-        api.BigNumber(quoteQuantity).times(pool.totalShares).dividedBy(pool.quoteQuantity),
+        api.BigNumber(amountAdjusted[0]).times(pool.totalShares).dividedBy(pool.baseQuantity),
+        api.BigNumber(amountAdjusted[1]).times(pool.totalShares).dividedBy(pool.quoteQuantity),
       );
     }
     if (!api.assert(api.BigNumber(newShares).gt(0), 'insufficient liquidity created')) return;
@@ -233,10 +257,10 @@ actions.addLiquidity = async (payload) => {
     }
 
     // deposit requested tokens to contract
-    const baseRes = await api.executeSmartContract('tokens', 'transferToContract', { symbol: baseSymbol, quantity: baseQuantity, to: 'marketpools' });
-    const quoteRes = await api.executeSmartContract('tokens', 'transferToContract', { symbol: quoteSymbol, quantity: quoteQuantity, to: 'marketpools' });
+    const baseRes = await api.executeSmartContract('tokens', 'transferToContract', { symbol: baseSymbol, quantity: amountAdjusted[0], to: 'marketpools' });
+    const quoteRes = await api.executeSmartContract('tokens', 'transferToContract', { symbol: quoteSymbol, quantity: amountAdjusted[1], to: 'marketpools' });
     if (!api.assert(baseRes.errors === undefined && quoteRes.errors === undefined, 'deposit transfer errors')) return;
-    await updatePoolStats(pool, baseQuantity, quoteQuantity, newShares, false);
+    await updatePoolStats(pool, amountAdjusted[0], amountAdjusted[1], newShares, false);
     api.emit('addLiquidity', { baseSymbol, quoteSymbol });
   }
 };
@@ -249,7 +273,8 @@ actions.removeLiquidity = async (payload) => {
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    || !api.assert(sharesOut && api.BigNumber(sharesOut).gt(0) && api.BigNumber(sharesOut).lte(100), 'invalid sharesOut, must be > 0 <= 100')
+    || !api.assert(typeof sharesOut === 'string' && api.BigNumber(sharesOut).gt(0) && api.BigNumber(sharesOut).lte(100)
+      && api.BigNumber(sharesOut).dp() <= 3, 'invalid sharesOut, must be > 0 <= 100')
     || !await validateTokenPair(tokenPair)) {
     return;
   }
@@ -297,10 +322,11 @@ actions.swapTokens = async (payload) => {
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    || !api.assert(typeof (tokenSymbol) === 'string', 'invalid token')
-    || !api.assert(tokenAmount && api.BigNumber(tokenAmount).gt(0), 'insufficient tokenAmount')
-    || !api.assert(maxSlippage && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50), 'maxSlippage must be greater than 0 and less than 50')
-    || !api.assert(typeof (tradeType) === 'string' && TradeType.indexOf(tradeType) !== -1, 'invalid tradeType')
+    || !api.assert(typeof tokenSymbol === 'string', 'invalid token')
+    || !api.assert(typeof tokenAmount === 'string' && api.BigNumber(tokenAmount).gt(0), 'insufficient tokenAmount')
+    || !api.assert(typeof maxSlippage === 'string' && api.BigNumber(maxSlippage).gt(0) && api.BigNumber(maxSlippage).lt(50)
+      && api.BigNumber(maxSlippage).dp() <= 3, 'maxSlippage must be greater than 0 and less than 50')
+    || !api.assert(typeof tradeType === 'string' && TradeType.indexOf(tradeType) !== -1, 'invalid tradeType')
     || !await validateTokenPair(tokenPair)) {
     return;
   }

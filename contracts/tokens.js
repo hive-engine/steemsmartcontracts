@@ -17,6 +17,8 @@ const ACCOUNT_BLACKLIST = {
   'ionomy': 1,
   'mxchive': 1,
   'coinbasebase': 1,
+  'orinoco': 1,
+  'user.dunamu': 1,
 };
 
 const RESERVED_SYMBOLS = {
@@ -87,6 +89,9 @@ actions.createSSC = async () => {
     if (!params.cancelBadUnstakes) {
       await cancelBadUnstakes();
       params.cancelBadUnstakes = true;
+    }
+    if (!params.blacklist) {
+      params.blacklist = ACCOUNT_BLACKLIST;
     }
     await api.db.update('params', params);
   }
@@ -188,13 +193,28 @@ const addBalance = async (account, token, quantity, table) => {
 actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
-  const { tokenCreationFee, enableDelegationFee, enableStakingFee } = payload;
+  const { tokenCreationFee, enableDelegationFee, enableStakingFee, blacklist } = payload;
 
   const params = await api.db.findOne('params', {});
 
-  params.tokenCreationFee = tokenCreationFee;
-  params.enableDelegationFee = enableDelegationFee;
-  params.enableStakingFee = enableStakingFee;
+  if (tokenCreationFee && typeof tokenCreationFee === 'string' && !api.BigNumber(tokenCreationFee).isNaN() && api.BigNumber(tokenCreationFee).gte(0)) {
+    params.tokenCreationFee = tokenCreationFee;
+  }
+  if (enableDelegationFee && typeof enableDelegationFee === 'string' && !api.BigNumber(enableDelegationFee).isNaN() && api.BigNumber(enableDelegationFee).gte(0)) {
+    params.enableDelegationFee = enableDelegationFee;
+  }
+  if (enableStakingFee && typeof enableStakingFee === 'string' && !api.BigNumber(enableStakingFee).isNaN() && api.BigNumber(enableStakingFee).gte(0)) {
+    params.enableStakingFee = enableStakingFee;
+  }
+
+  if (blacklist && typeof blacklist === 'string') {
+    try {
+      params.blacklist = JSON.parse(blacklist);
+    } catch (e) {
+      // don't update if error parsing the blacklist
+      return;
+    }
+  }
 
   await api.db.update('params', params);
 };
@@ -329,6 +349,7 @@ actions.create = async (payload) => {
           && symbol.indexOf('.') === symbol.lastIndexOf('.'))), 'invalid symbol: uppercase letters only and one "." allowed, max length of 10',
     )
       && api.assert(RESERVED_SYMBOLS[symbol] === undefined || api.sender === RESERVED_SYMBOLS[symbol], 'cannot use this symbol')
+      && api.assert(api.sender === api.owner || symbol.indexOf('SWAP') === -1, 'invalid symbol: not allowed to use SWAP')
       && api.assert(api.validator.isAlphanumeric(api.validator.blacklist(name, ' ')) && name.length > 0 && name.length <= 50, 'invalid name: letters, numbers, whitespaces only, max length of 50')
       && api.assert(url === undefined || url.length <= 255, 'invalid url: max length of 255')
       && api.assert((precision >= 0 && precision <= 8) && (Number.isInteger(precision)), 'invalid precision')
@@ -490,8 +511,12 @@ actions.transfer = async (payload) => {
       && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
     const finalTo = to.trim();
     if (api.assert(finalTo !== api.sender, 'cannot transfer to self')) {
+      // get destination blacklist
+      const params = await api.db.findOne('params', {});
+      const { blacklist } = params;
+
       if (api.assert(api.isValidAccountName(finalTo), 'invalid to')
-        && api.assert(ACCOUNT_BLACKLIST[finalTo] === undefined, `not allowed to send to ${finalTo}`)) {
+        && api.assert(blacklist[finalTo] === undefined, `not allowed to send to ${finalTo}`)) {
         const token = await api.db.findOne('tokens', { symbol });
 
         // the symbol must exist

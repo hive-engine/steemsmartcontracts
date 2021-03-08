@@ -175,6 +175,60 @@ actions.createPool = async (payload) => {
   }
 };
 
+actions.createRewardPool = async (payload) => {
+  const {
+    tokenPair, lotteryWinners, lotteryIntervalHours, lotteryAmount, minedToken,
+    isSignedWithActiveKey,
+  } = payload;
+
+  // get contract params
+  const params = await api.db.findOne('params', {});
+  const { poolCreationFee } = params;
+
+  // eslint-disable-next-line no-template-curly-in-string
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
+
+  const authorizedCreation = api.BigNumber(poolCreationFee).lte(0) || api.sender === api.owner
+    ? true
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(poolCreationFee);
+
+  const poolPositions = await api.db.find('liquidityPositions', { tokenPair });
+
+  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
+  && await validateTokenPair(tokenPair)
+  && api.assert(poolPositions && poolPositions.length > 0, 'pool must have liquidity positions')
+  && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
+    const rewardPoolId = `${minedToken}:EXT-${tokenPair.replace(':', '')}`;
+    const result = await api.executeSmartContract('mining', 'createPool', {
+      lotteryWinners,
+      lotteryIntervalHours,
+      lotteryAmount,
+      minedToken,
+      externalMiners: tokenPair,
+    });
+    if (result.errors === undefined) {
+      await api.executeSmartContract('mining', 'setActive', { id: rewardPoolId, active: true });
+      api.emit('createRewardPool', { tokenPair, rewardPoolId });
+    }
+  }
+};
+
+actions.setRewardPoolActive = async (payload) => {
+  const {
+    tokenPair,
+    minedToken,
+    active,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
+    return;
+  }
+  const rewardPoolId = `${minedToken}:EXT-${tokenPair.replace(':', '')}`;
+  const result = await api.executeSmartContract('mining', 'setActive', { id: rewardPoolId, active });
+  if (result.errors === undefined) api.emit('setRewardPoolActive', { rewardPoolId, active });
+};
+
 actions.addLiquidity = async (payload) => {
   const {
     tokenPair,

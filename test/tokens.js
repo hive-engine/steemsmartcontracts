@@ -278,6 +278,117 @@ describe('Tokens smart contract', function () {
       });
   });
 
+  it('updates contract params', (done) => {
+    new Promise(async (resolve) => {
+
+      await loadPlugin(blockchain);
+      database1 = new Database();
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(30896501, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "tokenCreationFee": "123" }'));
+
+      let block = {
+        refHiveBlockNumber: 30896501,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      let res = await database1.findOne({
+        contract: 'tokens',
+        table: 'params',
+        query: {}
+      });
+
+      assert.equal(JSON.stringify(res.blacklist), '{"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"ionomy":1,"mxchive":1,"coinbasebase":1,"orinoco":1,"user.dunamu":1}');
+      assert.equal(res.tokenCreationFee, '123');
+      assert.equal(res.enableDelegationFee, '1000');
+      assert.equal(res.enableStakingFee, '1000');
+
+      transactions = [];
+      transactions.push(new Transaction(30896502, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "enableDelegationFee": "456", "enableStakingFee": "789" }'));
+
+      block = {
+        refHiveBlockNumber: 30896502,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      res = await database1.findOne({
+        contract: 'tokens',
+        table: 'params',
+        query: {}
+      });
+
+      assert.equal(res.tokenCreationFee, '123');
+      assert.equal(res.enableDelegationFee, '456');
+      assert.equal(res.enableStakingFee, '789');
+
+      transactions = [];
+      transactions.push(new Transaction(30896503, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "blacklist": {"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1} }'));
+
+      block = {
+        refHiveBlockNumber: 30896503,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      res = await database1.findOne({
+        contract: 'tokens',
+        table: 'params',
+        query: {}
+      });
+
+      assert.equal(JSON.stringify(res.blacklist), '{"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1}');
+
+      transactions = [];
+      transactions.push(new Transaction(30896504, 'TXID1239', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "blacklist": {"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1,"blahblah":1,"yoohoouser":1} }'));
+
+      block = {
+        refHiveBlockNumber: 30896504,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      res = await database1.findOne({
+        contract: 'tokens',
+        table: 'params',
+        query: {}
+      });
+
+      console.log(res);
+      assert.equal(JSON.stringify(res.blacklist), '{"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1,"blahblah":1,"yoohoouser":1}');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('updates the url of a token', (done) => {
     new Promise(async (resolve) => {
       

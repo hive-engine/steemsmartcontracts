@@ -206,14 +206,8 @@ actions.updateParams = async (payload) => {
   if (enableStakingFee && typeof enableStakingFee === 'string' && !api.BigNumber(enableStakingFee).isNaN() && api.BigNumber(enableStakingFee).gte(0)) {
     params.enableStakingFee = enableStakingFee;
   }
-
-  if (blacklist && typeof blacklist === 'string') {
-    try {
-      params.blacklist = JSON.parse(blacklist);
-    } catch (e) {
-      // don't update if error parsing the blacklist
-      return;
-    }
+  if (blacklist && typeof blacklist === 'object') {
+    params.blacklist = blacklist;
   }
 
   await api.db.update('params', params);

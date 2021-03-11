@@ -193,7 +193,9 @@ const addBalance = async (account, token, quantity, table) => {
 actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
-  const { tokenCreationFee, enableDelegationFee, enableStakingFee, blacklist } = payload;
+  const {
+    tokenCreationFee, enableDelegationFee, enableStakingFee, blacklist,
+  } = payload;
 
   const params = await api.db.findOne('params', {});
 

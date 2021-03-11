@@ -164,7 +164,7 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "tokenCreationFee": "0" }'));
       transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "MY.TKN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
+      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "SWAP.KOIN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -198,13 +198,13 @@ describe('Tokens smart contract', function () {
         contract: 'tokens',
         table: 'tokens',
         query: {
-          symbol: 'MY.TKN'
+          symbol: 'SWAP.KOIN'
         }
       });
 
     token = res;
 
-    assert.equal(token.symbol, 'MY.TKN');
+    assert.equal(token.symbol, 'SWAP.KOIN');
     assert.equal(token.issuer, CONSTANTS.HIVE_ENGINE_ACCOUNT);
     assert.equal(token.name, 'token');
     assert.equal(JSON.parse(token.metadata).url, 'https://token.com');
@@ -241,6 +241,7 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678901, 'TXID12348', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": ".TKN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12349', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "TKN.", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12350', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "TN.THJ.HDG", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12351', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "SWAP.KOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -257,6 +258,19 @@ describe('Tokens smart contract', function () {
       const block1 = res;
       const transactionsBlock1 = block1.transactions;
 
+      console.log(JSON.parse(transactionsBlock1[2].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[3].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[4].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[5].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[6].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[7].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[8].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[9].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[10].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[11].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[12].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[13].logs).errors[0]);
+
       assert.equal(JSON.parse(transactionsBlock1[2].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[3].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[4].logs).errors[0], 'invalid precision');
@@ -268,6 +282,7 @@ describe('Tokens smart contract', function () {
       assert.equal(JSON.parse(transactionsBlock1[10].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
+      assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'invalid symbol: not allowed to use SWAP');
 
       resolve();
     })
@@ -966,6 +981,7 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678901, 'TXID123612', 'satoshi', 'tokens', 'transfer', '{ "symbol": "TKN.TEST", "quantity": "-1", "to": "vitalik", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID123613', 'vitalik', 'tokens', 'transfer', '{ "symbol": "TKN.TEST", "quantity": "101", "to": "satoshi", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID123614', 'satoshi', 'tokens', 'transfer', '{ "symbol": "TKN.TEST", "quantity": "101", "to": "vitalik", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID123615', 'satoshi', 'tokens', 'transfer', '{ "symbol": "TKN.TEST", "quantity": "100", "to": "binance-hot", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -982,6 +998,16 @@ describe('Tokens smart contract', function () {
       const block1 = res;
       const transactionsBlock1 = block1.transactions;
 
+      console.log(JSON.parse(transactionsBlock1[4].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[5].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[6].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[7].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[8].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[9].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[10].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[11].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[12].logs).errors[0]);
+
       assert.equal(JSON.parse(transactionsBlock1[4].logs).errors[0], 'you must use a custom_json signed with your active key');
       assert.equal(JSON.parse(transactionsBlock1[5].logs).errors[0], 'cannot transfer to self');
       assert.equal(JSON.parse(transactionsBlock1[6].logs).errors[0], 'invalid to');
@@ -990,6 +1016,7 @@ describe('Tokens smart contract', function () {
       assert.equal(JSON.parse(transactionsBlock1[9].logs).errors[0], 'must transfer positive quantity');
       assert.equal(JSON.parse(transactionsBlock1[10].logs).errors[0], 'balance does not exist');
       assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], 'overdrawn balance');
+      assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'not allowed to send to binance-hot');
 
       resolve();
     })

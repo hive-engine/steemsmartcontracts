@@ -145,6 +145,11 @@ class Block {
         .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
     }
 
+    if (this.refHiveBlockNumber >= 52500000) {
+      virtualTransactions
+        .push(new Transaction(0, '', 'null', 'dao', 'checkPendingProposals', ''));
+    }
+
     if (this.refHiveBlockNumber % 1200 === 0) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'inflation', 'issueNewTokens', '{ "isSignedWithActiveKey": true }'));
     }

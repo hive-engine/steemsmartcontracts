@@ -199,14 +199,15 @@ actions.createRewardPool = async (payload) => {
   && api.assert(poolPositions && poolPositions.length > 0, 'pool must have liquidity positions')
   && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     const rewardPoolId = `${minedToken}:EXT-${tokenPair.replace(':', '')}`;
-    const result = await api.executeSmartContract('mining', 'createPool', {
+    const res = await api.executeSmartContract('mining', 'createPool', {
       lotteryWinners,
       lotteryIntervalHours,
       lotteryAmount,
       minedToken,
       externalMiners: tokenPair,
     });
-    if (result.errors === undefined) {
+    if (res.errors === undefined
+      && res.events && res.events.find(el => el.contract === 'mining' && el.event === 'createPool') !== undefined) {
       await api.executeSmartContract('mining', 'setActive', { id: rewardPoolId, active: true });
       api.emit('createRewardPool', { tokenPair, rewardPoolId });
     }
@@ -221,9 +222,9 @@ actions.setRewardPoolActive = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
-    return;
-  }
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    || !await validateTokenPair(tokenPair)) return;
+
   const rewardPoolId = `${minedToken}:EXT-${tokenPair.replace(':', '')}`;
   const result = await api.executeSmartContract('mining', 'setActive', { id: rewardPoolId, active });
   if (result.errors === undefined) api.emit('setRewardPoolActive', { rewardPoolId, active });

@@ -615,7 +615,10 @@ actions.createPool = async (payload) => {
   const params = await api.db.findOne('params', {});
   const { poolCreationFee } = params;
 
-  if (typeof externalMiners === 'string' && !api.assert(callingContractInfo, 'must be called from a contract')) return;
+  if (externalMiners) {
+    if (!api.assert(typeof externalMiners === 'string', 'externalMiners must be a string')
+    || !api.assert(callingContractInfo, 'must be called from a contract')) return;
+  }
 
   // get api.sender's UTILITY_TOKEN_SYMBOL balance
   // eslint-disable-next-line no-template-curly-in-string
@@ -701,7 +704,7 @@ async function runLottery(pool, params) {
   const minedToken = await api.db.findOneInTable('tokens', 'tokens',
     { symbol: pool.minedToken });
   const winningAmount = api.BigNumber(pool.lotteryAmount).dividedBy(pool.lotteryWinners)
-    .toFixed(minedToken.precision);
+    .toFixed(minedToken.precision, api.BigNumber.ROUND_HALF_UP);
   for (let i = 0; i < pool.lotteryWinners; i += 1) {
     winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
   }
@@ -718,7 +721,10 @@ async function runLottery(pool, params) {
         offset,
         [{ index: 'power', descending: true }, { index: '_id', descending: false }]);
     } else if (pool.externalContract === 'marketpools') {
-      miningPowers = await api.db.findInTable('marketpools', 'liquidityPositions', { tokenPair: pool.externalMiners });
+      miningPowers = await api.db.findInTable('marketpools', 'liquidityPositions', { tokenPair: pool.externalMiners },
+        params.processQueryLimit,
+        offset,
+        [{ index: '_id', descending: false }]);
       // eslint-disable-next-line no-loop-func
       const totalShares = miningPowers.reduce((acc, val) => api.BigNumber(acc).plus(val.shares), 0);
       winningNumbers.length = 0;
@@ -727,7 +733,8 @@ async function runLottery(pool, params) {
       }
       for (let i = 0; i < miningPowers.length; i += 1) {
         miningPowers[i].power = {
-          $numberDecimal: api.BigNumber(miningPowers[i].shares).toFixed(minedToken.precision),
+          $numberDecimal: api.BigNumber(miningPowers[i].shares)
+            .toFixed(minedToken.precision, api.BigNumber.ROUND_HALF_UP),
         };
       }
     }

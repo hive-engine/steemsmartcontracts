@@ -21,6 +21,15 @@ const ACCOUNT_BLACKLIST = {
   'user.dunamu': 1,
 };
 
+// these accounts are allowed to create SWAP.xxx tokens
+const HE_ACCOUNTS = {
+  'hive-engine': 1,
+  'swap-eth': 1,
+  'btc-swap': 1,
+  'graphene-swap': 1,
+  'honey-swap': 1,
+};
+
 const RESERVED_SYMBOLS = {
   ENG: 'null',
   STEEMP: 'steem-peg',
@@ -59,15 +68,6 @@ const findAndProcessAll = async (table, query, callback) => {
   }
 };
 
-const cancelBadUnstakes = async () => {
-  await findAndProcessAll('pendingUnstakes', { _id: { $lte: 14508, $gte: 13736 }, 'numberTransactionsLeft': { $gt: 1 } }, async (pendingUnstake) => {
-    // eslint-disable-next-line no-use-before-define
-    if (await processCancelUnstake(pendingUnstake)) {
-      await api.db.remove('pendingUnstakes', pendingUnstake);
-    }
-  });
-};
-
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('tokens');
   if (tableExists === false) {
@@ -86,14 +86,22 @@ actions.createSSC = async () => {
     await api.db.insert('params', params);
   } else {
     const params = await api.db.findOne('params', {});
-    if (!params.cancelBadUnstakes) {
-      await cancelBadUnstakes();
-      params.cancelBadUnstakes = true;
-    }
     if (!params.blacklist) {
       params.blacklist = ACCOUNT_BLACKLIST;
+      params.heAccounts = HE_ACCOUNTS;
+
+      const unsets = {};
+      if (params.fixMultiTxUnstakeBalance) {
+        delete params.fixMultiTxUnstakeBalance;
+        unsets.fixMultiTxUnstakeBalance = '';
+      }
+      if (params.cancelBadUnstakes) {
+        delete params.cancelBadUnstakes;
+        unsets.cancelBadUnstakes = '';
+      }
+
+      await api.db.update('params', params, unsets);
     }
-    await api.db.update('params', params);
   }
 };
 
@@ -194,7 +202,7 @@ actions.updateParams = async (payload) => {
   if (api.sender !== api.owner) return;
 
   const {
-    tokenCreationFee, enableDelegationFee, enableStakingFee, blacklist,
+    tokenCreationFee, enableDelegationFee, enableStakingFee, blacklist, heAccounts,
   } = payload;
 
   const params = await api.db.findOne('params', {});
@@ -210,6 +218,9 @@ actions.updateParams = async (payload) => {
   }
   if (blacklist && typeof blacklist === 'object') {
     params.blacklist = blacklist;
+  }
+  if (heAccounts && typeof heAccounts === 'object') {
+    params.heAccounts = heAccounts;
   }
 
   await api.db.update('params', params);
@@ -315,7 +326,7 @@ actions.create = async (payload) => {
 
   // get contract params
   const params = await api.db.findOne('params', {});
-  const { tokenCreationFee } = params;
+  const { tokenCreationFee, heAccounts } = params;
 
   // get api.sender's UTILITY_TOKEN_SYMBOL balance
   // eslint-disable-next-line no-template-curly-in-string
@@ -345,7 +356,7 @@ actions.create = async (payload) => {
           && symbol.indexOf('.') === symbol.lastIndexOf('.'))), 'invalid symbol: uppercase letters only and one "." allowed, max length of 10',
     )
       && api.assert(RESERVED_SYMBOLS[symbol] === undefined || api.sender === RESERVED_SYMBOLS[symbol], 'cannot use this symbol')
-      && api.assert(api.sender === api.owner || symbol.indexOf('SWAP') === -1, 'invalid symbol: not allowed to use SWAP')
+      && api.assert(heAccounts[api.sender] === 1 || symbol.indexOf('SWAP') === -1, 'invalid symbol: not allowed to use SWAP')
       && api.assert(api.validator.isAlphanumeric(api.validator.blacklist(name, ' ')) && name.length > 0 && name.length <= 50, 'invalid name: letters, numbers, whitespaces only, max length of 50')
       && api.assert(url === undefined || url.length <= 255, 'invalid url: max length of 255')
       && api.assert((precision >= 0 && precision <= 8) && (Number.isInteger(precision)), 'invalid precision')

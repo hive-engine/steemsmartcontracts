@@ -9,7 +9,7 @@ const PayoutType = ['user', 'contract'];
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('daos');
   if (tableExists === false) {
-    await api.db.createTable('daos', ['id', 'baseToken']);
+    await api.db.createTable('daos', ['id', 'payToken']);
     await api.db.createTable('proposals', ['daoId', 'approvalWeight']);
     await api.db.createTable('approvals', ['from', 'to']);
     await api.db.createTable('accounts', ['account']);
@@ -42,7 +42,7 @@ actions.updateParams = async (payload) => {
 // validate max supply
 
 function generateDaoId(dao) {
-  return `${dao.baseToken.replace('.', '-')}:${dao.voteToken.replace('.', '-')}`;
+  return `${dao.payToken.replace('.', '-')}:${dao.voteToken.replace('.', '-')}`;
 }
 
 async function updateProposalWeight(id, token, approvalWeight) {
@@ -53,16 +53,25 @@ async function updateProposalWeight(id, token, approvalWeight) {
   }
 }
 
-async function validateTokens(baseTokenObj, voteTokenObj) {
-  if (!api.assert(baseTokenObj && (baseTokenObj.issuer === api.sender
+async function validateTokens(payTokenObj, voteTokenObj) {
+  if (!api.assert(payTokenObj && (payTokenObj.issuer === api.sender
     // eslint-disable-next-line no-template-curly-in-string
-    || (baseTokenObj.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of baseToken')) return false;
+    || (payTokenObj.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of payToken')) return false;
   if (!api.assert(voteTokenObj && voteTokenObj.stakingEnabled, 'voteToken must have staking enabled')) return false;
   return true;
 }
 
 function validateDateTime(str) {
-  return /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/.test(str);
+  // RegExp /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/
+  if (str.length === 24) {
+    for (let i = 0; i < str.length; i += 1) {
+      if ([5, 8, 11, 14, 17, 21].indexOf(i) !== 1) break;
+      const code = str.charCodeAt(i);
+      if (!(code > 47 && code < 58)) return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 function validateDateRange(startDate, endDate, maxDays) {
@@ -70,18 +79,17 @@ function validateDateRange(startDate, endDate, maxDays) {
   const now = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const start = new Date(startDate);
   const end = new Date(endDate);
-  if (!api.assert(start > end, 'start date greater than end date')) return false;
-  if (!api.assert(api.BigNumber(start.getTime()).lt(api.BigNumber(now.getTime()).plus(86400 * 1000))
-    || api.BigNumber(end.getTime()).lt(api.BigNumber(now.getTime()).plus(86400 * 1000)), 'dates must be at least 1 day in the future')) return false;
+  if (!api.assert(api.BigNumber(start.getTime()).lt(api.BigNumber(end.getTime()).minus(86400 * 1000)), 'dates must be at least 1 day apart')
+    || !api.assert(api.BigNumber(start.getTime()).gt(api.BigNumber(now.getTime()).plus(86400 * 1000)), 'startDate must be at least 1 day in the future')) return false;
   const range = api.BigNumber(start.getTime()).minus(end.getTime()).abs();
   const rangeDays = range.dividedBy(1000 * 60 * 60 * 24).toFixed(0, api.BigNumber.ROUND_CEIL);
-  if (!api.assert(rangeDays.lte(maxDays), 'date range exceeds DAO maxDays')) return false;
+  if (!api.assert(api.BigNumber(rangeDays).lte(maxDays), 'date range exceeds DAO maxDays')) return false;
   return true;
 }
 
 actions.createDao = async (payload) => {
   const {
-    baseToken, voteToken, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
+    payToken, voteToken, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
@@ -108,14 +116,14 @@ actions.createDao = async (payload) => {
       const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: proposalFee.symbol });
       if (!api.assert(feeTokenObj && api.BigNumber(proposalFee.amount).dp() <= feeTokenObj.precision, 'invalid proposalFee token or precision')) return;
     }
-    const baseTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseToken });
+    const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: payToken });
     const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: voteToken });
-    if (!await validateTokens(baseTokenObj, voteTokenObj)
-      || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= baseTokenObj.precision, 'maxAmountPerDay precision mismatch')
+    if (!await validateTokens(payTokenObj, voteTokenObj)
+      || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
       || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
 
     const newDao = {
-      baseToken,
+      payToken,
       voteToken,
       voteThreshold,
       maxDays,
@@ -125,6 +133,9 @@ actions.createDao = async (payload) => {
       creator: api.sender,
     };
     newDao.id = generateDaoId(newDao);
+    const existingDao = await api.db.findOne('daos', { id: newDao.id });
+    if (!api.assert(!existingDao, 'DAO already exists')) return;
+
     const insertedDao = await api.db.insert('daos', newDao);
 
     // burn the token creation fees
@@ -140,7 +151,7 @@ actions.createDao = async (payload) => {
 
 actions.setDaoActive = async (payload) => {
   const {
-    id,
+    daoId,
     active,
     isSignedWithActiveKey,
   } = payload;
@@ -148,11 +159,12 @@ actions.setDaoActive = async (payload) => {
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     return;
   }
-  const dao = await api.db.findOne('daos', { id });
+  const dao = await api.db.findOne('daos', { id: daoId });
   if (api.assert(dao, 'DAO does not exist')
     && api.assert(dao.creator === api.sender || api.owner === api.sender, 'must be DAO creator')) {
     dao.active = !!active;
     await api.db.update('daos', dao);
+    api.emit('setDaoActive', { id: dao.id, active: dao.active });
   }
 };
 
@@ -177,7 +189,7 @@ actions.createProposal = async (payload) => {
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     && api.assert(dao.active === true, 'DAO is not active')
     && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
-    && api.assert(typeof authorperm === 'string', 'invalid authorperm')
+    && api.assert(typeof authorperm === 'string' && authorperm.length > 0 && authorperm.length <= 255, 'invalid authorperm: between 1 and 255 characters')
     && api.assert(typeof amountPerDay === 'string'
       && api.BigNumber(amountPerDay).isInteger()
       && api.BigNumber(amountPerDay).gt(0), 'invalid amountPerDay: greater than 0')
@@ -210,6 +222,100 @@ actions.createProposal = async (payload) => {
       }
     }
     api.emit('createProposal', { id: insertedProposal._id });
+  }
+};
+
+actions.approveProposal = async (payload) => {
+  const { proposalId } = payload;
+
+  if (api.assert(typeof proposalId === 'string' && api.BigNumber(proposalId).isInteger(), 'invalid proposalId')) {
+    const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(proposalId).toNumber() });
+
+    if (api.assert(proposal, 'proposal does not exist')) {
+      const dao = await api.db.findOne('daos', { id: proposal.daoId });
+      const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.voteToken });
+      let acct = await api.db.findOne('accounts', { account: api.sender });
+      if (acct === null) {
+        acct = {
+          account: api.sender,
+          weights: [],
+        };
+        acct = await api.db.insert('accounts', acct);
+      }
+
+      let approval = await api.db.findOne('approvals', { from: api.sender, to: proposal._id });
+      if (api.assert(approval === null, 'you already approved this proposal')) {
+        approval = {
+          from: api.sender,
+          to: proposal._id,
+        };
+        await api.db.insert('approvals', approval);
+
+        const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dao.voteToken });
+        let approvalWeight = 0;
+        if (balance && balance.stake) {
+          approvalWeight = balance.stake;
+        }
+        if (balance && balance.delegationsIn) {
+          approvalWeight = api.BigNumber(approvalWeight)
+            .plus(balance.delegationsIn)
+            .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
+        }
+        const wIndex = acct.weights.findIndex(x => x.symbol === dao.voteToken);
+        if (wIndex !== -1) {
+          acct.weights[wIndex].weight = approvalWeight;
+        } else {
+          acct.weights.push({ symbol: dao.voteToken, weight: approvalWeight });
+        }
+        await api.db.update('accounts', acct);
+        await updateProposalWeight(proposal._id, voteTokenObj, approvalWeight);
+      }
+    }
+  }
+};
+
+actions.disapproveProposal = async (payload) => {
+  const { proposalId } = payload;
+
+  if (api.assert(typeof proposalId === 'string' && api.BigNumber(proposalId).isInteger(), 'invalid proposalId')) {
+    const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(proposalId).toNumber() });
+    if (api.assert(proposal, 'proposal does not exist')) {
+      const dao = await api.db.findOne('daos', { id: proposal.daoId });
+      const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.voteToken });
+      let acct = await api.db.findOne('accounts', { account: api.sender });
+      if (acct === null) {
+        acct = {
+          account: api.sender,
+          weights: [],
+        };
+        acct = await api.db.insert('accounts', acct);
+      }
+
+      const approval = await api.db.findOne('approvals', { from: api.sender, to: proposal._id });
+      if (api.assert(approval !== null, 'you have not approved this proposal')) {
+        await api.db.remove('approvals', approval);
+
+        const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dao.voteToken });
+        let approvalWeight = 0;
+        if (balance && balance.stake) {
+          approvalWeight = balance.stake;
+        }
+        if (balance && balance.delegationsIn) {
+          approvalWeight = api.BigNumber(approvalWeight)
+            .plus(balance.delegationsIn)
+            .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
+        }
+        const wIndex = acct.weights.findIndex(x => x.symbol === dao.voteToken);
+        const deltaApprovalWeight = api.BigNumber(approvalWeight).negated().toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
+        if (wIndex !== -1) {
+          acct.weights[wIndex].weight = deltaApprovalWeight;
+        } else {
+          acct.weights.push({ symbol: dao.voteToken, weight: deltaApprovalWeight });
+        }
+        await api.db.update('accounts', acct);
+        await updateProposalWeight(proposal._id, voteTokenObj, api.BigNumber(approvalWeight).negated());
+      }
+    }
   }
 };
 
@@ -258,17 +364,17 @@ actions.updateProposalApprovals = async (payload) => {
 async function runDao(dao, params) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const funded = [];
-  const baseTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.baseToken });
+  const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.payToken });
 
   api.emit('daoProposals', { daoId: dao.id, funded });
   for (let i = 0; i < funded.length; i += 1) {
     const fund = funded[i];
     if (fund.payout.type === 'user') {
       await api.executeSmartContract('tokens', 'issue',
-        { to: fund.payout.name, symbol: baseTokenObj.symbol, quantity: 1 });
+        { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: 1 });
     } else if (fund.payout.type === 'contract') {
       await api.executeSmartContract('tokens', 'issueToContract',
-        { to: fund.payout.name, symbol: baseTokenObj.symbol, quantity: 1 });
+        { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: 1 });
     }
   }
   // eslint-disable-next-line no-param-reassign

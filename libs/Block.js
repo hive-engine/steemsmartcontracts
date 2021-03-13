@@ -190,6 +190,10 @@ class Block {
           && transaction.action === 'checkPendingAirdrops'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
+        } else if (transaction.contract === 'dao'
+          && transaction.action === 'checkPendingProposals'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
           if (mainBlock && currentDatabaseHash

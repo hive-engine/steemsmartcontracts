@@ -12,12 +12,13 @@ actions.createSSC = async () => {
     await api.db.createTable('params');
 
     const params = {};
+    // fee required to set up an auction
     params.creationFee = '1';
     // percent a bid needs to increase to take the lead
     params.minBidIncrement = 5;
     // time remaining in the auction settling when cancel action is locked
     params.cancelLockTime = 60000; // 5 mins
-    // time after the lastBid it takes to settle the auction
+    // time after the currentLead bid it takes to settle the auction
     params.expiryTime = 86400000; // 24 hours
     // max time an auction can run
     params.maxExpiryTime = 2592000000; // 30 days
@@ -109,7 +110,7 @@ actions.create = async (payload) => {
       && priceSymbol && typeof priceSymbol === 'string'
       && expiry && typeof expiry === 'string', 'invalid params')
     && api.assert(nfts.length <= MAX_NUM_UNITS_OPERABLE, `cannot process more than ${MAX_NUM_UNITS_OPERABLE} NFT instances at once`)
-    && api.assert(nft, `NFT symbol does not exist`)) {
+    && api.assert(nft, 'NFT symbol does not exist')) {
     // get the price token params
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
     const params = await api.db.findOne('params', {});
@@ -120,61 +121,59 @@ actions.create = async (payload) => {
     const maxExpiryTimestamp = api.BigNumber(timestamp)
       .plus(params.maxExpiryTime).toNumber();
 
-    if (api.assert(token
+    if (api.assert(token, 'priceSymbol does not exist')
       // minBid checks
-        && api.BigNumber(minBid).gt(0)
+      && api.assert(api.BigNumber(minBid).gt(0)
         && countDecimals(minBid) <= token.precision, 'invalid minBid')
       // finalPrice checks
       && api.assert(api.BigNumber(finalPrice).gt(0)
         && countDecimals(finalPrice) <= token.precision, 'invalid finalPrice')
       // expiry checks
       && api.assert(expiryTimestamp && expiryTimestamp > timestamp, 'invalid expiry')
-        && api.assert(expiryTimestamp <= maxExpiryTimestamp, 'expiry exceeds limit')) {
+      && api.assert(expiryTimestamp <= maxExpiryTimestamp, 'expiry exceeds limit')) {
       const utilityToken = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
 
       if (api.assert(utilityToken && utilityToken.balance
         && api.BigNumber(utilityToken.balance).gte(params.creationFee), 'you must have enough tokens to cover the creation fee')) {
-        const feeTransfer = await api.executeSmartContract('tokens', 'transfer', {
-          to: 'null', symbol: UTILITY_TOKEN_SYMBOL, quantity: params.creationFee, isSignedWithActiveKey,
+        // lock the NFTs to sell by moving them to this contract for safekeeping
+        const wrappedNfts = {
+          symbol,
+          ids: nfts,
+        };
+        const nftTransfer = await api.executeSmartContract('nft', 'transfer', {
+          fromType: 'user',
+          to: CONTRACT_NAME,
+          toType: 'contract',
+          nfts: [wrappedNfts],
+          isSignedWithActiveKey,
         });
 
-        if (transferIsSuccessful(feeTransfer, 'transfer', api.sender, 'null', UTILITY_TOKEN_SYMBOL, params.creationFee)) {
-          // lock the NFTs to sell by moving them to this contract for safekeeping
-          const nftArray = [];
-          const wrappedNfts = {
-            symbol,
-            ids: nfts,
-          };
-          nftArray.push(wrappedNfts);
-          const res = await api.executeSmartContract('nft', 'transfer', {
-            fromType: 'user',
-            to: CONTRACT_NAME,
-            toType: 'contract',
-            nfts: nftArray,
-            isSignedWithActiveKey,
-          });
+        // only add nfts in the auction which transfered successfully
+        if (api.assert(nftTransfer.events, 'failed to trasfer NFTs to the contract')) {
+          const nftIds = [];
 
-          // only add nfts in the auction which transfered successfully
-          if (res.events) {
-            const nftIds = [];
-
-            for (let i = 0; i < res.events.length; i += 1) {
-              const ev = res.events[i];
-              if (ev.contract && ev.event && ev.data
-                && ev.contract === 'nft'
-                && ev.event === 'transfer'
-                && ev.data.from === api.sender
-                && ev.data.fromType === 'u'
-                && ev.data.to === CONTRACT_NAME
-                && ev.data.toType === 'c'
-                && ev.data.symbol === symbol) {
-                // transfer is verified
-                const instanceId = ev.data.id;
-                nftIds.push(instanceId);
-              }
+          for (let i = 0; i < nftTransfer.events.length; i += 1) {
+            const ev = nftTransfer.events[i];
+            if (ev.contract && ev.event && ev.data
+              && ev.contract === 'nft'
+              && ev.event === 'transfer'
+              && ev.data.from === api.sender
+              && ev.data.fromType === 'u'
+              && ev.data.to === CONTRACT_NAME
+              && ev.data.toType === 'c'
+              && ev.data.symbol === symbol) {
+              // transfer is verified
+              const instanceId = ev.data.id;
+              nftIds.push(instanceId);
             }
+          }
 
-            if (nftIds.length > 0) {
+          if (nftIds.length > 0) {
+            const feeTransfer = await api.executeSmartContract('tokens', 'transfer', {
+              to: 'null', symbol: UTILITY_TOKEN_SYMBOL, quantity: params.creationFee, isSignedWithActiveKey,
+            });
+
+            if (transferIsSuccessful(feeTransfer, 'transfer', api.sender, 'null', UTILITY_TOKEN_SYMBOL, params.creationFee)) {
               // create an auction
               const auction = {
                 auctionId: api.transactionId,
@@ -185,15 +184,22 @@ actions.create = async (payload) => {
                 expiryTimestamp,
                 bids: [],
                 currentLead: null,
-              }
+              };
 
               const res = await api.db.insert('auctions', auction);
 
               api.emit('create', { auctionId: res.auctionId });
+            } else {
+              // if fee transfer somehow fails, return the transfered NFTs
+              wrappedNfts.ids = nftIds;
+              await api.executeSmartContract('nft', 'transfer', {
+                fromType: 'contract',
+                to: api.sender,
+                toType: 'user',
+                nfts: [wrappedNfts],
+                isSignedWithActiveKey,
+              });
             }
-          } else {
-            // if no NFT was successfully transfered, refund the fee
-            await api.transferTokens(api.sender, UTILITY_TOKEN_SYMBOL, params.creationFee, 'user');
           }
         }
       }

@@ -1,6 +1,5 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable quote-props */
-/* eslint-disable max-len */
 /* global actions, api */
 
 // transfers to these accounts are blocked
@@ -87,30 +86,9 @@ actions.createSSC = async () => {
     await api.db.insert('params', params);
   } else {
     const params = await api.db.findOne('params', {});
-    if (!params.blacklist) {
-      params.blacklist = ACCOUNT_BLACKLIST;
-      params.heAccounts = HE_ACCOUNTS;
-
-      // clean up unused settings
-      const unsets = {};
-      let useUnsets = false;
-      if (params.fixMultiTxUnstakeBalance) {
-        delete params.fixMultiTxUnstakeBalance;
-        unsets.fixMultiTxUnstakeBalance = '';
-        useUnsets = true;
-      }
-      if (params.cancelBadUnstakes) {
-        delete params.cancelBadUnstakes;
-        unsets.cancelBadUnstakes = '';
-        useUnsets = true;
-      }
-
-      if (useUnsets) {
-        await api.db.update('params', params, unsets);
-      } else {
-        await api.db.update('params', params);
-      }
-    }
+    params.fixMultiTxUnstakeBalance = true;
+    params.cancelBadUnstakes = true;
+    await api.db.update('params', params);
   }
 };
 

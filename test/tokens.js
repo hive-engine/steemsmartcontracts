@@ -96,6 +96,7 @@ const unloadPlugin = (plugin) => {
   currentJobId = 0;
 }
 
+const dummyParamsContractPayload = setupContractPayload('tokens', './contracts/testing/tokens_unused_params.js');
 const contractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 
 async function assertNoErrorInLastBlock() {
@@ -162,9 +163,14 @@ describe('Tokens smart contract', function () {
 
       let transactions = [];
       transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "tokenCreationFee": "0" }'));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
-      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "SWAP.KOIN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
+      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "tokenCreationFee": "200" }'));
+      transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "200", "isSignedWithActiveKey": true }`));
+
+      // should have to pay 200 BEE creation fee
+      transactions.push(new Transaction(12345678901, 'TXID1236', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
+
+      // should not pay any creation fee because swap-eth is on the list of Hive Engine owned accounts
+      transactions.push(new Transaction(12345678901, 'TXID1237', 'swap-eth', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "SWAP.KOIN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -187,8 +193,9 @@ describe('Tokens smart contract', function () {
 
       let token = res;
 
+      console.log(token);
       assert.equal(token.symbol, 'TKN.TEST');
-      assert.equal(token.issuer, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+      assert.equal(token.issuer, 'harpagon');
       assert.equal(token.name, 'token');
       assert.equal(JSON.parse(token.metadata).url, 'https://token.com');
       assert.equal(token.maxSupply, 1000);
@@ -202,14 +209,30 @@ describe('Tokens smart contract', function () {
         }
       });
 
-    token = res;
+      token = res;
 
-    assert.equal(token.symbol, 'SWAP.KOIN');
-    assert.equal(token.issuer, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-    assert.equal(token.name, 'token');
-    assert.equal(JSON.parse(token.metadata).url, 'https://token.com');
-    assert.equal(token.maxSupply, 1000);
-    assert.equal(token.supply, 0);
+      console.log(token);
+      assert.equal(token.symbol, 'SWAP.KOIN');
+      assert.equal(token.issuer, 'swap-eth');
+      assert.equal(token.name, 'token');
+      assert.equal(JSON.parse(token.metadata).url, 'https://token.com');
+      assert.equal(token.maxSupply, 1000);
+      assert.equal(token.supply, 0);
+
+      res = await database1.find({
+        contract: 'tokens',
+        table: 'balances',
+        query: { "account": { "$in" : ["harpagon","swap-eth","null"] }}
+      });
+
+      console.log(res);
+      assert.equal(res[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+      assert.equal(res[0].balance, '0.00000000');
+      assert.equal(res[0].account, 'harpagon');
+      assert.equal(res[1].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
+      assert.equal(res[1].balance, '200.00000000');
+      assert.equal(res[1].account, 'null');
+      assert.equal(res.length, 2);
 
       resolve();
     })
@@ -229,7 +252,9 @@ describe('Tokens smart contract', function () {
 
       let transactions = [];
       transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, 'TXID1233A', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "tokenCreationFee": "100" }'));
+      transactions.push(new Transaction(12345678901, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "99", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, 'TXID1234A', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "cryptomancer", "quantity": "100", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, 'TXID12341', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "T-KN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12342', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKNNNNNNNNN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12343', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN.TEST", "precision": 3.3, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
@@ -241,7 +266,8 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678901, 'TXID12348', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": ".TKN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12349', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "TKN.", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12350', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "TN.THJ.HDG", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID12351', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "SWAP.KOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12351', 'cryptomancer', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "SWAP.KOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12352', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "MYKOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -258,8 +284,6 @@ describe('Tokens smart contract', function () {
       const block1 = res;
       const transactionsBlock1 = block1.transactions;
 
-      console.log(JSON.parse(transactionsBlock1[2].logs).errors[0]);
-      console.log(JSON.parse(transactionsBlock1[3].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock1[4].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock1[5].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock1[6].logs).errors[0]);
@@ -270,19 +294,23 @@ describe('Tokens smart contract', function () {
       console.log(JSON.parse(transactionsBlock1[11].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock1[12].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock1[13].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[14].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[15].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[16].logs).errors[0]);
 
-      assert.equal(JSON.parse(transactionsBlock1[2].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
-      assert.equal(JSON.parse(transactionsBlock1[3].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
-      assert.equal(JSON.parse(transactionsBlock1[4].logs).errors[0], 'invalid precision');
-      assert.equal(JSON.parse(transactionsBlock1[5].logs).errors[0], 'invalid precision');
+      assert.equal(JSON.parse(transactionsBlock1[4].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
+      assert.equal(JSON.parse(transactionsBlock1[5].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[6].logs).errors[0], 'invalid precision');
-      assert.equal(JSON.parse(transactionsBlock1[7].logs).errors[0], 'maxSupply must be positive');
-      assert.equal(JSON.parse(transactionsBlock1[8].logs).errors[0], 'invalid name: letters, numbers, whitespaces only, max length of 50');
-      assert.equal(JSON.parse(transactionsBlock1[9].logs).errors[0], 'invalid name: letters, numbers, whitespaces only, max length of 50');
-      assert.equal(JSON.parse(transactionsBlock1[10].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
-      assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
+      assert.equal(JSON.parse(transactionsBlock1[7].logs).errors[0], 'invalid precision');
+      assert.equal(JSON.parse(transactionsBlock1[8].logs).errors[0], 'invalid precision');
+      assert.equal(JSON.parse(transactionsBlock1[9].logs).errors[0], 'maxSupply must be positive');
+      assert.equal(JSON.parse(transactionsBlock1[10].logs).errors[0], 'invalid name: letters, numbers, whitespaces only, max length of 50');
+      assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], 'invalid name: letters, numbers, whitespaces only, max length of 50');
       assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
-      assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'invalid symbol: not allowed to use SWAP');
+      assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
+      assert.equal(JSON.parse(transactionsBlock1[14].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
+      assert.equal(JSON.parse(transactionsBlock1[15].logs).errors[0], 'invalid symbol: not allowed to use SWAP');
+      assert.equal(JSON.parse(transactionsBlock1[16].logs).errors[0], 'you must have enough tokens to cover the creation fees');
 
       resolve();
     })
@@ -300,9 +328,10 @@ describe('Tokens smart contract', function () {
       database1 = new Database();
       await database1.init(conf.databaseURL, conf.databaseName);
 
+      // do a dummy test contract update that will add cancelBadUnstakes and fixMultiTxUnstakeBalance to params, so we can test that the real contract
+      // update in the next transaction will remove both of these old, no-longer-used settings
       let transactions = [];
-      transactions.push(new Transaction(12345678901, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(30896501, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "tokenCreationFee": "123" }'));
+      transactions.push(new Transaction(30896501, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(dummyParamsContractPayload)));
 
       let block = {
         refHiveBlockNumber: 30896501,
@@ -321,16 +350,68 @@ describe('Tokens smart contract', function () {
         query: {}
       });
 
+      console.log(res);
+      assert.equal(res.fixMultiTxUnstakeBalance, true);
+      assert.equal(res.cancelBadUnstakes, true);
+      assert.equal(res.blacklist, undefined);
+      assert.equal(res.heAccounts, undefined);
+
+      transactions = [];
+      transactions.push(new Transaction(30896502, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+
+      block = {
+        refHiveBlockNumber: 30896502,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      res = await database1.findOne({
+        contract: 'tokens',
+        table: 'params',
+        query: {}
+      });
+
+      assert.equal(res.fixMultiTxUnstakeBalance, undefined);
+      assert.equal(res.cancelBadUnstakes, undefined);
       assert.equal(JSON.stringify(res.blacklist), '{"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"ionomy":1,"mxchive":1,"coinbasebase":1,"orinoco":1,"user.dunamu":1}');
+      assert.equal(JSON.stringify(res.heAccounts), '{"hive-engine":1,"swap-eth":1,"btc-swap":1,"graphene-swap":1,"honey-swap":1}');
+
+      transactions = [];
+      transactions.push(new Transaction(30896503, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "tokenCreationFee": "123", "heAccounts": {"hive-engine":1,"lotsa-swap":1,"btc-swap":1,"graphene-swap":1,"honey-swap":1,"moartokens":1} }'));
+
+      block = {
+        refHiveBlockNumber: 30896503,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      res = await database1.findOne({
+        contract: 'tokens',
+        table: 'params',
+        query: {}
+      });
+
+      assert.equal(JSON.stringify(res.blacklist), '{"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"ionomy":1,"mxchive":1,"coinbasebase":1,"orinoco":1,"user.dunamu":1}');
+      assert.equal(JSON.stringify(res.heAccounts), '{"hive-engine":1,"lotsa-swap":1,"btc-swap":1,"graphene-swap":1,"honey-swap":1,"moartokens":1}');
       assert.equal(res.tokenCreationFee, '123');
       assert.equal(res.enableDelegationFee, '1000');
       assert.equal(res.enableStakingFee, '1000');
 
       transactions = [];
-      transactions.push(new Transaction(30896502, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "enableDelegationFee": "456", "enableStakingFee": "789" }'));
+      transactions.push(new Transaction(30896504, 'TXID1237', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "enableDelegationFee": "456", "enableStakingFee": "789" }'));
 
       block = {
-        refHiveBlockNumber: 30896502,
+        refHiveBlockNumber: 30896504,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -351,10 +432,10 @@ describe('Tokens smart contract', function () {
       assert.equal(res.enableStakingFee, '789');
 
       transactions = [];
-      transactions.push(new Transaction(30896503, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "blacklist": {"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1} }'));
+      transactions.push(new Transaction(30896505, 'TXID1238', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "blacklist": {"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1} }'));
 
       block = {
-        refHiveBlockNumber: 30896503,
+        refHiveBlockNumber: 30896505,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -373,10 +454,11 @@ describe('Tokens smart contract', function () {
       assert.equal(JSON.stringify(res.blacklist), '{"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1}');
 
       transactions = [];
-      transactions.push(new Transaction(30896504, 'TXID1239', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "blacklist": {"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1,"blahblah":1,"yoohoouser":1} }'));
+      transactions.push(new Transaction(30896506, 'TXID1239', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "blacklist": {"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1,"blahblah":1,"yoohoouser":1} }'));
+      transactions.push(new Transaction(30896506, 'TXID1240', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'updateParams', '{ "heAccounts": {"hive-engine":1,"lotsa-swap":1,"btc-swap":1,"graphene-swap":1,"honey-swap":1,"moartokens":1,"yetmore":1} }'));
 
       block = {
-        refHiveBlockNumber: 30896504,
+        refHiveBlockNumber: 30896506,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -394,6 +476,7 @@ describe('Tokens smart contract', function () {
 
       console.log(res);
       assert.equal(JSON.stringify(res.blacklist), '{"gateiodeposit":1,"deepcrypto8":1,"bittrex":1,"poloniex":1,"huobi-pro":1,"binance-hot":1,"bitvavo":1,"blocktrades":1,"probitsteem":1,"probithive":1,"mxchive":1,"orinoco":1,"user.dunamu":1,"tester123":1,"blahblah":1,"yoohoouser":1}');
+      assert.equal(JSON.stringify(res.heAccounts), '{"hive-engine":1,"lotsa-swap":1,"btc-swap":1,"graphene-swap":1,"honey-swap":1,"moartokens":1,"yetmore":1}');
 
       resolve();
     })

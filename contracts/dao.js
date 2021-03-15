@@ -9,7 +9,7 @@ const PayoutType = ['user', 'contract'];
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('daos');
   if (tableExists === false) {
-    await api.db.createTable('daos', ['id', 'payToken']);
+    await api.db.createTable('daos', ['id', 'lastTickTime']);
     await api.db.createTable('proposals', ['daoId', 'approvalWeight']);
     await api.db.createTable('approvals', ['from', 'to']);
     await api.db.createTable('accounts', ['account']);
@@ -19,6 +19,7 @@ actions.createSSC = async () => {
       daoCreationFee: '1000',
       daoTickHours: '24',
       maxDaosPerBlock: 40,
+      processQueryLimit: 1000,
     };
     await api.db.insert('params', params);
   }
@@ -45,10 +46,10 @@ function generateDaoId(dao) {
   return `${dao.payToken.replace('.', '-')}:${dao.voteToken.replace('.', '-')}`;
 }
 
-async function updateProposalWeight(id, token, approvalWeight) {
-  const proposal = await api.db.findOne('proposals', { id });
+async function updateProposalWeight(id, deltaApprovalWeight) {
+  const proposal = await api.db.findOne('proposals', { _id: id });
   if (proposal) {
-    proposal.approvalWeight = api.BigNumber(proposal.approvalWeight).plus(approvalWeight).toFixed(token.precision);
+    proposal.approvalWeight = api.BigNumber(proposal.approvalWeight).plus(deltaApprovalWeight).toNumber();
     await api.db.update('proposals', proposal);
   }
 }
@@ -87,6 +88,13 @@ function validateDateRange(startDate, endDate, maxDays) {
   return true;
 }
 
+function validateDateChange(date, newDate) {
+  const cur = new Date(date);
+  const repl = new Date(newDate);
+  if (!api.assert(repl <= cur, 'date can only be reduced')) return false;
+  return true;
+}
+
 actions.createDao = async (payload) => {
   const {
     payToken, voteToken, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
@@ -121,7 +129,7 @@ actions.createDao = async (payload) => {
     if (!await validateTokens(payTokenObj, voteTokenObj)
       || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
       || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
-
+    const now = new Date(`${api.hiveBlockTimestamp}.000Z`);
     const newDao = {
       payToken,
       voteToken,
@@ -131,6 +139,70 @@ actions.createDao = async (payload) => {
       proposalFee,
       active: false,
       creator: api.sender,
+      lastTickTime: now.getTime(),
+    };
+    newDao.id = generateDaoId(newDao);
+    const existingDao = await api.db.findOne('daos', { id: newDao.id });
+    if (!api.assert(!existingDao, 'DAO already exists')) return;
+
+    const insertedDao = await api.db.insert('daos', newDao);
+
+    // burn the token creation fees
+    if (api.sender !== api.owner && api.BigNumber(daoCreationFee).gt(0)) {
+      await api.executeSmartContract('tokens', 'transfer', {
+        // eslint-disable-next-line no-template-curly-in-string
+        to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: daoCreationFee, isSignedWithActiveKey,
+      });
+    }
+    api.emit('createDao', { id: insertedDao.id });
+  }
+};
+
+actions.updateDao = async (payload) => {
+  const {
+    payToken, voteToken, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
+  } = payload;
+
+  // get contract params
+  const params = await api.db.findOne('params', {});
+  const { daoCreationFee } = params;
+
+  // eslint-disable-next-line no-template-curly-in-string
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
+
+  const authorizedCreation = api.BigNumber(daoCreationFee).lte(0) || api.sender === api.owner
+    ? true
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(daoCreationFee);
+
+  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
+    && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    && api.assert(typeof voteThreshold === 'string' && api.BigNumber(voteThreshold).gt(0), 'invalid voteThreshold: greater than 0')
+    && api.assert(typeof maxDays === 'string' && api.BigNumber(maxDays).isInteger() && api.BigNumber(maxDays).gt(0) && api.BigNumber(maxDays).lte(730), 'invalid maxDays: integer between 1 and 730')
+    && api.assert(typeof maxAmountPerDay === 'string' && api.BigNumber(maxAmountPerDay).gt(0), 'invalid maxAmountPerDay: greater than 0')) {
+    if (proposalFee) {
+      if (!api.assert(typeof proposalFee === 'object'
+        && typeof proposalFee.method === 'string' && FeeMethod.indexOf(proposalFee.method) !== -1
+        && typeof proposalFee.symbol === 'string'
+        && typeof proposalFee.amount === 'string' && api.BigNumber(proposalFee.amount).gt(0), 'invalid proposalFee')) return;
+      const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: proposalFee.symbol });
+      if (!api.assert(feeTokenObj && api.BigNumber(proposalFee.amount).dp() <= feeTokenObj.precision, 'invalid proposalFee token or precision')) return;
+    }
+    const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: payToken });
+    const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: voteToken });
+    if (!await validateTokens(payTokenObj, voteTokenObj)
+      || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
+      || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
+    const now = new Date(`${api.hiveBlockTimestamp}.000Z`);
+    const newDao = {
+      payToken,
+      voteToken,
+      voteThreshold,
+      maxDays,
+      maxAmountPerDay,
+      proposalFee,
+      active: false,
+      creator: api.sender,
+      lastTickTime: now.getTime(),
     };
     newDao.id = generateDaoId(newDao);
     const existingDao = await api.db.findOne('daos', { id: newDao.id });
@@ -195,7 +267,8 @@ actions.createProposal = async (payload) => {
       && api.BigNumber(amountPerDay).gt(0), 'invalid amountPerDay: greater than 0')
     && api.assert(typeof payout === 'object'
       && typeof payout.type === 'string' && PayoutType.indexOf(payout.type) !== -1
-      && typeof payout.name === 'string', 'invalid payout settings')
+      && (payout.type !== 'contract' || typeof payout.contractPayload === 'object')
+      && typeof payout.name === 'string' && payout.name.length >= 3 && payout.name.length <= 50, 'invalid payout settings')
     && validateDateRange(startDate, endDate, dao.maxDays)) {
     const newProposal = {
       daoId,
@@ -206,6 +279,7 @@ actions.createProposal = async (payload) => {
       authorperm,
       payout,
       creator: api.sender,
+      approvalWeight: 0,
     };
     const insertedProposal = await api.db.insert('proposals', newProposal);
 
@@ -222,6 +296,36 @@ actions.createProposal = async (payload) => {
       }
     }
     api.emit('createProposal', { id: insertedProposal._id });
+  }
+};
+
+actions.updateProposal = async (payload) => {
+  const {
+    id, title, endDate, amountPerDay,
+    authorperm, isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) return;
+  const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
+  if (!api.assert(proposal, 'proposal does not exist')) return;
+  const dao = await api.db.findOne('daos', { id: proposal.daoId, active: true });
+  if (!api.assert(dao, 'DAO does not exist or inactive')) return;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
+    && api.assert(typeof authorperm === 'string' && authorperm.length > 0 && authorperm.length <= 255, 'invalid authorperm: between 1 and 255 characters')
+    && api.assert(typeof amountPerDay === 'string'
+      && api.BigNumber(amountPerDay).isInteger()
+      && api.BigNumber(amountPerDay).gt(0)
+      && api.BigNumber(amountPerDay).lte(proposal.amountPerDay), 'invalid amountPerDay: greater than 0 and cannot be increased')
+    && validateDateChange(proposal.endDate, endDate)
+    && validateDateRange(proposal.startDate, endDate, dao.maxDays)) {
+    proposal.title = title;
+    proposal.endDate = endDate;
+    proposal.amountPerDay = amountPerDay;
+    proposal.authorperm = authorperm;
+    await api.db.update('proposals', proposal);
+    api.emit('updateProposal', { id: proposal._id });
   }
 };
 
@@ -268,7 +372,8 @@ actions.approveProposal = async (payload) => {
           acct.weights.push({ symbol: dao.voteToken, weight: approvalWeight });
         }
         await api.db.update('accounts', acct);
-        await updateProposalWeight(proposal._id, voteTokenObj, approvalWeight);
+        await updateProposalWeight(proposal._id, approvalWeight);
+        api.emit('approveProposal', { id: proposal._id });
       }
     }
   }
@@ -313,7 +418,7 @@ actions.disapproveProposal = async (payload) => {
           acct.weights.push({ symbol: dao.voteToken, weight: deltaApprovalWeight });
         }
         await api.db.update('accounts', acct);
-        await updateProposalWeight(proposal._id, voteTokenObj, api.BigNumber(approvalWeight).negated());
+        await updateProposalWeight(proposal._id, api.BigNumber(approvalWeight).negated());
       }
     }
   }
@@ -341,48 +446,83 @@ actions.updateProposalApprovals = async (payload) => {
     }
 
     const oldApprovalWeight = acct.approvalWeight;
-
     const deltaApprovalWeight = api.BigNumber(approvalWeight)
       .minus(oldApprovalWeight)
       .toFixed(token.precision);
 
     acct.approvalWeight = approvalWeight;
-
     if (!api.BigNumber(deltaApprovalWeight).eq(0)) {
       await api.db.update('accounts', acct);
-
       const approvals = await api.db.find('approvals', { from: account });
-
       for (let index = 0; index < approvals.length; index += 1) {
         const approval = approvals[index];
-        await updateProposalWeight(approval.to, token, deltaApprovalWeight);
+        await updateProposalWeight(approval.to, deltaApprovalWeight);
       }
     }
   }
 };
 
-async function runDao(dao, params) {
+async function checkPendingProposals(dao, params) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-  const funded = [];
   const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.payToken });
+  // ratio of daily payment independent of daoTickHours
+  const passedTimeSec = api.BigNumber(blockDate.getTime()).minus(dao.lastTickTime).dividedBy(1000);
+  const tickPayRatio = passedTimeSec.dividedBy(86400);
 
-  api.emit('daoProposals', { daoId: dao.id, funded });
+  const funded = [];
+  let offset = 0;
+  let proposals;
+  let runningPay = api.BigNumber(dao.maxAmountPerDay);
+  while (runningPay.gt(0)) {
+    proposals = await api.db.find('proposals',
+      {
+        daoId: dao.id,
+        approvalWeight: { $gt: api.BigNumber(dao.voteThreshold).toNumber() },
+        startDate: { $lte: blockDate.toISOString() },
+        endDate: { $gte: blockDate.toISOString() },
+      },
+      params.processQueryLimit,
+      offset,
+      [{ index: 'approvalWeight', descending: true }, { index: '_id', descending: false }]);
+
+    for (let i = 0; i < proposals.length; i += 1) {
+      if (api.BigNumber(proposals[i].amountPerDay).gte(runningPay)) {
+        proposals[i].tickPay = runningPay.toFixed(payTokenObj.precision, api.BigNumber.ROUND_DOWN);
+        funded.push(proposals[i]);
+        runningPay = 0;
+        break;
+      } else {
+        proposals[i].tickPay = api.BigNumber(proposals[i].amountPerDay)
+          .times(tickPayRatio)
+          .toFixed(payTokenObj.precision, api.BigNumber.ROUND_DOWN);
+        funded.push(proposals[i]);
+        runningPay = runningPay.minus(proposals[i].amountPerDay);
+      }
+    }
+    if (proposals.length < params.processQueryLimit) break;
+    offset += params.processQueryLimit;
+  }
+
   for (let i = 0; i < funded.length; i += 1) {
     const fund = funded[i];
     if (fund.payout.type === 'user') {
       await api.executeSmartContract('tokens', 'issue',
-        { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: 1 });
+        { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: fund.tickPay });
     } else if (fund.payout.type === 'contract') {
       await api.executeSmartContract('tokens', 'issueToContract',
-        { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: 1 });
+        { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: fund.tickPay });
+      await api.executeSmartContract(fund.payout.name, 'recieveDaoTokens',
+        { data: fund.payout.contractPayload, symbol: payTokenObj.symbol, quantity: fund.tickPay });
     }
   }
   // eslint-disable-next-line no-param-reassign
   dao.lastTickTime = api.BigNumber(blockDate.getTime()).toNumber();
   await api.db.update('daos', dao);
+
+  api.emit('daoProposals', { daoId: dao.id, funded });
 }
 
-actions.checkPendingProposals = async () => {
+actions.checkPendingDaos = async () => {
   if (api.assert(api.sender === 'null', 'not authorized')) {
     const params = await api.db.findOne('params', {});
     const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
@@ -396,11 +536,11 @@ actions.checkPendingProposals = async () => {
         },
       },
       params.maxDaosPerBlock,
-      0);
+      0,
+      [{ index: 'lastTickTime', descending: false }, { index: '_id', descending: false }]);
 
     for (let i = 0; i < pendingDaos.length; i += 1) {
-      const dao = pendingDaos[i];
-      await runDao(dao, params);
+      await checkPendingProposals(pendingDaos[i], params);
     }
   }
 };

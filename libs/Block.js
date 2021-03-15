@@ -147,7 +147,7 @@ class Block {
 
     if (this.refHiveBlockNumber >= 52500000) {
       virtualTransactions
-        .push(new Transaction(0, '', 'null', 'dao', 'checkPendingProposals', ''));
+        .push(new Transaction(0, '', 'null', 'dao', 'checkPendingDaos', ''));
     }
 
     if (this.refHiveBlockNumber % 1200 === 0) {
@@ -191,7 +191,7 @@ class Block {
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else if (transaction.contract === 'dao'
-          && transaction.action === 'checkPendingProposals'
+          && transaction.action === 'checkPendingDaos'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else {

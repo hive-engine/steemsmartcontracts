@@ -280,6 +280,7 @@ actions.createProposal = async (payload) => {
       payout,
       creator: api.sender,
       approvalWeight: 0,
+      active: true,
     };
     const insertedProposal = await api.db.insert('proposals', newProposal);
 
@@ -307,7 +308,8 @@ actions.updateProposal = async (payload) => {
 
   if (!api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) return;
   const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
-  if (!api.assert(proposal, 'proposal does not exist')) return;
+  if (!api.assert(proposal, 'proposal does not exist')
+    || !api.assert(proposal.creator === api.sender || api.owner === api.sender, 'must be proposal creator')) return;
   const dao = await api.db.findOne('daos', { id: proposal.daoId, active: true });
   if (!api.assert(dao, 'DAO does not exist or inactive')) return;
 
@@ -327,6 +329,23 @@ actions.updateProposal = async (payload) => {
     await api.db.update('proposals', proposal);
     api.emit('updateProposal', { id: proposal._id });
   }
+};
+
+actions.disableProposal = async (payload) => {
+  const {
+    id, isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) return;
+  const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
+  if (!api.assert(proposal, 'proposal does not exist')
+    || !api.assert(proposal.active === true, 'proposal already disabled')
+    || !api.assert(proposal.creator === api.sender || api.owner === api.sender, 'must be proposal creator'
+    || !api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key'))) return;
+
+  proposal.active = false;
+  await api.db.update('proposals', proposal);
+  api.emit('disableProposal', { id: proposal._id });
 };
 
 actions.approveProposal = async (payload) => {
@@ -470,6 +489,7 @@ async function checkPendingProposals(dao, params) {
   const tickPayRatio = passedTimeSec.dividedBy(86400);
 
   const funded = [];
+  const fundedLog = [];
   let offset = 0;
   let proposals;
   let runningPay = api.BigNumber(dao.maxAmountPerDay);
@@ -477,6 +497,7 @@ async function checkPendingProposals(dao, params) {
     proposals = await api.db.find('proposals',
       {
         daoId: dao.id,
+        active: true,
         approvalWeight: { $gt: api.BigNumber(dao.voteThreshold).toNumber() },
         startDate: { $lte: blockDate.toISOString() },
         endDate: { $gte: blockDate.toISOString() },
@@ -486,7 +507,7 @@ async function checkPendingProposals(dao, params) {
       [{ index: 'approvalWeight', descending: true }, { index: '_id', descending: false }]);
 
     for (let i = 0; i < proposals.length; i += 1) {
-      if (api.BigNumber(proposals[i].amountPerDay).gte(runningPay)) {
+      if (api.BigNumber(proposals[i].amountPerDay).times(tickPayRatio).gte(runningPay)) {
         proposals[i].tickPay = runningPay.toFixed(payTokenObj.precision, api.BigNumber.ROUND_DOWN);
         funded.push(proposals[i]);
         runningPay = 0;
@@ -505,6 +526,7 @@ async function checkPendingProposals(dao, params) {
 
   for (let i = 0; i < funded.length; i += 1) {
     const fund = funded[i];
+    fundedLog.push({ id: fund._id, tickPay: fund.tickPay });
     if (fund.payout.type === 'user') {
       await api.executeSmartContract('tokens', 'issue',
         { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: fund.tickPay });
@@ -518,8 +540,7 @@ async function checkPendingProposals(dao, params) {
   // eslint-disable-next-line no-param-reassign
   dao.lastTickTime = api.BigNumber(blockDate.getTime()).toNumber();
   await api.db.update('daos', dao);
-
-  api.emit('daoProposals', { daoId: dao.id, funded });
+  api.emit('daoProposals', { daoId: dao.id, funded: fundedLog });
 }
 
 actions.checkPendingDaos = async () => {

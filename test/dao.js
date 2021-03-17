@@ -581,12 +581,13 @@ describe('dao tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'createDao', '{ "payToken": "GLD", "voteToken": "SLV", "voteThreshold": "1000", "maxDays": "365", "maxAmountPerDay": "10000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'setDaoActive', '{ "active": true, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'createProposal', '{ "daoId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2021-03-30T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'updateProposal', '{ "id": "x", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "0.1", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-06-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'updateProposal', '{ "id": "x", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community ProjectA Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-03-12T00:00:00.000Z", "amountPerDay": "0.1", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2023-06-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2021-03-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'updateProposal', '{ "id": "1", "title": "A Big Community Project", "endDate": "2021-03-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -610,6 +611,7 @@ describe('dao tests', function () {
       assertError(txs[14], 'invalid amountPerDay: greater than 0 and cannot be increased');
       assertError(txs[15], 'date can only be reduced');
       assertError(txs[16], 'dates must be at least 1 day apart');
+      assertError(txs[17], 'must be proposal creator');
     
       res = await database1.findOne({
         contract: 'dao',
@@ -617,7 +619,7 @@ describe('dao tests', function () {
         query: { _id: 1 }
       });
       // console.log(res);
-      const original = { "_id": 1, "daoId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2021-03-30T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "creator": "organizer", "approvalWeight": 0 };
+      const original = { "_id": 1, "daoId": "GLD:SLV", "active": true, "title": "A Big Community Project", "startDate": "2021-03-30T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "creator": "organizer", "approvalWeight": 0 };
       assert.deepEqual(res, original, 'proposal has changed');
       resolve();
     })
@@ -669,7 +671,7 @@ describe('dao tests', function () {
           _id: 1,
         }
       });
-      const updated = { "_id": 1, "daoId": "GLD:SLV", "title": "The Biggest Community Project", "startDate": "2021-03-30T00:00:00.000Z", "endDate": "2021-04-29T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/testers", "creator": "organizer", "approvalWeight": 0, "payout": { "type": "user", "name": "silverstein" } };
+      const updated = { "_id": 1, "active": true, "daoId": "GLD:SLV", "title": "The Biggest Community Project", "startDate": "2021-03-30T00:00:00.000Z", "endDate": "2021-04-29T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/testers", "creator": "organizer", "approvalWeight": 0, "payout": { "type": "user", "name": "silverstein" } };
       assert.deepEqual(resx, updated, 'updates not found in proposal');
       resolve();
     })
@@ -885,6 +887,127 @@ describe('dao tests', function () {
         database1.close();
         done();
       });
-  });    
+  });
+
+  it('should cap daos and proposals', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "50000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "1000000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "1000000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "GLD", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "SLV", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "organizer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "voter1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "10000", "to": "voter2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "100000", "to": "voter3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "100000", "to": "voter4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "100000", "to": "voter4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "100", "to": "organizer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'voter1', 'tokens', 'stake', '{ "to":"voter1", "symbol": "SLV", "quantity": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'voter2', 'tokens', 'stake', '{ "to":"voter2", "symbol": "SLV", "quantity": "10000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'voter3', 'tokens', 'stake', '{ "to":"voter3", "symbol": "SLV", "quantity": "100000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'voter4', 'tokens', 'stake', '{ "to":"voter4", "symbol": "SLV", "quantity": "10000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'voter4', 'tokens', 'stake', '{ "to":"voter4", "symbol": "GLD", "quantity": "10000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'createDao', '{ "payToken": "GLD", "voteToken": "SLV", "voteThreshold": "1000", "maxDays": "365", "maxAmountPerDay": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'setDaoActive', '{ "daoId": "GLD:SLV", "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'createProposal', '{ "daoId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "800", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "rambo" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'community', 'dao', 'createProposal', '{ "daoId": "GLD:SLV", "title": "A Small Community Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "500", "authorperm": "@abc123/test2", "payout": { "type": "user", "name": "silverstein" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'createDao', '{ "payToken": "GLD", "voteToken": "GLD", "voteThreshold": "1000", "maxDays": "365", "maxAmountPerDay": "1000", "proposalFee": { "method": "burn", "symbol": "GLD", "amount": "100" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'dao', 'setDaoActive', '{ "daoId": "GLD:GLD", "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'dao', 'createProposal', '{ "daoId": "GLD:GLD", "title": "A Big Noble Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "contract", "contractPayload": { "id": "1" }, "name": "distribution" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'voter4', 'dao', 'createProposal', '{ "daoId": "GLD:GLD", "title": "A Small Noble Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "5", "authorperm": "@abc123/test", "payout": { "type": "contract", "contractPayload": { "id": "1" }, "name": "distribution" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'organizer', 'dao', 'approveProposal', '{ "proposalId": "3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'dao', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'dao', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter3', 'dao', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'dao', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'dao', 'approveProposal', '{ "proposalId": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'dao', 'approveProposal', '{ "proposalId": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'dao', 'approveProposal', '{ "proposalId": "3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'dao', 'approveProposal', '{ "proposalId": "4", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      
+      let res = await database1.getLatestBlockInfo();
+      // console.log(res);
+      await assertNoErrorInLastBlock();
+
+      // weight asserts
+      await assertUserWeight('voter1', 'SLV', '1000.00000000');
+      await assertUserWeight('voter2', 'SLV', '10000.00000000');
+      await assertUserWeight('voter3', 'SLV', '100000.00000000');
+      await assertUserWeight('voter4', 'GLD', '10000.00000000');
+      await assertUserWeight('organizer', 'GLD', '0.00000000');
+      await assertUserApproval('voter1', 2);
+      await assertUserApproval('voter2', 2);
+      await assertUserApproval('voter3', 2);
+      await assertUserApproval('voter4', 3);
+      await assertUserApproval('organizer', 3);
+
+
+      transactions = [];
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-13T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-14T00:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });      
+
+      res = (await database1.getLatestBlockInfo());
+      // console.log(res);
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+      let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      let e = virtualEventLog.events.find(x => x.event === 'daoProposals');
+      assert.ok(e, 'Expected to find daoProposals event');
+      assert.equal(e.data.daoId, 'GLD:SLV');
+      assert.equal(e.data.funded.length, 2);
+
+      // balance asserts
+      await assertUserBalance('rambo', 'GLD', '500.00000000');
+      await assertUserBalance('silverstein', 'GLD', '500.00000000');
+      await assertContractBalance('distribution', 'GLD', '1000.00000000');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   // END TESTS
 });

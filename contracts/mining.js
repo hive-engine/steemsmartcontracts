@@ -615,7 +615,7 @@ actions.createPool = async (payload) => {
   const params = await api.db.findOne('params', {});
   const { poolCreationFee } = params;
 
-  if (externalMiners) {
+  if (externalMiners !== undefined) {
     if (!api.assert(typeof externalMiners === 'string', 'externalMiners must be a string')
     || !api.assert(callingContractInfo, 'must be called from a contract')) return;
   }
@@ -705,8 +705,16 @@ async function runLottery(pool, params) {
     { symbol: pool.minedToken });
   const winningAmount = api.BigNumber(pool.lotteryAmount).dividedBy(pool.lotteryWinners)
     .toFixed(minedToken.precision, api.BigNumber.ROUND_HALF_UP);
-  for (let i = 0; i < pool.lotteryWinners; i += 1) {
-    winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
+  // determine winning numbers
+  if (!pool.externalContract) {
+    for (let i = 0; i < pool.lotteryWinners; i += 1) {
+      winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
+    }
+  } else if (pool.externalContract === 'marketpools') {
+    const marketpool = await api.db.findOneInTable('marketpools', 'pools', { tokenPair: pool.externalMiners });
+    for (let i = 0; i < pool.lotteryWinners; i += 1) {
+      winningNumbers[i] = api.BigNumber(marketpool.totalShares).multipliedBy(api.random());
+    }
   }
   let offset = 0;
   let miningPowers;
@@ -725,12 +733,6 @@ async function runLottery(pool, params) {
         params.processQueryLimit,
         offset,
         [{ index: '_id', descending: false }]);
-      // eslint-disable-next-line no-loop-func
-      const totalShares = miningPowers.reduce((acc, val) => api.BigNumber(acc).plus(val.shares), 0);
-      winningNumbers.length = 0;
-      for (let i = 0; i < pool.lotteryWinners; i += 1) {
-        winningNumbers[i] = api.BigNumber(totalShares).multipliedBy(api.random());
-      }
       for (let i = 0; i < miningPowers.length; i += 1) {
         miningPowers[i].power = {
           $numberDecimal: api.BigNumber(miningPowers[i].shares)

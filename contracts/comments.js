@@ -68,13 +68,18 @@ async function payUser(symbol, quantity, user, stakedRewardPercentage) {
           .toFixed(quantityBignum.dp(), api.BigNumber.ROUND_DOWN);
   const liquidQuantity = quantityBignum.minus(stakedQuantity)
           .toFixed(quantityBignum.dp(), api.BigNumber.ROUND_DOWN);
-  let res = await api.transferTokens(user, symbol, liquidQuantity, 'user');
-  if (res.errors) {
-    api.debug(`Error paying out liquid ${liquidQuantity} ${symbol} to ${user} (TXID ${api.transactionId}): \n${res.errors}`);
+  let res;
+  if (api.BigNumber(liquidQuantity).gt(0)) {
+    let res = await api.transferTokens(user, symbol, liquidQuantity, 'user');
+    if (res.errors) {
+      api.debug(`Error paying out liquid ${liquidQuantity} ${symbol} to ${user} (TXID ${api.transactionId}): \n${res.errors}`);
+    }
   }
-  res = await api.executeSmartContract('tokens', 'stakeFromContract', { to: user, symbol, quantity: stakedQuantity });
-  if (res.errors) {
-    api.debug(`Error paying out staked ${stakedQuantity} ${symbol} to ${user} (TXID ${api.transactionId}): \n${res.errors}`);
+  if (api.BigNumber(stakedQuantity).gt(0)) {
+    res = await api.executeSmartContract('tokens', 'stakeFromContract', { to: user, symbol, quantity: stakedQuantity });
+    if (res.errors) {
+      api.debug(`Error paying out staked ${stakedQuantity} ${symbol} to ${user} (TXID ${api.transactionId}): \n${res.errors}`);
+    }
   }
 }
 
@@ -112,8 +117,10 @@ async function payOutCurators(rewardPool, token, post, curatorPortion) {
 
 async function payOutPost(rewardPool, token, post, timestamp) {
   const postClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
-  const postPendingToken = api.BigNumber(rewardPool.rewardPool).multipliedBy(postClaims)
-    .dividedBy(rewardPool.pendingClaims).toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+  const postPendingToken = api.BigNumber(rewardPool.pendingClaims).gt(0) ?
+        api.BigNumber(rewardPool.rewardPool).multipliedBy(postClaims)
+        .dividedBy(rewardPool.pendingClaims).toFixed(token.precision, api.BigNumber.ROUND_DOWN)
+    : "0";
     api.debug(rewardPool);
     api.debug(post);
 
@@ -360,7 +367,12 @@ async function processVote(post, voter, weight, timestamp) {
     rewardPoolId,
     symbol,
     authorperm,
+    cashoutTime,
   } = post;
+
+  if (cashoutTime < timestamp) {
+    return;
+  }
 
   // check voting power, stake, and current vote rshares.
   const rewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
@@ -388,7 +400,10 @@ async function processVote(post, voter, weight, timestamp) {
   }
 
   const voterTokenBalance = await api.db.findOneInTable('tokens', 'balances', { symbol, account: voter });
-  const { stake } = voterTokenBalance;
+  let stake = voterTokenBalance ? voterTokenBalance.stake : "0";
+  if (voterTokenBalance && voterTokenBalance.delegationsIn && api.BigNumber(voterTokenBalance.delegationsIn).isFinite()) {
+    stake = api.BigNumber(stake).plus(voterTokenBalance.delegationsIn);
+  }
 
   let voteRshares = "0";
   let updatedPostRshares = "0";
@@ -400,7 +415,7 @@ async function processVote(post, voter, weight, timestamp) {
       .dividedBy(MAX_VOTING_POWER)
       .dividedBy(MAX_WEIGHT)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    usedPower = Math.floor(votingPower.votingPower * weight * 60 * 60 * 24 / MAX_WEIGHT);
+    usedPower = Math.floor(votingPower.votingPower * Math.abs(weight) * 60 * 60 * 24 / MAX_WEIGHT);
     const usedPowerDenom = Math.floor(MAX_VOTING_POWER * 60 * 60 * 24
         / rewardPool.config.votePowerConsumption);
     usedPower = Math.floor((usedPower + usedPowerDenom - 1) / usedPowerDenom);
@@ -416,7 +431,7 @@ async function processVote(post, voter, weight, timestamp) {
       .dividedBy(MAX_VOTING_POWER)
       .dividedBy(MAX_WEIGHT)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    usedDownvotePower = Math.floor(votingPower.downvotingPower * weight * 60 * 60 * 24
+    usedDownvotePower = Math.floor(votingPower.downvotingPower * Math.abs(weight) * 60 * 60 * 24
         / MAX_WEIGHT);
     const usedDownvotePowerDenom = Math.floor(MAX_VOTING_POWER * 60 * 60 * 24
         / rewardPool.config.downvotePowerConsumption);
@@ -436,7 +451,8 @@ async function processVote(post, voter, weight, timestamp) {
     vote.curationWeight = '0';
     const oldVoteRshares = vote.rshares;
     vote.rshares = voteRshares;
-    updatedPostRshares = api.BigNumber(voteRshares).minus(oldVoteRshares);
+    updatedPostRshares = api.BigNumber(voteRshares).minus(oldVoteRshares)
+      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
     await api.db.update('votes', vote);
     api.emit('updateVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
   } else {
@@ -461,15 +477,16 @@ async function processVote(post, voter, weight, timestamp) {
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
   post.scoreTrend = computeTrendScore(post);
 
-  if (updatedPostRshares > 0) {
+  if (api.BigNumber(updatedPostRshares).gt(0)) {
     // eslint-disable-next-line no-param-reassign
     post.votePositiveRshareSum = api.BigNumber(post.votePositiveRshareSum).plus(updatedPostRshares)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
     if (timestamp < rewardPool.createdTimestamp + (2 * rewardPool.config.cashoutWindowDays + 1) * 24 * 3600 * 1000) {
       const newPostClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
         rewardPool.pendingClaims = api.BigNumber(rewardPool.pendingClaims).plus(newPostClaims).minus(oldPostClaims)
-      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+            .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
         await api.db.update("rewardPools", rewardPool);
+        api.debug("updatin reward pool early section");
         api.debug(rewardPool);
     }
   }
@@ -488,7 +505,7 @@ actions.vote = async (payload) => {
   // TODO: Handle separate direct voting action.
   if (!api.assert(api.sender === 'null', 'can only vote with voting op')) return;
 
-  if (!api.assert(Number.isInteger(weight) && weight >= 0 && weight <= 10000, 'weight must be an integer from 0 to 10000')) return;
+  if (!api.assert(Number.isInteger(weight) && weight >= -10000 && weight <= 10000, 'weight must be an integer from -10000 to 10000')) return;
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();

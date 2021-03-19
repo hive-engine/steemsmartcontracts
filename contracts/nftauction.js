@@ -20,7 +20,7 @@ actions.createSSC = async () => {
     params.minBidIncrement = 50; // 5%
 
     // time remaining in the auction settling when cancel action is locked
-    params.cancelLockTime = 60000; // 5 mins
+    params.cancelLockTime = 300000; // 5 mins
 
     // time after the last lead bid it takes to settle the auction
     params.expiryTime = 86400000; // 24 hours
@@ -328,7 +328,6 @@ actions.bid = async (payload) => {
         expiryTimestamp,
       } = auction;
       const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
-      const params = await api.db.findOne('params', {});
       const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
       const timestamp = blockDate.getTime();
 
@@ -379,6 +378,8 @@ actions.bid = async (payload) => {
               return;
             }
 
+            const params = await api.db.findOne('params', {});
+
             if (currentLead !== null) {
               // check if new bid takes the lead
               const leadBid = auction.bids[currentLead];
@@ -416,6 +417,68 @@ actions.bid = async (payload) => {
               });
             }
           }
+        }
+      }
+    }
+  }
+};
+
+actions.cancel = async (payload) => {
+  const {
+    auctionId,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(auctionId && typeof auctionId === 'string', 'invalid params')) {
+    const auction = await api.db.findOne('auctions', { auctionId });
+
+    if (api.assert(auction, 'auction does not exist or has been expired')) {
+      const {
+        currentLead,
+        expiryTimestamp,
+        lastLeadUpdate,
+      } = auction;
+
+      // find if the account has any bid in this auction
+      const bidIndex = auction.bids.findIndex(el => el.account === api.sender);
+      const bid = auction.bids[bidIndex];
+
+      const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+      const timestamp = blockDate.getTime();
+
+      if (api.assert(bid, 'you don not have a bid in this auction')
+        && api.assert(expiryTimestamp >= timestamp, 'auction has been expired')) {
+        const params = await api.db.findOne('params', {});
+        const timeRemaining = api.BigNumber(lastLeadUpdate)
+          .plus(params.expiryTime)
+          .minus(timestamp);
+        const timeRemainingExpire = api.BigNumber(expiryTimestamp).minus(timestamp);
+
+        // do not cancel bid if auction is about to settle
+        if (api.assert(timeRemaining.gt(params.cancelLockTime)
+          && timeRemainingExpire.gt(params.cancelLockTime), 'can not cancel bid when auction is about to settle')) {
+          // remove this bid from the auction
+          auction.bids.splice(bidIndex, 1);
+
+          if (currentLead === bidIndex) {
+            let largestBid = '0';
+            let largestBidIndex = null;
+            for (let i = 0; i < auction.bids.length; i += 1) {
+              const { bid } = auction.bids[i];
+              if (api.BigNumber(bid).gt(largestBid)) {
+                largestBid = bid;
+                largestBidIndex = i;
+              }
+            }
+
+            auction.currentLead = largestBidIndex;
+          } else if (currentLead > bidIndex) {
+            // re-assign lead if a lower indexed bid is removed
+            auction.currentLead -= 1;
+          }
+
+          await api.db.update('auctions', auction);
         }
       }
     }

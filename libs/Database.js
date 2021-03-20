@@ -488,7 +488,6 @@ class Database {
                 query[`_id.${k}`] = query[k];
             }
           });
-          console.log(query);
         }
 
         if (tableData) {
@@ -514,7 +513,6 @@ class Database {
                       sort.push([el.index === '$loki' ? '_id' : el.index, el.descending === true ? 'desc' : 'asc']);
                   }
               });
-              console.log(sort);
             } else {
               // This can happen when creating a table and using find with index all in the same transaction
               // and should be rare in production. Otherwise, contract code is asking for an index that does

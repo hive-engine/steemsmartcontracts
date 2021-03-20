@@ -153,8 +153,6 @@ async function payOutPost(rewardPool, token, post, timestamp) {
     ? api.BigNumber(rewardPool.rewardPool).multipliedBy(postClaims)
       .dividedBy(rewardPool.pendingClaims).toFixed(token.precision, api.BigNumber.ROUND_DOWN)
     : '0';
-  api.debug(rewardPool);
-  api.debug(post);
 
   const curatorPortion = api.BigNumber(postPendingToken)
     .multipliedBy(rewardPool.config.curationRewardPercentage)
@@ -601,7 +599,6 @@ async function processVote(post, voter, weight, timestamp) {
     const usedPowerDenom = Math.floor(MAX_VOTING_POWER * 60 * 60 * 24
         / rewardPool.config.votePowerConsumption);
     usedPower = Math.floor((usedPower + usedPowerDenom - 1) / usedPowerDenom);
-    api.debug(usedPower);
     votingPower.votingPower = Math.max(0, Math.floor(votingPower.votingPower - usedPower));
     curationWeight = api.BigNumber(calculateCurationWeightRshares(
       rewardPool, api.BigNumber(voteRshares).plus(post.votePositiveRshareSum),
@@ -625,7 +622,6 @@ async function processVote(post, voter, weight, timestamp) {
     );
   }
 
-  api.debug(votingPower);
   await api.db.update('votingPower', votingPower);
 
   let vote = await api.db.findOne('votes', { rewardPoolId, authorperm, voter });
@@ -675,8 +671,6 @@ async function processVote(post, voter, weight, timestamp) {
         .minus(oldPostClaims)
         .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
       await api.db.update('rewardPools', rewardPool);
-      api.debug('updatin reward pool early section');
-      api.debug(rewardPool);
     }
   }
   await api.db.update('posts', post);

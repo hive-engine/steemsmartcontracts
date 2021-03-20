@@ -30,17 +30,49 @@ actions.createSSC = async () => {
   }
 };
 
+actions.updateParams = async (payload) => {
+  if (api.sender !== api.owner) return;
+
+  const {
+    setupFee,
+    updateFee,
+    maintenanceTokensPerAction,
+    maxPostsProcessedPerRound,
+  } = payload;
+
+  const params = await api.db.findOne('params', {});
+
+  if (setupFee) {
+    if (!api.assert(typeof setupFee === 'string' && !api.BigNumber(setupFee).isNaN() && api.BigNumber(setupFee).gte(0), 'invalid setupFee')) return;
+    params.setupFee = setupFee;
+  }
+  if (updateFee) {
+    if (!api.assert(typeof updateFee === 'string' && !api.BigNumber(updateFee).isNaN() && api.BigNumber(updateFee).gte(0), 'invalid updateFee')) return;
+    params.updateFee = updateFee;
+  }
+  if (maintenanceTokensPerAction) {
+    if (!api.assert(Number.isInteger(maintenanceTokensPerAction) && maintenanceTokensPerAction >= 1, 'invalid maintenanceTokensPerAction')) return;
+    params.maintenanceTokensPerAction = maintenanceTokensPerAction;
+  }
+  if (maxPostsProcessedPerRound) {
+    if (!api.assert(Number.isInteger(maxPostsProcessedPerRound) && maxPostsProcessedPerRound >= 1, 'invalid maxPostsProcessedPerRound')) return;
+    params.maxPostsProcessedPerRound = maxPostsProcessedPerRound;
+  }
+
+  await api.db.update('params', params);
+};
+
 function calculateWeightRshares(rewardPool, voteRshareSum) {
   if (api.BigNumber(voteRshareSum).lte(0)) return api.BigNumber(0);
   if (rewardPool.config.postRewardCurve === 'power') {
     const postRewardExponent = api.BigNumber(rewardPool.config.postRewardCurveParameter);
-    if (postRewardExponent.eq("1") || postRewardExponent.eq("2")) {
+    if (postRewardExponent.eq('1') || postRewardExponent.eq('2')) {
       return api.BigNumber(voteRshareSum).pow(rewardPool.config.postRewardCurveParameter)
-            .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    } else {
-      return api.BigNumber(Math.pow(parseFloat(voteRshareSum), parseFloat(rewardPool.config.postRewardCurveParameter)))
-            .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+        .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
     }
+    return api.BigNumber(parseFloat(voteRshareSum)
+        ** parseFloat(rewardPool.config.postRewardCurveParameter))
+      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
   }
   return api.BigNumber(voteRshareSum);
 }
@@ -49,15 +81,15 @@ function calculateCurationWeightRshares(rewardPool, voteRshareSum) {
   if (api.BigNumber(voteRshareSum).lte(0)) return api.BigNumber(0);
   if (rewardPool.config.curationRewardCurve === 'power') {
     const curationRewardExponent = api.BigNumber(rewardPool.config.curationRewardCurveParameter);
-    if (curationRewardExponent.eq("0.5")) {
-        return api.BigNumber(voteRshareSum).sqrt()
-            .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    } else if (curationRewardExponent.eq("1")) {
-        return api.BigNumber(voteRshareSum).toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    } else {
-        return api.BigNumber(Math.pow(parseFloat(voteRshareSum), parseFloat(rewardPool.config.curationRewardCurveParameter)))
-            .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+    if (curationRewardExponent.eq('0.5')) {
+      return api.BigNumber(voteRshareSum).sqrt()
+        .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+    } if (curationRewardExponent.eq('1')) {
+      return api.BigNumber(voteRshareSum).toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
     }
+    return api.BigNumber(parseFloat(voteRshareSum)
+        ** parseFloat(rewardPool.config.curationRewardCurveParameter))
+      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
   }
   return api.BigNumber(voteRshareSum);
 }
@@ -65,12 +97,12 @@ function calculateCurationWeightRshares(rewardPool, voteRshareSum) {
 async function payUser(symbol, quantity, user, stakedRewardPercentage) {
   const quantityBignum = api.BigNumber(quantity);
   const stakedQuantity = quantityBignum.multipliedBy(stakedRewardPercentage).dividedBy(100)
-          .toFixed(quantityBignum.dp(), api.BigNumber.ROUND_DOWN);
+    .toFixed(quantityBignum.dp(), api.BigNumber.ROUND_DOWN);
   const liquidQuantity = quantityBignum.minus(stakedQuantity)
-          .toFixed(quantityBignum.dp(), api.BigNumber.ROUND_DOWN);
+    .toFixed(quantityBignum.dp(), api.BigNumber.ROUND_DOWN);
   let res;
   if (api.BigNumber(liquidQuantity).gt(0)) {
-    let res = await api.transferTokens(user, symbol, liquidQuantity, 'user');
+    res = await api.transferTokens(user, symbol, liquidQuantity, 'user');
     if (res.errors) {
       api.debug(`Error paying out liquid ${liquidQuantity} ${symbol} to ${user} (TXID ${api.transactionId}): \n${res.errors}`);
     }
@@ -117,14 +149,15 @@ async function payOutCurators(rewardPool, token, post, curatorPortion) {
 
 async function payOutPost(rewardPool, token, post, timestamp) {
   const postClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
-  const postPendingToken = api.BigNumber(rewardPool.pendingClaims).gt(0) ?
-        api.BigNumber(rewardPool.rewardPool).multipliedBy(postClaims)
-        .dividedBy(rewardPool.pendingClaims).toFixed(token.precision, api.BigNumber.ROUND_DOWN)
-    : "0";
-    api.debug(rewardPool);
-    api.debug(post);
+  const postPendingToken = api.BigNumber(rewardPool.pendingClaims).gt(0)
+    ? api.BigNumber(rewardPool.rewardPool).multipliedBy(postClaims)
+      .dividedBy(rewardPool.pendingClaims).toFixed(token.precision, api.BigNumber.ROUND_DOWN)
+    : '0';
+  api.debug(rewardPool);
+  api.debug(post);
 
-  const curatorPortion = api.BigNumber(postPendingToken).multipliedBy(rewardPool.config.curationRewardPercentage)
+  const curatorPortion = api.BigNumber(postPendingToken)
+    .multipliedBy(rewardPool.config.curationRewardPercentage)
     .dividedBy(100)
     .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
   const authorPortion = api.BigNumber(postPendingToken).minus(curatorPortion)
@@ -136,7 +169,7 @@ async function payOutPost(rewardPool, token, post, timestamp) {
   // eslint-disable-next-line no-param-reassign
   post.curatorPayoutValue = curatorPortion;
   // eslint-disable-next-line no-param-reassign
-  post.scoreTrend = "0";
+  post.scoreTrend = '0';
 
   await payOutCurators(rewardPool, token, post, curatorPortion);
   api.emit('authorReward', {
@@ -169,24 +202,28 @@ async function computePostRewards(params, rewardPool, token) {
   const adjustDenom = claimsDecayPeriodDays * 24 * 3600 * 1000;
 
   let newPendingClaims = api.BigNumber(pendingClaims)
-      .minus(api.BigNumber(pendingClaims)
-        .multipliedBy(adjustNumer)
-        .dividedBy(adjustDenom))
-      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+    .minus(api.BigNumber(pendingClaims)
+      .multipliedBy(adjustNumer)
+      .dividedBy(adjustDenom))
+    .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
 
   // Add posts claims, compute subsequent rewards based on inclusion into claims to
   // ensure it cannot take more of the current pool
   const postsToPayout = await api.db.find('posts',
-    { rewardPoolId: rewardPool._id, lastPayout: { $exists: false }, cashoutTime: { $lte: timestamp } },
+    {
+      rewardPoolId: rewardPool._id,
+      lastPayout: { $exists: false },
+      cashoutTime: { $lte: timestamp },
+    },
     maxPostsProcessedPerRound,
     0,
     [{ index: 'byCashoutTime', descending: false }, { index: '_id', descending: false }]);
   if (postsToPayout) {
     newPendingClaims = api.BigNumber(newPendingClaims).plus(
-        postsToPayout.reduce((x, y) => x.plus(calculateWeightRshares(rewardPool, y.voteRshareSum)),
-            api.BigNumber(0)),
+      postsToPayout.reduce((x, y) => x.plus(calculateWeightRshares(rewardPool, y.voteRshareSum)),
+        api.BigNumber(0)),
     )
-        .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
 
     // eslint-disable-next-line no-param-reassign
     rewardPool.pendingClaims = newPendingClaims;
@@ -199,8 +236,8 @@ async function computePostRewards(params, rewardPool, token) {
     }
     // eslint-disable-next-line no-param-reassign
     rewardPool.rewardPool = api.BigNumber(rewardPool.rewardPool)
-          .minus(deductFromRewardPool)
-          .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+      .minus(deductFromRewardPool)
+      .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
   }
 }
 
@@ -209,7 +246,7 @@ async function tokenMaintenance() {
   const timestamp = blockDate.getTime();
   const params = await api.db.findOne('params', {});
   const { maintenanceTokensPerAction, maintenanceTokenOffset } = params;
-  const rewardPools = await api.db.find('rewardPools', { lastRewardTimestamp: { $lte: timestamp - 3000 }}, maintenanceTokensPerAction, maintenanceTokenOffset);
+  const rewardPools = await api.db.find('rewardPools', { active: true, lastRewardTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerAction, maintenanceTokenOffset);
   if (rewardPools) {
     for (let i = 0; i < rewardPools.length; i += 1) {
       const rewardPool = rewardPools[i];
@@ -220,7 +257,9 @@ async function tokenMaintenance() {
         .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       if (api.BigNumber(rewardToAdd).gt(0)) {
         await api.executeSmartContractAsOwner('tokens', 'issueToContract',
-          { symbol: rewardPool.symbol, quantity: rewardToAdd, to: 'comments', isSignedWithActiveKey: true });
+          {
+            symbol: rewardPool.symbol, quantity: rewardToAdd, to: 'comments', isSignedWithActiveKey: true,
+          });
         rewardPool.rewardPool = api.BigNumber(rewardPool.rewardPool).plus(rewardToAdd)
           .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       }
@@ -247,6 +286,21 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
     return;
   }
+
+  const params = await api.db.findOne('params', {});
+  const { setupFee } = params;
+
+  // get api.sender's UTILITY_TOKEN_SYMBOL balance
+  // eslint-disable-next-line no-template-curly-in-string
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
+
+  const authorizedCreation = api.BigNumber(setupFee).lte(0) || api.sender === api.owner
+    ? true
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(setupFee);
+
+  if (!api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')) return;
+
+
   const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
   if (!api.assert(token, 'token not found')) return;
   if (!api.assert(config && typeof config === 'object', 'config invalid')) return;
@@ -279,7 +333,7 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(cashoutWindowDays && Number.isInteger(cashoutWindowDays) && cashoutWindowDays >= 1 && cashoutWindowDays <= 30, 'cashoutWindowDays should be an integer between 1 and 30')) return;
 
   const parsedRewardPerBlock = api.BigNumber(rewardPerBlock);
-  if (!api.assert(parsedRewardPerBlock.isFinite() && parsedRewardPerBlock.dp() <= token.precision && parsedRewardPerBlock.gt(0), 'rewardPerBlock invalid')
+  if (!api.assert(typeof rewardPerBlock === 'string' && parsedRewardPerBlock.isFinite() && parsedRewardPerBlock.gt(0), 'rewardPerBlock invalid')
         || !api.assert(parsedRewardPerBlock.dp() <= token.precision, 'token precision mismatch for rewardPerBlock')) return;
 
   if (!api.assert(voteRegenerationDays && Number.isInteger(voteRegenerationDays) && voteRegenerationDays >= 1 && voteRegenerationDays <= 30, 'voteRegenerationDays should be an integer between 1 and 30')) return;
@@ -300,15 +354,138 @@ actions.createRewardPool = async (payload) => {
 
   const rewardPool = {
     symbol,
-    rewardPool: "0",
+    rewardPool: '0',
     lastRewardTimestamp: timestamp,
     createdTimestamp: timestamp,
     config,
-    pendingClaims: "0",
+    pendingClaims: '0',
     active: true,
   };
   const insertedRewardPool = await api.db.insert('rewardPools', rewardPool);
+  // burn the token creation fees
+  if (api.sender !== api.owner && api.BigNumber(setupFee).gt(0)) {
+    await api.executeSmartContract('tokens', 'transfer', {
+      // eslint-disable-next-line no-template-curly-in-string
+      to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: setupFee, isSignedWithActiveKey,
+    });
+  }
   api.emit('createRewardPool', { _id: insertedRewardPool._id });
+};
+
+actions.updateRewardPool = async (payload) => {
+  const {
+    rewardPoolId,
+    config,
+    isSignedWithActiveKey,
+  } = payload;
+  await tokenMaintenance();
+  if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
+    return;
+  }
+  // get contract params
+  const params = await api.db.findOne('params', {});
+  const { updateFee } = params;
+  // get api.sender's UTILITY_TOKEN_SYMBOL balance
+  // eslint-disable-next-line no-template-curly-in-string
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
+
+  const authorized = api.BigNumber(updateFee).lte(0) || api.sender === api.owner
+    ? true
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(updateFee);
+
+  if (!api.assert(authorized, 'you must have enough tokens to cover the update fee')) return;
+
+  if (!api.assert(config && typeof config === 'object', 'config invalid')) return;
+
+  const {
+    postRewardCurve,
+    postRewardCurveParameter,
+    curationRewardCurve,
+    curationRewardCurveParameter,
+    curationRewardPercentage,
+    cashoutWindowDays,
+    rewardPerBlock,
+    voteRegenerationDays,
+    downvoteRegenerationDays,
+    stakedRewardPercentage,
+    votePowerConsumption,
+    downvotePowerConsumption,
+  } = config;
+
+  const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
+  if (!api.assert(existingRewardPool, 'reward pool not found')) return;
+
+  const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingRewardPool.symbol });
+
+  if (!api.assert(postRewardCurve && postRewardCurve === 'power', 'postRewardCurve should be one of: [power]')) return;
+  existingRewardPool.config.postRewardCurve = postRewardCurve;
+
+  const postExponent = api.BigNumber(postRewardCurveParameter);
+  if (!api.assert(typeof postRewardCurveParameter === 'string' && postExponent.isFinite() && postExponent.gte('1') && postExponent.lte('2') && postExponent.dp() <= 2, 'postRewardCurveParameter should be between "1" and "2" with precision at most 2')) return;
+  existingRewardPool.config.postRewardCurveParameter = postRewardCurveParameter;
+
+  if (!api.assert(curationRewardCurve && curationRewardCurve === 'power', 'curationRewardCurve should be one of: [power]')) return;
+  const curationExponent = api.BigNumber(curationRewardCurveParameter);
+  if (!api.assert(typeof curationRewardCurveParameter === 'string' && curationExponent.isFinite() && curationExponent.gte('0.5') && curationExponent.lte('1') && curationExponent.dp() <= 2, 'curationRewardCurveParameter can only be between "0.5" and "1" with precision at most 2')) return;
+  existingRewardPool.config.curationRewardCurveParameter = curationRewardCurveParameter;
+
+  if (!api.assert(curationRewardPercentage && Number.isInteger(curationRewardPercentage) && curationRewardPercentage >= 0 && curationRewardPercentage <= 100, 'curationRewardPercentage should be an integer between 0 and 100')) return;
+  existingRewardPool.config.curationRewardPercentage = curationRewardPercentage;
+
+  if (!api.assert(cashoutWindowDays && Number.isInteger(cashoutWindowDays) && cashoutWindowDays >= 1 && cashoutWindowDays <= 30, 'cashoutWindowDays should be an integer between 1 and 30')) return;
+  existingRewardPool.config.cashoutWindowDays = cashoutWindowDays;
+
+  const parsedRewardPerBlock = api.BigNumber(rewardPerBlock);
+  if (!api.assert(typeof rewardPerBlock === 'string' && parsedRewardPerBlock.isFinite() && parsedRewardPerBlock.gt(0), 'rewardPerBlock invalid')
+        || !api.assert(parsedRewardPerBlock.dp() <= token.precision, 'token precision mismatch for rewardPerBlock')) return;
+  existingRewardPool.config.rewardPerBlock = rewardPerBlock;
+
+  if (!api.assert(voteRegenerationDays && Number.isInteger(voteRegenerationDays) && voteRegenerationDays >= 1 && voteRegenerationDays <= 30, 'voteRegenerationDays should be an integer between 1 and 30')) return;
+  existingRewardPool.config.voteRegenerationDays = voteRegenerationDays;
+
+  if (!api.assert(downvoteRegenerationDays && Number.isInteger(downvoteRegenerationDays) && downvoteRegenerationDays >= 1 && downvoteRegenerationDays <= 30, 'downvoteRegenerationDays should be an integer between 1 and 30')) return;
+  existingRewardPool.config.downvoteRegenerationDays = downvoteRegenerationDays;
+
+  if (!api.assert(stakedRewardPercentage && Number.isInteger(stakedRewardPercentage) && stakedRewardPercentage >= 0 && stakedRewardPercentage <= 100, 'stakedRewardPercentage should be an integer between 0 and 100')) return;
+  existingRewardPool.config.stakedRewardPercentage = stakedRewardPercentage;
+
+  if (!api.assert(votePowerConsumption && Number.isInteger(votePowerConsumption) && votePowerConsumption >= 1 && votePowerConsumption <= 10000, 'votePowerConsumption should be an integer between 1 and 10000')) return;
+  existingRewardPool.config.votePowerConsumption = votePowerConsumption;
+
+  if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
+  existingRewardPool.config.downvotePowerConsumption = downvotePowerConsumption;
+
+  if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
+
+  // burn the fees
+  if (api.sender !== api.owner && api.BigNumber(updateFee).gt(0)) {
+    await api.executeSmartContract('tokens', 'transfer', {
+      // eslint-disable-next-line no-template-curly-in-string
+      to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: updateFee, isSignedWithActiveKey,
+    });
+  }
+
+  await api.db.update('rewardPools', existingRewardPool);
+};
+
+actions.setActive = async (payload) => {
+  const {
+    rewardPoolId,
+    active,
+    isSignedWithActiveKey,
+  } = payload;
+  await tokenMaintenance();
+  if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
+    return;
+  }
+
+  const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
+  if (!api.assert(existingRewardPool, 'reward pool not found')) return;
+  const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingRewardPool.symbol });
+  if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
+
+  existingRewardPool.active = active;
+  await api.db.update('rewardPools', existingRewardPool);
 };
 
 actions.comment = async (payload) => {
@@ -334,7 +511,7 @@ actions.comment = async (payload) => {
   for (let i = 0; i < rewardPools.length; i += 1) {
     const rewardPoolId = rewardPools[i];
     const rewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
-    if (rewardPool) {
+    if (rewardPool && rewardPool.active) {
       const cashoutTime = timestamp + rewardPool.config.cashoutWindowDays * 24 * 3600 * 1000;
 
       const post = {
@@ -344,9 +521,9 @@ actions.comment = async (payload) => {
         author,
         created: timestamp,
         cashoutTime,
-        votePositiveRshareSum: "0",
-        voteRshareSum: "0",
-        scoreTrend: "0",
+        votePositiveRshareSum: '0',
+        voteRshareSum: '0',
+        scoreTrend: '0',
       };
       await api.db.insert('posts', post);
       api.emit('newComment', { rewardPoolId, symbol: rewardPool.symbol });
@@ -355,11 +532,11 @@ actions.comment = async (payload) => {
 };
 
 function computeTrendScore(post) {
-    const modScore = parseFloat(post.voteRshareSum);
-    const order = Math.log10(Math.max(Math.abs(modScore), 1));
-    const sign = modScore > 0 ? 1 : -1;
-    return api.BigNumber(sign * order + post.created / 480000000)
-      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+  const modScore = parseFloat(post.voteRshareSum);
+  const order = Math.log10(Math.max(Math.abs(modScore), 1));
+  const sign = modScore > 0 ? 1 : -1;
+  return api.BigNumber(sign * order + post.created / 480000000)
+    .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
 }
 
 async function processVote(post, voter, weight, timestamp) {
@@ -376,6 +553,10 @@ async function processVote(post, voter, weight, timestamp) {
 
   // check voting power, stake, and current vote rshares.
   const rewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
+  if (!rewardPool || !rewardPool.active) {
+    return;
+  }
+
   let votingPower = await api.db.findOne('votingPower', { rewardPoolId, account: voter });
   if (!votingPower) {
     votingPower = {
@@ -400,13 +581,14 @@ async function processVote(post, voter, weight, timestamp) {
   }
 
   const voterTokenBalance = await api.db.findOneInTable('tokens', 'balances', { symbol, account: voter });
-  let stake = voterTokenBalance ? voterTokenBalance.stake : "0";
-  if (voterTokenBalance && voterTokenBalance.delegationsIn && api.BigNumber(voterTokenBalance.delegationsIn).isFinite()) {
+  let stake = voterTokenBalance ? voterTokenBalance.stake : '0';
+  if (voterTokenBalance && voterTokenBalance.delegationsIn
+      && api.BigNumber(voterTokenBalance.delegationsIn).isFinite()) {
     stake = api.BigNumber(stake).plus(voterTokenBalance.delegationsIn);
   }
 
-  let voteRshares = "0";
-  let updatedPostRshares = "0";
+  let voteRshares = '0';
+  let updatedPostRshares = '0';
   let usedPower = 0;
   let usedDownvotePower = 0;
   let curationWeight = '0';
@@ -419,7 +601,7 @@ async function processVote(post, voter, weight, timestamp) {
     const usedPowerDenom = Math.floor(MAX_VOTING_POWER * 60 * 60 * 24
         / rewardPool.config.votePowerConsumption);
     usedPower = Math.floor((usedPower + usedPowerDenom - 1) / usedPowerDenom);
-      api.debug(usedPower);
+    api.debug(usedPower);
     votingPower.votingPower = Math.max(0, Math.floor(votingPower.votingPower - usedPower));
     curationWeight = api.BigNumber(calculateCurationWeightRshares(
       rewardPool, api.BigNumber(voteRshares).plus(post.votePositiveRshareSum),
@@ -427,7 +609,8 @@ async function processVote(post, voter, weight, timestamp) {
       .minus(calculateCurationWeightRshares(rewardPool, post.votePositiveRshareSum))
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
   } else if (weight < 0) {
-    voteRshares = api.BigNumber(stake).multipliedBy(weight).multipliedBy(votingPower.downvotingPower)
+    voteRshares = api.BigNumber(stake).multipliedBy(weight)
+      .multipliedBy(votingPower.downvotingPower)
       .dividedBy(MAX_VOTING_POWER)
       .dividedBy(MAX_WEIGHT)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
@@ -437,7 +620,9 @@ async function processVote(post, voter, weight, timestamp) {
         / rewardPool.config.downvotePowerConsumption);
     usedDownvotePower = Math.floor((usedDownvotePower + usedDownvotePowerDenom - 1)
         / usedDownvotePowerDenom);
-    votingPower.downvotingPower = Math.max(0, Math.floor(votingPower.downvotingPower - usedDownvotePower));
+    votingPower.downvotingPower = Math.max(
+      0, Math.floor(votingPower.downvotingPower - usedDownvotePower),
+    );
   }
 
   api.debug(votingPower);
@@ -471,23 +656,27 @@ async function processVote(post, voter, weight, timestamp) {
     api.emit('newVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
   }
 
-  // eslint-disable-next-line no-param-reassign
   const oldPostClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
+  // eslint-disable-next-line no-param-reassign
   post.voteRshareSum = api.BigNumber(post.voteRshareSum).plus(updatedPostRshares)
-      .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+    .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+  // eslint-disable-next-line no-param-reassign
   post.scoreTrend = computeTrendScore(post);
 
   if (api.BigNumber(updatedPostRshares).gt(0)) {
     // eslint-disable-next-line no-param-reassign
     post.votePositiveRshareSum = api.BigNumber(post.votePositiveRshareSum).plus(updatedPostRshares)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    if (timestamp < rewardPool.createdTimestamp + (2 * rewardPool.config.cashoutWindowDays + 1) * 24 * 3600 * 1000) {
+    if (timestamp < rewardPool.createdTimestamp
+        + (2 * rewardPool.config.cashoutWindowDays + 1) * 24 * 3600 * 1000) {
       const newPostClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
-        rewardPool.pendingClaims = api.BigNumber(rewardPool.pendingClaims).plus(newPostClaims).minus(oldPostClaims)
-            .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-        await api.db.update("rewardPools", rewardPool);
-        api.debug("updatin reward pool early section");
-        api.debug(rewardPool);
+      rewardPool.pendingClaims = api.BigNumber(rewardPool.pendingClaims)
+        .plus(newPostClaims)
+        .minus(oldPostClaims)
+        .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+      await api.db.update('rewardPools', rewardPool);
+      api.debug('updatin reward pool early section');
+      api.debug(rewardPool);
     }
   }
   await api.db.update('posts', post);
@@ -505,16 +694,17 @@ actions.vote = async (payload) => {
   // TODO: Handle separate direct voting action.
   if (!api.assert(api.sender === 'null', 'can only vote with voting op')) return;
 
-  if (!api.assert(Number.isInteger(weight) && weight >= -10000 && weight <= 10000, 'weight must be an integer from -10000 to 10000')) return;
+  if (!api.assert(Number.isInteger(weight) && weight >= -10000 && weight <= 10000,
+    'weight must be an integer from -10000 to 10000')) return;
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
   const authorperm = `@${author}/${permlink}`;
   const posts = await api.db.find('posts', { authorperm });
-  if (posts) {
-    for (let i = 0; i < posts.length; i += 1) {
-      const post = posts[i];
-      await processVote(post, voter, weight, timestamp);
-    }
+
+  if (!api.assert(posts && posts.length > 0, 'post not found')) return;
+  for (let i = 0; i < posts.length; i += 1) {
+    const post = posts[i];
+    await processVote(post, voter, weight, timestamp);
   }
 };

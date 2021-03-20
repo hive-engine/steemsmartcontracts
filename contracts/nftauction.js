@@ -101,7 +101,7 @@ const transferIsSuccessful = (result, action, from, to, symbol, quantity) => {
   return false;
 };
 
-const settleAuction = async (auction, id = null) => {
+const settleAuction = async (auction, id = null, settle = true) => {
   const {
     auctionId,
     symbol,
@@ -123,10 +123,24 @@ const settleAuction = async (auction, id = null) => {
   if (bids.length > 0) {
     const bidId = id === null ? currentLead : id;
     const leadBid = bids[bidId];
-    bids.splice(bidId, 1);
+    const finalTo = settle ? leadBid.account : seller;
 
-    // send payment to the seller
-    await api.transferTokens(seller, priceSymbol, leadBid.bid, 'user');
+    // only send payment & NFTs if auction is settling (not cancelled)
+    if (settle) {
+      bids.splice(bidId, 1);
+
+      // send payment to the seller
+      await api.transferTokens(seller, priceSymbol, leadBid.bid, 'user');
+    }
+
+    // transfer the NFTs to the buyer/seller
+    await api.executeSmartContract('nft', 'transfer', {
+      fromType: 'contract',
+      to: finalTo,
+      toType: 'user',
+      nfts: [wrappedNfts],
+      isSignedWithActiveKey: true,
+    });
 
     let count = 0;
 
@@ -141,27 +155,24 @@ const settleAuction = async (auction, id = null) => {
       count += 1;
     }
 
-    // transfer the NFTs to the buyer
-    await api.executeSmartContract('nft', 'transfer', {
-      fromType: 'contract',
-      to: leadBid.account,
-      toType: 'user',
-      nfts: [wrappedNfts],
-      isSignedWithActiveKey: true,
-    });
-
     await api.db.remove('auctions', auction);
 
-    api.emit('settleAuction', {
-      auctionId,
-      symbol,
-      seller,
-      nftIds,
-      bidder: leadBid.account,
-      price: leadBid.bid,
-      priceSymbol,
-      timestamp,
-    });
+    if (settle) {
+      api.emit('settleAuction', {
+        auctionId,
+        symbol,
+        seller,
+        nftIds,
+        bidder: leadBid.account,
+        price: leadBid.bid,
+        priceSymbol,
+        timestamp,
+      });
+    } else {
+      api.emit('cancelAuction', {
+        auctionId,
+      });
+    }
   } else {
     // if there are no bids, expire the auction
     await api.db.remove('auctions', auction);
@@ -307,6 +318,50 @@ actions.create = async (payload) => {
   }
 };
 
+actions.settle = async (payload) => {
+  const {
+    auctionId,
+    account,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(auctionId && typeof auctionId === 'string'
+      && (!account || (account && typeof account === 'string' && api.isValidAccountName(account))), 'invalid params')) {
+    const auction = await api.db.findOne('auctions', { auctionId });
+
+    if (api.assert(auction, 'auction does not exist or has been expired')
+      && api.assert(auction.seller === api.sender, 'you must be the owner of the auction')) {
+      let id = auction.currentLead;
+
+      if (account) {
+        // search if there is a bid from this account
+        id = auction.bids.findIndex(el => el.account === account);
+        if (!api.assert(auction.bids[id], 'no bid from account found in the auction')) return;
+      }
+
+      await settleAuction(auction, id);
+    }
+  }
+};
+
+actions.cancel = async (payload) => {
+  const {
+    auctionId,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(auctionId && typeof auctionId === 'string', 'invalid params')) {
+    const auction = await api.db.findOne('auctions', { auctionId });
+
+    if (api.assert(auction, 'auction does not exist or has been expired')
+    && api.assert(auction.seller === api.sender, 'you must be the owner of the auction')) {
+      await settleAuction(auction, null, false);
+    }
+  }
+};
+
 actions.bid = async (payload) => {
   const {
     auctionId,
@@ -423,7 +478,7 @@ actions.bid = async (payload) => {
   }
 };
 
-actions.cancel = async (payload) => {
+actions.cancelBid = async (payload) => {
   const {
     auctionId,
     isSignedWithActiveKey,
@@ -435,6 +490,7 @@ actions.cancel = async (payload) => {
 
     if (api.assert(auction, 'auction does not exist or has been expired')) {
       const {
+        priceSymbol,
         currentLead,
         expiryTimestamp,
         lastLeadUpdate,
@@ -465,9 +521,9 @@ actions.cancel = async (payload) => {
             let largestBid = '0';
             let largestBidIndex = null;
             for (let i = 0; i < auction.bids.length; i += 1) {
-              const { bid } = auction.bids[i];
-              if (api.BigNumber(bid).gt(largestBid)) {
-                largestBid = bid;
+              const { bid: quantity } = auction.bids[i];
+              if (api.BigNumber(quantity).gt(largestBid)) {
+                largestBid = quantity;
                 largestBidIndex = i;
               }
             }
@@ -478,7 +534,14 @@ actions.cancel = async (payload) => {
             auction.currentLead -= 1;
           }
 
+          await api.transferTokens(api.sender, priceSymbol, bid.bid, 'user');
+
           await api.db.update('auctions', auction);
+
+          api.emit('cancelBid', {
+            auctionId,
+            ...bid,
+          });
         }
       }
     }
@@ -508,6 +571,6 @@ actions.updateAuctions = async () => {
 
   for (let i = 0; i < auctionsToSettle.length; i += 1) {
     const auction = auctionsToSettle[i];
-    settleAuction(auction);
+    await settleAuction(auction);
   }
 };

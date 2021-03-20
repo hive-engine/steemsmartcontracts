@@ -20,7 +20,9 @@
     "test10": "./node_modules/mocha/bin/mocha ./test/packmanager.js",
     "test11": "./node_modules/mocha/bin/mocha ./test/claimdrops.js",
     "test12": "./node_modules/mocha/bin/mocha ./test/distribution.js",
-    "test13": "./node_modules/mocha/bin/mocha ./test/witnesses.js"
+    "test13": "./node_modules/mocha/bin/mocha ./test/witnesses.js",
+    "test14": "./node_modules/mocha/bin/mocha ./test/marketpools.js",
+    "test15": "./node_modules/mocha/bin/mocha ./test/nftauction.js"
   },
   "engines": {
     "node": ">=13.7.0",

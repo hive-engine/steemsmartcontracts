@@ -4,6 +4,15 @@ const { CONSTANTS } = require('../libs/Constants');
 
 const { SmartContracts } = require('./SmartContracts');
 const { Transaction } = require('../libs/Transaction');
+const { setupContractPayload } = require('../libs/util/contractUtil');
+
+const commentsContractPayload = setupContractPayload('comments', './contracts/comments.js');
+
+    // DO NOT KEEP THIS IN PRIMARY NODE. TEST NETWORK ONLY
+    if (this.refHiveBlockNumber === 52321178) {
+      // Append and enable relevant contracts for P2P
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(commentsContractPayload)));
+    }
 
 class Block {
   constructor(timestamp, refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, previousBlockNumber, previousHash = '', previousDatabaseHash = '') {

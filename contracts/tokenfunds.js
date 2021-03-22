@@ -428,6 +428,7 @@ actions.disapproveProposal = async (payload) => {
         }
         await api.db.update('accounts', acct);
         await updateProposalWeight(proposal._id, api.BigNumber(approvalWeight).negated());
+        api.emit('disapproveProposal', { id: proposal._id });
       }
     }
   }
@@ -523,7 +524,7 @@ async function checkPendingProposals(dtf, params) {
     } else if (fund.payout.type === 'contract') {
       await api.executeSmartContract('tokens', 'issueToContract',
         { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: fund.tickPay });
-      await api.executeSmartContract(fund.payout.name, 'recieveDtfTokens',
+      await api.executeSmartContract(fund.payout.name, 'receiveDtfTokens',
         { data: fund.payout.contractPayload, symbol: payTokenObj.symbol, quantity: fund.tickPay });
     }
   }

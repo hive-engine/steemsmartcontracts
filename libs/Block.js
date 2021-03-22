@@ -147,7 +147,7 @@ class Block {
 
     if (this.refHiveBlockNumber >= 52500000) {
       virtualTransactions
-        .push(new Transaction(0, '', 'null', 'tokenfund', 'checkPendingDtfs', ''));
+        .push(new Transaction(0, '', 'null', 'tokenfunds', 'checkPendingDtfs', ''));
     }
 
     if (this.refHiveBlockNumber % 1200 === 0) {
@@ -190,7 +190,7 @@ class Block {
           && transaction.action === 'checkPendingAirdrops'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
-        } else if (transaction.contract === 'tokenfund'
+        } else if (transaction.contract === 'tokenfunds'
           && transaction.action === 'checkPendingDtfs'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs

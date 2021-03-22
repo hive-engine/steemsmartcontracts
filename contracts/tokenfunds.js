@@ -193,14 +193,11 @@ actions.updateFund = async (payload) => {
     const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingDtf.voteToken });
     if (!api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
       || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
-    const newDtf = {
-      voteThreshold,
-      maxDays,
-      maxAmountPerDay,
-      proposalFee,
-      active: false,
-    };
-    await api.db.update('funds', newDtf);
+    existingDtf.voteThreshold = voteThreshold;
+    existingDtf.maxDays = maxDays;
+    existingDtf.maxAmountPerDay = maxAmountPerDay;
+    if (proposalFee) existingDtf.proposalFee = proposalFee;
+    await api.db.update('funds', existingDtf);
 
     // burn the token creation fees
     if (api.sender !== api.owner && api.BigNumber(dtfUpdateFee).gt(0)) {
@@ -308,6 +305,7 @@ actions.updateProposal = async (payload) => {
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     && api.assert(dtf.active === true, 'DTF is not active')
+    && api.assert(proposal.active === true, 'proposal is not active')
     && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
     && api.assert(typeof authorperm === 'string' && authorperm.length > 0 && authorperm.length <= 255, 'invalid authorperm: between 1 and 255 characters')
     && api.assert(typeof amountPerDay === 'string'

@@ -129,7 +129,7 @@ async function assertUserWeight(account, symbol, weight = 0) {
   assert.equal(res.weights[wIndex].weight, weight, `${account} has ${symbol} weight ${res.weights[wIndex].weight}, expected ${weight}`);
 }
 
-async function assertUserApproval(account, proposalId) {
+async function assertUserApproval(account, proposalId, present = true) {
   const res = await database1.findOne({
     contract: 'tokenfunds',
     table: 'approvals',
@@ -139,8 +139,8 @@ async function assertUserApproval(account, proposalId) {
     }
   });
 
-  if (!proposalId) {
-    assert(!res, `proposalId found for ${account}, ${res.proposalId}, expected none.`);
+  if (!present) {
+    assert(!res, `proposalId found for ${account}, expected none.`);
     return;
   }
   assert.ok(res, `No proposalId for ${account}, ${proposalId}`);
@@ -1225,7 +1225,28 @@ describe('tokenfunds tests', function () {
       await assertNoErrorInLastBlock();
       await assertUserWeight('staker', 'SLV', 450);
       await assertUserWeight('staker2', 'SLV', 400);
-      await assertWeightConsistency(1, 'SLV');      
+      await assertWeightConsistency(1, 'SLV');
+
+      transactions = [];    
+      transactions.push(new Transaction(12345678907, getNextTxId(), 'staker', 'tokenfunds', 'disapproveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678907, getNextTxId(), 'staker2', 'tokenfunds', 'disapproveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678907,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T02:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+      await assertUserWeight('staker', 'SLV', 450);
+      await assertUserWeight('staker2', 'SLV', 400);
+      await assertWeightConsistency(1, 'SLV');
+      await assertUserApproval('staker', 1, false);
+      await assertUserApproval('staker2', 1, false);
 
       resolve();
     })

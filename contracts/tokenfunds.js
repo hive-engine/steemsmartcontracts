@@ -425,11 +425,10 @@ actions.disapproveProposal = async (payload) => {
             .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
         }
         const wIndex = acct.weights.findIndex(x => x.symbol === dtf.voteToken);
-        const deltaApprovalWeight = api.BigNumber(approvalWeight).negated().toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
         if (wIndex !== -1) {
-          acct.weights[wIndex].weight = deltaApprovalWeight;
+          acct.weights[wIndex].weight = approvalWeight;
         } else {
-          acct.weights.push({ symbol: dtf.voteToken, weight: deltaApprovalWeight });
+          acct.weights.push({ symbol: dtf.voteToken, weight: approvalWeight });
         }
         await api.db.update('accounts', acct);
         await updateProposalWeight(proposal._id, api.BigNumber(approvalWeight).negated());

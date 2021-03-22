@@ -7,18 +7,18 @@ const FeeMethod = ['burn', 'issuer'];
 const PayoutType = ['user', 'contract'];
 
 actions.createSSC = async () => {
-  const tableExists = await api.db.tableExists('daos');
+  const tableExists = await api.db.tableExists('funds');
   if (tableExists === false) {
-    await api.db.createTable('daos', ['id', 'lastTickTime']);
-    await api.db.createTable('proposals', ['daoId', 'approvalWeight']);
+    await api.db.createTable('funds', ['id', 'lastTickTime']);
+    await api.db.createTable('proposals', ['fundId', 'approvalWeight']);
     await api.db.createTable('approvals', ['from', 'to']);
     await api.db.createTable('accounts', ['account']);
     await api.db.createTable('params');
 
     const params = {
-      daoCreationFee: '1000',
-      daoTickHours: '24',
-      maxDaosPerBlock: 40,
+      dtfCreationFee: '1000',
+      dtfTickHours: '24',
+      maxDtfsPerBlock: 40,
       processQueryLimit: 1000,
     };
     await api.db.insert('params', params);
@@ -26,24 +26,24 @@ actions.createSSC = async () => {
 };
 
 actions.updateParams = async (payload) => {
-  const { daoCreationFee, daoTickHours } = payload;
+  const { dtfCreationFee, dtfTickHours } = payload;
   if (api.sender !== api.owner) return;
   const params = await api.db.findOne('params', {});
-  if (daoCreationFee) {
-    if (!api.assert(typeof daoCreationFee === 'string' && !api.BigNumber(daoCreationFee).isNaN() && api.BigNumber(daoCreationFee).gte(0), 'invalid daoCreationFee')) return;
-    params.daoCreationFee = daoCreationFee;
+  if (dtfCreationFee) {
+    if (!api.assert(typeof dtfCreationFee === 'string' && !api.BigNumber(dtfCreationFee).isNaN() && api.BigNumber(dtfCreationFee).gte(0), 'invalid dtfCreationFee')) return;
+    params.dtfCreationFee = dtfCreationFee;
   }
-  if (daoTickHours) {
-    if (!api.assert(typeof daoTickHours === 'string' && api.BigNumber(daoTickHours).isInteger() && api.BigNumber(daoTickHours).gte(1), 'invalid daoTickHours')) return;
-    params.daoTickHours = daoTickHours;
+  if (dtfTickHours) {
+    if (!api.assert(typeof dtfTickHours === 'string' && api.BigNumber(dtfTickHours).isInteger() && api.BigNumber(dtfTickHours).gte(1), 'invalid dtfTickHours')) return;
+    params.dtfTickHours = dtfTickHours;
   }
   await api.db.update('params', params);
 };
 
 // validate max supply
 
-function generateDaoId(dao) {
-  return `${dao.payToken.replace('.', '-')}:${dao.voteToken.replace('.', '-')}`;
+function generateDtfId(dtf) {
+  return `${dtf.payToken.replace('.', '-')}:${dtf.voteToken.replace('.', '-')}`;
 }
 
 async function updateProposalWeight(id, deltaApprovalWeight) {
@@ -84,7 +84,7 @@ function validateDateRange(startDate, endDate, maxDays) {
     || !api.assert(api.BigNumber(start.getTime()).gt(api.BigNumber(now.getTime()).plus(86400 * 1000)), 'startDate must be at least 1 day in the future')) return false;
   const range = api.BigNumber(start.getTime()).minus(end.getTime()).abs();
   const rangeDays = range.dividedBy(1000 * 60 * 60 * 24).toFixed(0, api.BigNumber.ROUND_CEIL);
-  if (!api.assert(api.BigNumber(rangeDays).lte(maxDays), 'date range exceeds DAO maxDays')) return false;
+  if (!api.assert(api.BigNumber(rangeDays).lte(maxDays), 'date range exceeds DTF maxDays')) return false;
   return true;
 }
 
@@ -95,21 +95,21 @@ function validateDateChange(date, newDate) {
   return true;
 }
 
-actions.createDao = async (payload) => {
+actions.createFund = async (payload) => {
   const {
     payToken, voteToken, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
   const params = await api.db.findOne('params', {});
-  const { daoCreationFee } = params;
+  const { dtfCreationFee } = params;
 
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
 
-  const authorizedCreation = api.BigNumber(daoCreationFee).lte(0) || api.sender === api.owner
+  const authorizedCreation = api.BigNumber(dtfCreationFee).lte(0) || api.sender === api.owner
     ? true
-    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(daoCreationFee);
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(dtfCreationFee);
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
@@ -130,7 +130,7 @@ actions.createDao = async (payload) => {
       || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
       || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
     const now = new Date(`${api.hiveBlockTimestamp}.000Z`);
-    const newDao = {
+    const newDtf = {
       payToken,
       voteToken,
       voteThreshold,
@@ -141,38 +141,38 @@ actions.createDao = async (payload) => {
       creator: api.sender,
       lastTickTime: now.getTime(),
     };
-    newDao.id = generateDaoId(newDao);
-    const existingDao = await api.db.findOne('daos', { id: newDao.id });
-    if (!api.assert(!existingDao, 'DAO already exists')) return;
+    newDtf.id = generateDtfId(newDtf);
+    const existingDtf = await api.db.findOne('funds', { id: newDtf.id });
+    if (!api.assert(!existingDtf, 'DTF already exists')) return;
 
-    const insertedDao = await api.db.insert('daos', newDao);
+    const insertedDtf = await api.db.insert('funds', newDtf);
 
     // burn the token creation fees
-    if (api.sender !== api.owner && api.BigNumber(daoCreationFee).gt(0)) {
+    if (api.sender !== api.owner && api.BigNumber(dtfCreationFee).gt(0)) {
       await api.executeSmartContract('tokens', 'transfer', {
         // eslint-disable-next-line no-template-curly-in-string
-        to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: daoCreationFee, isSignedWithActiveKey,
+        to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: dtfCreationFee, isSignedWithActiveKey,
       });
     }
-    api.emit('createDao', { id: insertedDao.id });
+    api.emit('createDtf', { id: insertedDtf.id });
   }
 };
 
-actions.updateDao = async (payload) => {
+actions.updateFund = async (payload) => {
   const {
     payToken, voteToken, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
   const params = await api.db.findOne('params', {});
-  const { daoCreationFee } = params;
+  const { dtfCreationFee } = params;
 
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
 
-  const authorizedCreation = api.BigNumber(daoCreationFee).lte(0) || api.sender === api.owner
+  const authorizedCreation = api.BigNumber(dtfCreationFee).lte(0) || api.sender === api.owner
     ? true
-    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(daoCreationFee);
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(dtfCreationFee);
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
@@ -193,7 +193,7 @@ actions.updateDao = async (payload) => {
       || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
       || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
     const now = new Date(`${api.hiveBlockTimestamp}.000Z`);
-    const newDao = {
+    const newDtf = {
       payToken,
       voteToken,
       voteThreshold,
@@ -204,26 +204,26 @@ actions.updateDao = async (payload) => {
       creator: api.sender,
       lastTickTime: now.getTime(),
     };
-    newDao.id = generateDaoId(newDao);
-    const existingDao = await api.db.findOne('daos', { id: newDao.id });
-    if (!api.assert(!existingDao, 'DAO already exists')) return;
+    newDtf.id = generateDtfId(newDtf);
+    const existingDtf = await api.db.findOne('funds', { id: newDtf.id });
+    if (!api.assert(!existingDtf, 'DTF already exists')) return;
 
-    const insertedDao = await api.db.insert('daos', newDao);
+    const insertedDtf = await api.db.insert('funds', newDtf);
 
     // burn the token creation fees
-    if (api.sender !== api.owner && api.BigNumber(daoCreationFee).gt(0)) {
+    if (api.sender !== api.owner && api.BigNumber(dtfCreationFee).gt(0)) {
       await api.executeSmartContract('tokens', 'transfer', {
         // eslint-disable-next-line no-template-curly-in-string
-        to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: daoCreationFee, isSignedWithActiveKey,
+        to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: dtfCreationFee, isSignedWithActiveKey,
       });
     }
-    api.emit('createDao', { id: insertedDao.id });
+    api.emit('createFund', { id: insertedDtf.id });
   }
 };
 
-actions.setDaoActive = async (payload) => {
+actions.setDtfActive = async (payload) => {
   const {
-    daoId,
+    fundId,
     active,
     isSignedWithActiveKey,
   } = payload;
@@ -231,35 +231,35 @@ actions.setDaoActive = async (payload) => {
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     return;
   }
-  const dao = await api.db.findOne('daos', { id: daoId });
-  if (api.assert(dao, 'DAO does not exist')
-    && api.assert(dao.creator === api.sender || api.owner === api.sender, 'must be DAO creator')) {
-    dao.active = !!active;
-    await api.db.update('daos', dao);
-    api.emit('setDaoActive', { id: dao.id, active: dao.active });
+  const dtf = await api.db.findOne('funds', { id: fundId });
+  if (api.assert(dtf, 'DTF does not exist')
+    && api.assert(dtf.creator === api.sender || api.owner === api.sender, 'must be DTF creator')) {
+    dtf.active = !!active;
+    await api.db.update('funds', dtf);
+    api.emit('setDtfActive', { id: dtf.id, active: dtf.active });
   }
 };
 
 actions.createProposal = async (payload) => {
   const {
-    daoId, title, startDate, endDate, amountPerDay,
+    fundId, title, startDate, endDate, amountPerDay,
     authorperm, payout, isSignedWithActiveKey,
   } = payload;
 
-  const dao = await api.db.findOne('daos', { id: daoId });
-  if (!api.assert(dao, 'DAO does not exist')) return;
+  const dtf = await api.db.findOne('funds', { id: fundId });
+  if (!api.assert(dtf, 'DTF does not exist')) return;
 
   let authorizedCreation = true;
-  if (dao.proposalFee) {
-    const feeTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dao.proposalFee.symbol });
-    authorizedCreation = api.BigNumber(dao.proposalFee.amount).lte(0) || api.sender === api.owner
+  if (dtf.proposalFee) {
+    const feeTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dtf.proposalFee.symbol });
+    authorizedCreation = api.BigNumber(dtf.proposalFee.amount).lte(0) || api.sender === api.owner
       ? true
-      : feeTokenBalance && api.BigNumber(feeTokenBalance.balance).gte(dao.proposalFee.amount);
+      : feeTokenBalance && api.BigNumber(feeTokenBalance.balance).gte(dtf.proposalFee.amount);
   }
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    && api.assert(dao.active === true, 'DAO is not active')
+    && api.assert(dtf.active === true, 'DTF is not active')
     && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
     && api.assert(typeof authorperm === 'string' && authorperm.length > 0 && authorperm.length <= 255, 'invalid authorperm: between 1 and 255 characters')
     && api.assert(typeof amountPerDay === 'string'
@@ -269,9 +269,9 @@ actions.createProposal = async (payload) => {
       && typeof payout.type === 'string' && PayoutType.indexOf(payout.type) !== -1
       && (payout.type !== 'contract' || typeof payout.contractPayload === 'object')
       && typeof payout.name === 'string' && payout.name.length >= 3 && payout.name.length <= 50, 'invalid payout settings')
-    && validateDateRange(startDate, endDate, dao.maxDays)) {
+    && validateDateRange(startDate, endDate, dtf.maxDays)) {
     const newProposal = {
-      daoId,
+      fundId,
       title,
       startDate,
       endDate,
@@ -284,15 +284,15 @@ actions.createProposal = async (payload) => {
     };
     const insertedProposal = await api.db.insert('proposals', newProposal);
 
-    if (api.sender !== api.owner && dao.proposalFee) {
-      if (dao.proposalFee.method === 'burn') {
+    if (api.sender !== api.owner && dtf.proposalFee) {
+      if (dtf.proposalFee.method === 'burn') {
         await api.executeSmartContract('tokens', 'transfer', {
-          to: 'null', symbol: dao.proposalFee.symbol, quantity: dao.proposalFee.amount,
+          to: 'null', symbol: dtf.proposalFee.symbol, quantity: dtf.proposalFee.amount,
         });
-      } else if (dao.proposalFee.method === 'issuer') {
-        const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.proposalFee.symbol });
+      } else if (dtf.proposalFee.method === 'issuer') {
+        const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.proposalFee.symbol });
         await api.executeSmartContract('tokens', 'transfer', {
-          to: feeTokenObj.issuer, symbol: dao.proposalFee.symbol, quantity: dao.proposalFee.amount,
+          to: feeTokenObj.issuer, symbol: dtf.proposalFee.symbol, quantity: dtf.proposalFee.amount,
         });
       }
     }
@@ -310,8 +310,8 @@ actions.updateProposal = async (payload) => {
   const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
   if (!api.assert(proposal, 'proposal does not exist')
     || !api.assert(proposal.creator === api.sender || api.owner === api.sender, 'must be proposal creator')) return;
-  const dao = await api.db.findOne('daos', { id: proposal.daoId, active: true });
-  if (!api.assert(dao, 'DAO does not exist or inactive')) return;
+  const dtf = await api.db.findOne('funds', { id: proposal.fundId, active: true });
+  if (!api.assert(dtf, 'DTF does not exist or inactive')) return;
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
@@ -321,7 +321,7 @@ actions.updateProposal = async (payload) => {
       && api.BigNumber(amountPerDay).gt(0)
       && api.BigNumber(amountPerDay).lte(proposal.amountPerDay), 'invalid amountPerDay: greater than 0 and cannot be increased')
     && validateDateChange(proposal.endDate, endDate)
-    && validateDateRange(proposal.startDate, endDate, dao.maxDays)) {
+    && validateDateRange(proposal.startDate, endDate, dtf.maxDays)) {
     proposal.title = title;
     proposal.endDate = endDate;
     proposal.amountPerDay = amountPerDay;
@@ -355,8 +355,8 @@ actions.approveProposal = async (payload) => {
     const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(proposalId).toNumber() });
 
     if (api.assert(proposal, 'proposal does not exist')) {
-      const dao = await api.db.findOne('daos', { id: proposal.daoId });
-      const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.voteToken });
+      const dtf = await api.db.findOne('funds', { id: proposal.fundId });
+      const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.voteToken });
       let acct = await api.db.findOne('accounts', { account: api.sender });
       if (acct === null) {
         acct = {
@@ -374,7 +374,7 @@ actions.approveProposal = async (payload) => {
         };
         await api.db.insert('approvals', approval);
 
-        const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dao.voteToken });
+        const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dtf.voteToken });
         let approvalWeight = 0;
         if (balance && balance.stake) {
           approvalWeight = balance.stake;
@@ -384,11 +384,11 @@ actions.approveProposal = async (payload) => {
             .plus(balance.delegationsIn)
             .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
         }
-        const wIndex = acct.weights.findIndex(x => x.symbol === dao.voteToken);
+        const wIndex = acct.weights.findIndex(x => x.symbol === dtf.voteToken);
         if (wIndex !== -1) {
           acct.weights[wIndex].weight = approvalWeight;
         } else {
-          acct.weights.push({ symbol: dao.voteToken, weight: approvalWeight });
+          acct.weights.push({ symbol: dtf.voteToken, weight: approvalWeight });
         }
         await api.db.update('accounts', acct);
         await updateProposalWeight(proposal._id, approvalWeight);
@@ -404,8 +404,8 @@ actions.disapproveProposal = async (payload) => {
   if (api.assert(typeof proposalId === 'string' && api.BigNumber(proposalId).isInteger(), 'invalid proposalId')) {
     const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(proposalId).toNumber() });
     if (api.assert(proposal, 'proposal does not exist')) {
-      const dao = await api.db.findOne('daos', { id: proposal.daoId });
-      const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.voteToken });
+      const dtf = await api.db.findOne('funds', { id: proposal.fundId });
+      const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.voteToken });
       let acct = await api.db.findOne('accounts', { account: api.sender });
       if (acct === null) {
         acct = {
@@ -419,7 +419,7 @@ actions.disapproveProposal = async (payload) => {
       if (api.assert(approval !== null, 'you have not approved this proposal')) {
         await api.db.remove('approvals', approval);
 
-        const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dao.voteToken });
+        const balance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: dtf.voteToken });
         let approvalWeight = 0;
         if (balance && balance.stake) {
           approvalWeight = balance.stake;
@@ -429,12 +429,12 @@ actions.disapproveProposal = async (payload) => {
             .plus(balance.delegationsIn)
             .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
         }
-        const wIndex = acct.weights.findIndex(x => x.symbol === dao.voteToken);
+        const wIndex = acct.weights.findIndex(x => x.symbol === dtf.voteToken);
         const deltaApprovalWeight = api.BigNumber(approvalWeight).negated().toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
         if (wIndex !== -1) {
           acct.weights[wIndex].weight = deltaApprovalWeight;
         } else {
-          acct.weights.push({ symbol: dao.voteToken, weight: deltaApprovalWeight });
+          acct.weights.push({ symbol: dtf.voteToken, weight: deltaApprovalWeight });
         }
         await api.db.update('accounts', acct);
         await updateProposalWeight(proposal._id, api.BigNumber(approvalWeight).negated());
@@ -481,24 +481,24 @@ actions.updateProposalApprovals = async (payload) => {
   }
 };
 
-async function checkPendingProposals(dao, params) {
+async function checkPendingProposals(dtf, params) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-  const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dao.payToken });
-  // ratio of daily payment independent of daoTickHours
-  const passedTimeSec = api.BigNumber(blockDate.getTime()).minus(dao.lastTickTime).dividedBy(1000);
+  const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.payToken });
+  // ratio of daily payment independent of dtfTickHours
+  const passedTimeSec = api.BigNumber(blockDate.getTime()).minus(dtf.lastTickTime).dividedBy(1000);
   const tickPayRatio = passedTimeSec.dividedBy(86400);
 
   const funded = [];
   const fundedLog = [];
   let offset = 0;
   let proposals;
-  let runningPay = api.BigNumber(dao.maxAmountPerDay);
+  let runningPay = api.BigNumber(dtf.maxAmountPerDay);
   while (runningPay.gt(0)) {
     proposals = await api.db.find('proposals',
       {
-        daoId: dao.id,
+        fundId: dtf.id,
         active: true,
-        approvalWeight: { $gt: api.BigNumber(dao.voteThreshold).toNumber() },
+        approvalWeight: { $gt: api.BigNumber(dtf.voteThreshold).toNumber() },
         startDate: { $lte: blockDate.toISOString() },
         endDate: { $gte: blockDate.toISOString() },
       },
@@ -533,35 +533,35 @@ async function checkPendingProposals(dao, params) {
     } else if (fund.payout.type === 'contract') {
       await api.executeSmartContract('tokens', 'issueToContract',
         { to: fund.payout.name, symbol: payTokenObj.symbol, quantity: fund.tickPay });
-      await api.executeSmartContract(fund.payout.name, 'recieveDaoTokens',
+      await api.executeSmartContract(fund.payout.name, 'recieveDtfTokens',
         { data: fund.payout.contractPayload, symbol: payTokenObj.symbol, quantity: fund.tickPay });
     }
   }
   // eslint-disable-next-line no-param-reassign
-  dao.lastTickTime = api.BigNumber(blockDate.getTime()).toNumber();
-  await api.db.update('daos', dao);
-  api.emit('daoProposals', { daoId: dao.id, funded: fundedLog });
+  dtf.lastTickTime = api.BigNumber(blockDate.getTime()).toNumber();
+  await api.db.update('funds', dtf);
+  api.emit('fundProposals', { fundId: dtf.id, funded: fundedLog });
 }
 
-actions.checkPendingDaos = async () => {
+actions.checkPendingDtfs = async () => {
   if (api.assert(api.sender === 'null', 'not authorized')) {
     const params = await api.db.findOne('params', {});
     const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-    const tickTime = api.BigNumber(blockDate.getTime()).minus(params.daoTickHours * 3600 * 1000).toNumber();
+    const tickTime = api.BigNumber(blockDate.getTime()).minus(params.dtfTickHours * 3600 * 1000).toNumber();
 
-    const pendingDaos = await api.db.find('daos',
+    const pendingDtfs = await api.db.find('funds',
       {
         active: true,
         lastTickTime: {
           $lte: tickTime,
         },
       },
-      params.maxDaosPerBlock,
+      params.maxDtfsPerBlock,
       0,
       [{ index: 'lastTickTime', descending: false }, { index: '_id', descending: false }]);
 
-    for (let i = 0; i < pendingDaos.length; i += 1) {
-      await checkPendingProposals(pendingDaos[i], params);
+    for (let i = 0; i < pendingDtfs.length; i += 1) {
+      await checkPendingProposals(pendingDtfs[i], params);
     }
   }
 };

@@ -1018,9 +1018,9 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1", "tradeType": "exactOutput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "1", "tradeType": "exactInput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1", "tradeType": "exactInput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
-      for (let i = 0; i <= 10; i++) {
-        let rand = BigNumber.random().plus(1).times(5).toFixed(8);
-        transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', `{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "${rand}", "tradeType": "exactOutput", "maxSlippage": "1", "isSignedWithActiveKey": true}`));
+      for (let i = 0; i <= 5; i++) {
+        let rand = BigNumber.random().plus(1).toFixed(8);
+        transactions.push(new Transaction(12345678902, getNextTxId(), 'buyer', 'marketpools', 'swapTokens', `{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "${rand}", "tradeType": "exactInput", "maxSlippage": "1", "isSignedWithActiveKey": true}`));
       }
       transactions.push(new Transaction(12345678902, getNextTxId(), 'investor', 'marketpools', 'removeLiquidity', '{ "tokenPair": "GLD:SLV", "sharesOut": "100", "isSignedWithActiveKey": true}'));
 
@@ -1035,6 +1035,7 @@ describe('marketpools tests', function () {
 
       let res = await database1.getLatestBlockInfo();
       // console.log(res);
+      await assertUserBalance('buyer', 'SLV', 1);
       await assertNoErrorInLastBlock();
       await assertShareConsistency("GLD:SLV");
     

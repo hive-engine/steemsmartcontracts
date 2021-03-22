@@ -115,7 +115,7 @@ async function assertUserBalance(account, symbol, balance) {
   assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
 }
 
-async function assertUserWeight(account, symbol, weight) {
+async function assertUserWeight(account, symbol, weight = 0) {
   const res = await database1.findOne({
     contract: 'tokenfunds',
     table: 'accounts',
@@ -124,11 +124,6 @@ async function assertUserWeight(account, symbol, weight) {
       'weights.symbol': symbol,
     }
   });
-
-  if (!weight) {
-    assert(!res, `Weight found for ${account}, ${weight}, expected none.`);
-    return;
-  }
   assert.ok(res, `No weight for ${account}, ${symbol}`);
   const wIndex = res.weights.findIndex(x => x.symbol === symbol);
   assert.equal(res.weights[wIndex].weight, weight, `${account} has ${symbol} weight ${res.weights[wIndex].weight}, expected ${weight}`);
@@ -191,7 +186,7 @@ async function assertTokenBalance(id, symbol, balance) {
   assert.ok(hasBalance, `No balance for contract ${id}, ${symbol}`);
 }
 
-async function assertWeightConsistency(proposalId) {
+async function assertWeightConsistency(proposalId, voteSymbol) {
   const prop = await database1.findOne({
     contract: 'tokenfunds',
     table: 'proposals',
@@ -204,14 +199,17 @@ async function assertWeightConsistency(proposalId) {
   });
   let appWeight = 0;
   for (let i = 0; i < app.length; i += 1) {
-    const acct = await database1.find({
+    const acct = await database1.findOne({
       contract: 'tokenfunds',
       table: 'accounts',
       query: { account: app[i].from }
-    });    
+    });
+    const wIndex = acct.weights.findIndex(x => x.symbol === voteSymbol);
+    if (wIndex !== -1) {
+      appWeight = BigNumber(appWeight).plus(acct.weights[wIndex].weight).toNumber();
+    }
   }
-  const lpShares = lp.reduce((acc, val) => BigNumber(acc).plus(val.shares), 0);
-  assert.equal(lpShares, pool.totalShares, 'total shares in liquidity positions doesn\'t equal pool.totalShares');
+  assert.equal(appWeight, prop.approvalWeight, `prop.approvalWeight (${prop.approvalWeight}) doesn\'t equal total of account weights (${appWeight})`);
 }
 
 function assertError(tx, message) {
@@ -418,6 +416,65 @@ describe('tokenfunds tests', function () {
         done();
       });
   });
+
+  it('should not update invalid DTF', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "spoofer", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "SLV", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'createFund', '{ "payToken": "GLD", "voteToken": "SLV", "voteThreshold": "1000", "maxDays": "365", "maxAmountPerDay": "10000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1", "maxDays": "100", "maxAmountPerDay": "100", "proposalFee": { "method": "burn", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "amount": "1" }, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "0", "maxDays": "100", "maxAmountPerDay": "100", "proposalFee": { "method": "burn", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "amount": "1" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1", "maxDays": "8000", "maxAmountPerDay": "100", "proposalFee": { "method": "burn", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "amount": "1" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1", "maxDays": "100", "maxAmountPerDay": "x", "proposalFee": { "method": "burn", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "amount": "1" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1", "maxDays": "100", "maxAmountPerDay": "100", "proposalFee": { "method": "free", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "amount": "1" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1", "maxDays": "100", "maxAmountPerDay": "100", "proposalFee": { "method": "issuer", "symbol": "TKN", "amount": "1" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'spoofer', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1", "maxDays": "100", "maxAmountPerDay": "1.12345678999", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1", "maxDays": "100", "maxAmountPerDay": "1.12345678999", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'updateFund', '{ "fundId": "GLD:SLV", "voteThreshold": "1.12345678999", "maxDays": "100", "maxAmountPerDay": "1222", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block })
+
+      let res = await database1.getLatestBlockInfo();
+      // console.log(res);
+      let txs = res.transactions;
+
+      assertError(txs[8], 'you must use a transaction signed with your active key');
+      assertError(txs[9], 'invalid voteThreshold: greater than 0');
+      assertError(txs[10], 'invalid maxDays: integer between 1 and 730');
+      assertError(txs[11], 'invalid maxAmountPerDay: greater than 0');
+      assertError(txs[12], 'invalid proposalFee');
+      assertError(txs[13], 'invalid proposalFee token or precision');
+      assertError(txs[14], 'must be DTF creator');
+      assertError(txs[15], 'maxAmountPerDay precision mismatch');
+      assertError(txs[16], 'voteThreshold precision mismatch');
+  
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });  
 
   it('should allow owner to update params', (done) => {
     new Promise(async (resolve) => {
@@ -732,8 +789,8 @@ describe('tokenfunds tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'setDtfActive', '{ "fundId": "GLD:SLV", "active": true, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'tokenfunds', 'createProposal', '{ "fundId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-03-16T00:00:00.000Z", "amountPerDay": "800", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "rambo" }, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'tokenfunds', 'createProposal', '{ "fundId": "GLD:SLV", "title": "A Small Community Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-03-18T00:00:00.000Z", "amountPerDay": "800", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "rambo" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "proposalId": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -830,15 +887,15 @@ describe('tokenfunds tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'setDtfActive', '{ "fundId": "GLD:GLD", "active": true, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'tokenfunds', 'createProposal', '{ "fundId": "GLD:GLD", "title": "A Big Noble Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "contract", "contractPayload": { "id": "1" }, "name": "distribution" }, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'voter4', 'tokenfunds', 'createProposal', '{ "fundId": "GLD:GLD", "title": "A Small Noble Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "5", "authorperm": "@abc123/test", "payout": { "type": "contract", "contractPayload": { "id": "1" }, "name": "distribution" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'organizer', 'tokenfunds', 'approveProposal', '{ "proposalId": "3", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter3', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "proposalId": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "proposalId": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "proposalId": "3", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "proposalId": "4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'organizer', 'tokenfunds', 'approveProposal', '{ "id": "3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter3', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "id": "3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "id": "4", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -865,6 +922,10 @@ describe('tokenfunds tests', function () {
       await assertUserApproval('voter3', 2);
       await assertUserApproval('voter4', 3);
       await assertUserApproval('organizer', 3);
+      await assertWeightConsistency(1, 'SLV');
+      await assertWeightConsistency(2, 'SLV');
+      await assertWeightConsistency(3, 'GLD');
+      await assertWeightConsistency(4, 'GLD');
 
 
       transactions = [];
@@ -950,15 +1011,15 @@ describe('tokenfunds tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'setDtfActive', '{ "fundId": "GLD:GLD", "active": true, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'organizer', 'tokenfunds', 'createProposal', '{ "fundId": "GLD:GLD", "title": "A Big Noble Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "contract", "contractPayload": { "id": "1" }, "name": "distribution" }, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'voter4', 'tokenfunds', 'createProposal', '{ "fundId": "GLD:GLD", "title": "A Small Noble Project", "startDate": "2021-03-14T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "5", "authorperm": "@abc123/test", "payout": { "type": "contract", "contractPayload": { "id": "1" }, "name": "distribution" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'organizer', 'tokenfunds', 'approveProposal', '{ "proposalId": "3", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter3', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "proposalId": "2", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "proposalId": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "proposalId": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "proposalId": "3", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "proposalId": "4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'organizer', 'tokenfunds', 'approveProposal', '{ "id": "3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter3', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "id": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter2', 'tokenfunds', 'approveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "id": "3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'voter4', 'tokenfunds', 'approveProposal', '{ "id": "4", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -985,7 +1046,10 @@ describe('tokenfunds tests', function () {
       await assertUserApproval('voter3', 2);
       await assertUserApproval('voter4', 3);
       await assertUserApproval('organizer', 3);
-
+      await assertWeightConsistency(1, 'SLV');
+      await assertWeightConsistency(2, 'SLV');
+      await assertWeightConsistency(3, 'GLD');
+      await assertWeightConsistency(4, 'GLD');
 
       transactions = [];
       transactions.push(new Transaction(12345678902, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
@@ -1034,5 +1098,142 @@ describe('tokenfunds tests', function () {
       });
   });
 
+  it('should update stake weight on stake and delegation', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "50000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "10000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 8, "maxSupply": "10000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "staker", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "staker2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "1000", "to": "delegator", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "GLD", "unstakingCooldown": 1, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "SLV", "unstakingCooldown": 1, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableDelegation', '{ "symbol": "GLD", "undelegationCooldown": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokens', 'enableDelegation', '{ "symbol": "SLV", "undelegationCooldown": 1, "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'createFund', '{ "payToken": "GLD", "voteToken": "SLV", "voteThreshold": "1000", "maxDays": "365", "maxAmountPerDay": "10000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'setDtfActive', '{ "fundId": "GLD:SLV", "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfunds', 'createProposal', '{ "fundId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2021-03-30T00:00:00.000Z", "endDate": "2021-04-30T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      
+      // let res = await database1.getLatestBlockInfo();
+      // console.log(res);      
+      await assertNoErrorInLastBlock();
+
+      transactions = [];    
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'staker', 'tokenfunds', 'approveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'staker2', 'tokens', 'stake', '{ "to": "staker2", "symbol": "SLV", "quantity": "500", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'staker2', 'tokenfunds', 'approveProposal', '{ "id": "1", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T01:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+      await assertUserWeight('staker', 'SLV');
+      await assertUserWeight('staker2', 'SLV', 500);
+      await assertWeightConsistency(1, 'SLV');
+
+      transactions = [];    
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'staker', 'tokens', 'stake', '{ "to": "staker", "symbol": "SLV", "quantity": "500", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'delegator', 'tokens', 'stake', '{ "to": "delegator", "symbol": "SLV", "quantity": "500", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'delegator', 'tokens', 'delegate', '{ "to": "staker", "symbol": "SLV", "quantity": "100", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T02:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+      await assertUserWeight('staker', 'SLV', 600);
+      await assertUserWeight('staker2', 'SLV', 500);
+      await assertWeightConsistency(1, 'SLV');
+
+      transactions = [];    
+      transactions.push(new Transaction(12345678904, getNextTxId(), 'delegator', 'tokens', 'undelegate', '{ "from": "staker", "symbol": "SLV", "quantity": "50", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678904,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T02:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+      await assertUserWeight('staker', 'SLV', 550);
+      await assertUserWeight('staker2', 'SLV', 500);
+      await assertWeightConsistency(1, 'SLV');
+
+      transactions = [];
+      transactions.push(new Transaction(12345678905, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678905,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-02T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      transactions = [];    
+      transactions.push(new Transaction(12345678906, getNextTxId(), 'staker', 'tokens', 'unstake', '{ "symbol": "SLV", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678906, getNextTxId(), 'staker2', 'tokens', 'unstake', '{ "symbol": "SLV", "quantity": "100", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678906,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T02:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+      await assertUserWeight('staker', 'SLV', 450);
+      await assertUserWeight('staker2', 'SLV', 400);
+      await assertWeightConsistency(1, 'SLV');      
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });  
   // END TESTS
 });

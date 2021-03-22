@@ -1035,7 +1035,6 @@ describe('marketpools tests', function () {
 
       let res = await database1.getLatestBlockInfo();
       // console.log(res);
-      await assertUserBalance('buyer', 'SLV', 1);
       await assertNoErrorInLastBlock();
       await assertShareConsistency("GLD:SLV");
     

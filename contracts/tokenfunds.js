@@ -187,7 +187,12 @@ actions.updateFund = async (payload) => {
       if (!api.assert(feeTokenObj && api.BigNumber(proposalFee.amount).dp() <= feeTokenObj.precision, 'invalid proposalFee token or precision')) return;
     }
     const existingDtf = await api.db.findOne('funds', { id: fundId });
-    if (!api.assert(existingDtf, 'DTF not found')) return;
+    if (!api.assert(existingDtf, 'DTF not found')
+      || !api.assert(existingDtf.creator === api.sender || api.owner === api.sender, 'must be DTF creator')) return;
+    const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingDtf.payToken });
+    const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingDtf.voteToken });
+    if (!api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
+      || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
     const newDtf = {
       voteThreshold,
       maxDays,
@@ -339,10 +344,10 @@ actions.disableProposal = async (payload) => {
 };
 
 actions.approveProposal = async (payload) => {
-  const { proposalId } = payload;
+  const { id } = payload;
 
-  if (api.assert(typeof proposalId === 'string' && api.BigNumber(proposalId).isInteger(), 'invalid proposalId')) {
-    const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(proposalId).toNumber() });
+  if (api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) {
+    const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
 
     if (api.assert(proposal, 'proposal does not exist')) {
       const dtf = await api.db.findOne('funds', { id: proposal.fundId });
@@ -389,10 +394,10 @@ actions.approveProposal = async (payload) => {
 };
 
 actions.disapproveProposal = async (payload) => {
-  const { proposalId } = payload;
+  const { id } = payload;
 
-  if (api.assert(typeof proposalId === 'string' && api.BigNumber(proposalId).isInteger(), 'invalid proposalId')) {
-    const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(proposalId).toNumber() });
+  if (api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) {
+    const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
     if (api.assert(proposal, 'proposal does not exist')) {
       const dtf = await api.db.findOne('funds', { id: proposal.fundId });
       const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.voteToken });
@@ -452,15 +457,22 @@ actions.updateProposalApprovals = async (payload) => {
     if (balance && balance.delegationsIn) {
       approvalWeight = api.BigNumber(approvalWeight)
         .plus(balance.delegationsIn)
-        .toFixed(token.precision);
+        .toFixed(token.precision, api.BigNumber.ROUND_HALF_UP);
     }
 
-    const oldApprovalWeight = acct.approvalWeight;
+    const wIndex = acct.weights.findIndex(x => x.symbol === token.symbol);
+    let oldApprovalWeight = 0;
+    if (wIndex !== -1) {
+      oldApprovalWeight = acct.weights[wIndex].weight;
+      acct.weights[wIndex].weight = approvalWeight;
+    } else {
+      acct.weights.push({ symbol: token.symbol, weight: approvalWeight });
+    }
+
     const deltaApprovalWeight = api.BigNumber(approvalWeight)
       .minus(oldApprovalWeight)
-      .toFixed(token.precision);
+      .dp(token.precision, api.BigNumber.ROUND_HALF_UP);
 
-    acct.approvalWeight = approvalWeight;
     if (!api.BigNumber(deltaApprovalWeight).eq(0)) {
       await api.db.update('accounts', acct);
       const approvals = await api.db.find('approvals', { from: account });

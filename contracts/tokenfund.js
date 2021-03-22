@@ -17,6 +17,7 @@ actions.createSSC = async () => {
 
     const params = {
       dtfCreationFee: '1000',
+      dtfUpdateFee: '300',
       dtfTickHours: '24',
       maxDtfsPerBlock: 40,
       processQueryLimit: 1000,
@@ -39,8 +40,6 @@ actions.updateParams = async (payload) => {
   }
   await api.db.update('params', params);
 };
-
-// validate max supply
 
 function generateDtfId(dtf) {
   return `${dtf.payToken.replace('.', '-')}:${dtf.voteToken.replace('.', '-')}`;
@@ -154,25 +153,25 @@ actions.createFund = async (payload) => {
         to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: dtfCreationFee, isSignedWithActiveKey,
       });
     }
-    api.emit('createDtf', { id: insertedDtf.id });
+    api.emit('createFund', { id: insertedDtf.id });
   }
 };
 
 actions.updateFund = async (payload) => {
   const {
-    payToken, voteToken, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
+    fundId, voteThreshold, maxDays, maxAmountPerDay, proposalFee, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
   const params = await api.db.findOne('params', {});
-  const { dtfCreationFee } = params;
+  const { dtfUpdateFee } = params;
 
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
 
-  const authorizedCreation = api.BigNumber(dtfCreationFee).lte(0) || api.sender === api.owner
+  const authorizedCreation = api.BigNumber(dtfUpdateFee).lte(0) || api.sender === api.owner
     ? true
-    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(dtfCreationFee);
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(dtfUpdateFee);
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
@@ -187,37 +186,25 @@ actions.updateFund = async (payload) => {
       const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: proposalFee.symbol });
       if (!api.assert(feeTokenObj && api.BigNumber(proposalFee.amount).dp() <= feeTokenObj.precision, 'invalid proposalFee token or precision')) return;
     }
-    const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: payToken });
-    const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: voteToken });
-    if (!await validateTokens(payTokenObj, voteTokenObj)
-      || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
-      || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
-    const now = new Date(`${api.hiveBlockTimestamp}.000Z`);
+    const existingDtf = await api.db.findOne('funds', { id: fundId });
+    if (!api.assert(existingDtf, 'DTF not found')) return;
     const newDtf = {
-      payToken,
-      voteToken,
       voteThreshold,
       maxDays,
       maxAmountPerDay,
       proposalFee,
       active: false,
-      creator: api.sender,
-      lastTickTime: now.getTime(),
     };
-    newDtf.id = generateDtfId(newDtf);
-    const existingDtf = await api.db.findOne('funds', { id: newDtf.id });
-    if (!api.assert(!existingDtf, 'DTF already exists')) return;
-
-    const insertedDtf = await api.db.insert('funds', newDtf);
+    await api.db.update('funds', newDtf);
 
     // burn the token creation fees
-    if (api.sender !== api.owner && api.BigNumber(dtfCreationFee).gt(0)) {
+    if (api.sender !== api.owner && api.BigNumber(dtfUpdateFee).gt(0)) {
       await api.executeSmartContract('tokens', 'transfer', {
         // eslint-disable-next-line no-template-curly-in-string
-        to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: dtfCreationFee, isSignedWithActiveKey,
+        to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: dtfUpdateFee, isSignedWithActiveKey,
       });
     }
-    api.emit('createFund', { id: insertedDtf.id });
+    api.emit('updateFund', { id: fundId });
   }
 };
 
@@ -265,6 +252,7 @@ actions.createProposal = async (payload) => {
     && api.assert(typeof amountPerDay === 'string'
       && api.BigNumber(amountPerDay).isInteger()
       && api.BigNumber(amountPerDay).gt(0), 'invalid amountPerDay: greater than 0')
+    && api.assert(api.BigNumber(amountPerDay).lte(dtf.maxAmountPerDay), 'invalid amountPerDay: exceeds DTF maxAmountPerDay')
     && api.assert(typeof payout === 'object'
       && typeof payout.type === 'string' && PayoutType.indexOf(payout.type) !== -1
       && (payout.type !== 'contract' || typeof payout.contractPayload === 'object')
@@ -314,12 +302,14 @@ actions.updateProposal = async (payload) => {
   if (!api.assert(dtf, 'DTF does not exist or inactive')) return;
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    && api.assert(dtf.active === true, 'DTF is not active')
     && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
     && api.assert(typeof authorperm === 'string' && authorperm.length > 0 && authorperm.length <= 255, 'invalid authorperm: between 1 and 255 characters')
     && api.assert(typeof amountPerDay === 'string'
       && api.BigNumber(amountPerDay).isInteger()
       && api.BigNumber(amountPerDay).gt(0)
       && api.BigNumber(amountPerDay).lte(proposal.amountPerDay), 'invalid amountPerDay: greater than 0 and cannot be increased')
+    && api.assert(api.BigNumber(amountPerDay).lte(dtf.maxAmountPerDay), 'invalid amountPerDay: exceeds DTF maxAmountPerDay')
     && validateDateChange(proposal.endDate, endDate)
     && validateDateRange(proposal.startDate, endDate, dtf.maxDays)) {
     proposal.title = title;

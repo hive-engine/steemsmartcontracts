@@ -463,6 +463,7 @@ describe('tokenfund tests', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfund', 'createProposal', '{ "fundId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2023-05-20T00:00:00.000Z", "endDate": "2023-05-21T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfund', 'createProposal', '{ "fundId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2021-03-01T00:00:00.000Z", "endDate": "2021-03-05T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfund', 'createProposal', '{ "fundId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2022-05-20T00:00:00.000Z", "endDate": "2026-03-12T00:00:00.000Z", "amountPerDay": "1000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'donchate', 'tokenfund', 'createProposal', '{ "fundId": "GLD:SLV", "title": "A Big Community Project", "startDate": "2021-03-01T00:00:00.000Z", "endDate": "2021-03-05T00:00:00.000Z", "amountPerDay": "1000000000000000", "authorperm": "@abc123/test", "payout": { "type": "user", "name": "silverstein" }, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -489,6 +490,7 @@ describe('tokenfund tests', function () {
       assertError(txs[17], 'dates must be at least 1 day apart');
       assertError(txs[18], 'startDate must be at least 1 day in the future');
       assertError(txs[19], 'date range exceeds DTF maxDays');
+      assertError(txs[20], 'invalid amountPerDay: exceeds DTF maxAmountPerDay');
     
       res = await database1.find({
         contract: 'tokenfund',

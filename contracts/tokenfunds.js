@@ -15,13 +15,12 @@ actions.createSSC = async () => {
     await api.db.createTable('accounts', ['account']);
     await api.db.createTable('params');
 
-    const params = {
-      dtfCreationFee: '1000',
-      dtfUpdateFee: '300',
-      dtfTickHours: '24',
-      maxDtfsPerBlock: 40,
-      processQueryLimit: 1000,
-    };
+    const params = {};
+    params.dtfCreationFee = '1000';
+    params.dtfUpdateFee = '300';
+    params.dtfTickHours = '24';
+    params.maxDtfsPerBlock = 40;
+    params.processQueryLimit = 1000;
     await api.db.insert('params', params);
   }
 };
@@ -509,7 +508,7 @@ async function checkPendingProposals(dtf, params) {
   const fundedLog = [];
   let offset = 0;
   let proposals;
-  let runningPay = api.BigNumber(dtf.maxAmountPerDay).times(24).dividedBy(params.dtfTickHours);
+  let runningPay = api.BigNumber(dtf.maxAmountPerDay).times(tickPayRatio);
   while (runningPay.gt(0)) {
     proposals = await api.db.find('proposals',
       {
@@ -534,7 +533,7 @@ async function checkPendingProposals(dtf, params) {
           .times(tickPayRatio)
           .toFixed(payTokenObj.precision, api.BigNumber.ROUND_DOWN);
         funded.push(proposals[i]);
-        runningPay = runningPay.minus(proposals[i].amountPerDay).times(tickPayRatio);
+        runningPay = runningPay.minus(proposals[i].tickPay);
       }
     }
     if (proposals.length < params.processQueryLimit) break;

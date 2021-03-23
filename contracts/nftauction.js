@@ -30,7 +30,7 @@ actions.createSSC = async () => {
     params.maxExpiryTimeMillis = 2592000000; // 30 days
 
     // max auctions to settle per block
-    params.auctionsPerBlock = 2;
+    params.auctionsPerBlock = 1;
     await api.db.insert('params', params);
   }
 };

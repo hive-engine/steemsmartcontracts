@@ -882,7 +882,7 @@ describe('tokenfunds tests', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });      
 
       res = (await database1.getLatestBlockInfo());
-      console.log(res);
+      // console.log(res);
       assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
       let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
       let e = virtualEventLog.events.find(x => x.event === 'fundProposals');
@@ -1117,7 +1117,7 @@ describe('tokenfunds tests', function () {
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
       res = (await database1.getLatestBlockInfo());
-      console.log(res);
+      // console.log(res);
       assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
       let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
       let e = virtualEventLog.events.find(x => x.event === 'fundProposals');
@@ -1126,13 +1126,43 @@ describe('tokenfunds tests', function () {
       assert.equal(e.data.funded.length, 2);
 
       // balance asserts
-      await assertUserBalance('rambo', 'GLD', '33.33333333');
+      await assertUserBalance('rambo', 'GLD', '20.83333333');
       await assertUserBalance('silverstein', 'GLD', '20.83333333');
       await assertContractBalance('distribution', 'GLD', '41.87499999');
       await assertWeightConsistency(1, 'SLV');
       await assertWeightConsistency(2, 'SLV');
       await assertWeightConsistency(3, 'GLD');
       await assertWeightConsistency(4, 'GLD');
+
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-14T01:00:00',
+        transactions,
+      };
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      res = (await database1.getLatestBlockInfo());
+      // console.log(res);
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+      virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      e = virtualEventLog.events.find(x => x.event === 'fundProposals');
+      assert.ok(e, 'Expected to find fundProposals event');
+      assert.equal(e.data.fundId, 'GLD:SLV');
+      assert.equal(e.data.funded.length, 2);
+
+      // balance asserts
+      await assertUserBalance('rambo', 'GLD', '41.66666666');
+      await assertUserBalance('silverstein', 'GLD', '41.66666666');
+      await assertContractBalance('distribution', 'GLD', '83.74999998');
+      await assertWeightConsistency(1, 'SLV');
+      await assertWeightConsistency(2, 'SLV');
+      await assertWeightConsistency(3, 'GLD');
+      await assertWeightConsistency(4, 'GLD');      
 
       resolve();
     })

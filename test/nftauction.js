@@ -754,6 +754,8 @@ describe('NFT Auction Smart Contract', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "account": 54 }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TXas" }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'dave', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "10.04" }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "account": "jojo" }'));
 
       const block = {
@@ -774,7 +776,8 @@ describe('NFT Auction Smart Contract', function () {
       assertError(txs[10], 'invalid params'); // invalid account
       assertError(txs[11], 'auction does not exist or has been expired');
       assertError(txs[12], 'you must be the owner of the auction');
-      assertError(txs[13], 'no bid from account found in the auction');
+      assertError(txs[13], 'there are no bids in the auction');
+      assertError(txs[15], 'no bid from account found in the auction');
 
       resolve();
     })

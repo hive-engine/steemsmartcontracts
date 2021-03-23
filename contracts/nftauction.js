@@ -3,6 +3,7 @@
 
 const UTILITY_TOKEN_SYMBOL = 'BEE';
 const MAX_NUM_UNITS_OPERABLE = 50;
+const MAX_BID_INCREMENT_PERCENT = 10000;
 
 const CONTRACT_NAME = 'nftauction';
 
@@ -17,16 +18,16 @@ actions.createSSC = async () => {
     params.creationFee = '1';
 
     // percent a bid needs to increase to take the lead
-    params.minBidIncrement = 50; // 5%
+    params.minBidIncrementPercent = 500; // 5%
 
     // time remaining in the auction settling when cancel action is locked
-    params.cancelLockTime = 300000; // 5 mins
+    params.cancelLockTimeMillis = 300000; // 5 mins
 
     // time after the last lead bid it takes to settle the auction
-    params.expiryTime = 86400000; // 24 hours
+    params.expiryTimeMillis = 86400000; // 24 hours
 
     // max time an auction can run
-    params.maxExpiryTime = 2592000000; // 30 days
+    params.maxExpiryTimeMillis = 2592000000; // 30 days
 
     // max auctions to settle per block
     params.auctionsPerBlock = 2;
@@ -38,34 +39,34 @@ actions.updateParams = async (payload) => {
   if (api.assert(api.sender === api.owner, 'not authorized')) {
     const {
       creationFee,
-      minBidIncrement,
-      cancelLockTime,
-      expiryTime,
-      maxExpiryTime,
+      minBidIncrementPercent,
+      cancelLockTimeMillis,
+      expiryTimeMillis,
+      maxExpiryTimeMillis,
       auctionsPerBlock,
     } = payload;
 
     const params = await api.db.findOne('params', {});
 
     if (creationFee) {
-      if (!api.assert(typeof creationFee === 'string' && !api.BigNumber(creationFee).isNaN() && api.BigNumber(creationFee).gte(0), 'invalid creationFee')) return;
+      if (!api.assert(typeof creationFee === 'string' && api.BigNumber(creationFee).isFinite() && api.BigNumber(creationFee).gte(0), 'invalid creationFee')) return;
       params.creationFee = creationFee;
     }
-    if (minBidIncrement) {
-      if (!api.assert(Number.isInteger(minBidIncrement) && minBidIncrement > 0, 'invalid minBidIncrement')) return;
-      params.minBidIncrement = minBidIncrement;
+    if (minBidIncrementPercent) {
+      if (!api.assert(Number.isInteger(minBidIncrementPercent) && minBidIncrementPercent > 0 && minBidIncrementPercent <= MAX_BID_INCREMENT_PERCENT, 'invalid minBidIncrementPercent')) return;
+      params.minBidIncrementPercent = minBidIncrementPercent;
     }
-    if (cancelLockTime) {
-      if (!api.assert(Number.isInteger(cancelLockTime) && cancelLockTime > 0, 'invalid cancelLockTime')) return;
-      params.cancelLockTime = cancelLockTime;
+    if (cancelLockTimeMillis) {
+      if (!api.assert(Number.isInteger(cancelLockTimeMillis) && cancelLockTimeMillis > 0, 'invalid cancelLockTimeMillis')) return;
+      params.cancelLockTimeMillis = cancelLockTimeMillis;
     }
-    if (expiryTime) {
-      if (!api.assert(Number.isInteger(expiryTime) && expiryTime > 0, 'invalid expiryTime')) return;
-      params.expiryTime = expiryTime;
+    if (expiryTimeMillis) {
+      if (!api.assert(Number.isInteger(expiryTimeMillis) && expiryTimeMillis > 0, 'invalid expiryTimeMillis')) return;
+      params.expiryTimeMillis = expiryTimeMillis;
     }
-    if (maxExpiryTime) {
-      if (!api.assert(Number.isInteger(maxExpiryTime) && maxExpiryTime > 0, 'invalid maxExpiryTime')) return;
-      params.maxExpiryTime = maxExpiryTime;
+    if (maxExpiryTimeMillis) {
+      if (!api.assert(Number.isInteger(maxExpiryTimeMillis) && maxExpiryTimeMillis > 0, 'invalid maxExpiryTimeMillis')) return;
+      params.maxExpiryTimeMillis = maxExpiryTimeMillis;
     }
     if (auctionsPerBlock) {
       if (!api.assert(Number.isInteger(auctionsPerBlock) && auctionsPerBlock > 0, 'invalid auctionsPerBlock')) return;
@@ -101,7 +102,56 @@ const transferIsSuccessful = (result, action, from, to, symbol, quantity) => {
   return false;
 };
 
-const settleAuction = async (auction, id = null, settle = true) => {
+const sendNfts = async (to, wrappedNfts) => {
+  // transfer NFTs
+  await api.executeSmartContract('nft', 'transfer', {
+    fromType: 'contract',
+    to,
+    toType: 'user',
+    nfts: [wrappedNfts],
+    isSignedWithActiveKey: true,
+  });
+};
+
+const returnBids = async (bids, priceSymbol) => {
+  for (let i = 0; i < bids.length; i += 1) {
+    const {
+      account,
+      bid,
+    } = bids[i];
+
+    // send tokens back to bidders
+    await api.transferTokens(account, priceSymbol, bid, 'user');
+  }
+};
+
+const cancelAuction = async (auction) => {
+  const {
+    auctionId,
+    symbol,
+    seller,
+    nftIds,
+    priceSymbol,
+    bids,
+  } = auction;
+
+  // return all the bids
+  await returnBids(bids, priceSymbol);
+
+  const wrappedNfts = {
+    symbol,
+    ids: nftIds,
+  };
+
+  // return NFTs to the seller
+  await sendNfts(seller, wrappedNfts);
+
+  api.emit('cancelAuction', {
+    auctionId,
+  });
+};
+
+const settleAuction = async (auction, id = null) => {
   const {
     auctionId,
     symbol,
@@ -123,68 +173,37 @@ const settleAuction = async (auction, id = null, settle = true) => {
   if (bids.length > 0) {
     const bidId = id === null ? currentLead : id;
     const leadBid = bids[bidId];
-    const finalTo = settle ? leadBid.account : seller;
 
-    // only send payment & NFTs if auction is settling (not cancelled)
-    if (settle) {
-      bids.splice(bidId, 1);
+    // remove the lead bid from the returning bids
+    bids.splice(bidId, 1);
 
-      // send payment to the seller
-      await api.transferTokens(seller, priceSymbol, leadBid.bid, 'user');
-    }
+    // return the bids
+    await returnBids(bids, priceSymbol);
 
-    // transfer the NFTs to the buyer/seller
-    await api.executeSmartContract('nft', 'transfer', {
-      fromType: 'contract',
-      to: finalTo,
-      toType: 'user',
-      nfts: [wrappedNfts],
-      isSignedWithActiveKey: true,
-    });
+    // send payment to the seller
+    await api.transferTokens(seller, priceSymbol, leadBid.bid, 'user');
 
-    let count = 0;
-
-    while (count < bids.length) {
-      const {
-        account,
-        bid,
-      } = bids[count];
-
-      // send tokens back to bidders
-      await api.transferTokens(account, priceSymbol, bid, 'user');
-      count += 1;
-    }
+    // send NFTs to the buyer
+    await sendNfts(leadBid.account, wrappedNfts);
 
     await api.db.remove('auctions', auction);
 
-    if (settle) {
-      api.emit('settleAuction', {
-        auctionId,
-        symbol,
-        seller,
-        nftIds,
-        bidder: leadBid.account,
-        price: leadBid.bid,
-        priceSymbol,
-        timestamp,
-      });
-    } else {
-      api.emit('cancelAuction', {
-        auctionId,
-      });
-    }
+    api.emit('settleAuction', {
+      auctionId,
+      symbol,
+      seller,
+      nftIds,
+      bidder: leadBid.account,
+      price: leadBid.bid,
+      priceSymbol,
+      timestamp,
+    });
   } else {
     // if there are no bids, expire the auction
     await api.db.remove('auctions', auction);
 
-    // return the NFTs to the seller
-    await api.executeSmartContract('nft', 'transfer', {
-      fromType: 'contract',
-      to: seller,
-      toType: 'user',
-      nfts: [wrappedNfts],
-      isSignedWithActiveKey: true,
-    });
+    // return NFTs to the seller
+    await sendNfts(seller, wrappedNfts);
 
     api.emit('expireAuction', {
       auctionId,
@@ -208,15 +227,15 @@ actions.create = async (payload) => {
   } = payload;
 
   if (!api.assert(symbol && typeof symbol === 'string', 'invalid symbol')) return;
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
 
   const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(nfts && typeof nfts === 'object' && Array.isArray(nfts)
-      && minBid && typeof minBid === 'string' && !api.BigNumber(minBid).isNaN()
-      && finalPrice && typeof finalPrice === 'string' && !api.BigNumber(finalPrice).isNaN()
-      && priceSymbol && typeof priceSymbol === 'string'
-      && expiry && typeof expiry === 'string', 'invalid params')
+  if (api.assert(nfts && typeof nfts === 'object' && Array.isArray(nfts)
+    && minBid && typeof minBid === 'string' && api.BigNumber(minBid).isFinite()
+    && finalPrice && typeof finalPrice === 'string' && api.BigNumber(finalPrice).isFinite()
+    && priceSymbol && typeof priceSymbol === 'string'
+    && expiry && typeof expiry === 'string', 'invalid params')
     && api.assert(nfts.length <= MAX_NUM_UNITS_OPERABLE, `cannot process more than ${MAX_NUM_UNITS_OPERABLE} NFT instances at once`)
     && api.assert(nft, 'NFT symbol does not exist')) {
     // get the price token params
@@ -227,7 +246,7 @@ actions.create = async (payload) => {
     const timestamp = blockDate.getTime();
     const expiryTimestamp = getTimestamp(expiry);
     const maxExpiryTimestamp = api.BigNumber(timestamp)
-      .plus(params.maxExpiryTime).toNumber();
+      .plus(params.maxExpiryTimeMillis).toNumber();
 
     if (api.assert(token, 'priceSymbol does not exist')
       // minBid checks
@@ -332,15 +351,17 @@ actions.settle = async (payload) => {
 
     if (api.assert(auction, 'auction does not exist or has been expired')
       && api.assert(auction.seller === api.sender, 'you must be the owner of the auction')) {
-      let id = auction.currentLead;
+      if (api.assert(auction.bids.length > 0, 'there are no bids in the auction')) {
+        let id = auction.currentLead;
 
-      if (account) {
-        // search if there is a bid from this account
-        id = auction.bids.findIndex(el => el.account === account);
-        if (!api.assert(auction.bids[id], 'no bid from account found in the auction')) return;
+        if (account) {
+          // search if there is a bid from this account
+          id = auction.bids.findIndex(el => el.account === account);
+          if (!api.assert(auction.bids[id], 'no bid from account found in the auction')) return;
+        }
+
+        await settleAuction(auction, id);
       }
-
-      await settleAuction(auction, id);
     }
   }
 };
@@ -357,7 +378,7 @@ actions.cancel = async (payload) => {
 
     if (api.assert(auction, 'auction does not exist or has been expired')
     && api.assert(auction.seller === api.sender, 'you must be the owner of the auction')) {
-      await settleAuction(auction, null, false);
+      await cancelAuction(auction);
     }
   }
 };
@@ -371,7 +392,7 @@ actions.bid = async (payload) => {
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(auctionId && typeof auctionId === 'string'
-      && bid && typeof bid === 'string' && !api.BigNumber(bid).isNaN(), 'invalid params')) {
+      && bid && typeof bid === 'string' && api.BigNumber(bid).isFinite(), 'invalid params')) {
     const auction = await api.db.findOne('auctions', { auctionId });
 
     if (api.assert(auction, 'auction does not exist or has been expired')) {
@@ -438,7 +459,7 @@ actions.bid = async (payload) => {
             if (currentLead !== null) {
               // check if new bid takes the lead
               const leadBid = auction.bids[currentLead];
-              const minBidIncrementPct = params.minBidIncrement / 1000;
+              const minBidIncrementPct = params.minBidIncrementPercent / MAX_BID_INCREMENT_PERCENT;
               // quantity increment the new bid requires to take the lead
               const minBidIncrement = api.BigNumber(leadBid.bid)
                 .multipliedBy(minBidIncrementPct)
@@ -507,13 +528,13 @@ actions.cancelBid = async (payload) => {
         && api.assert(expiryTimestamp >= timestamp, 'auction has been expired')) {
         const params = await api.db.findOne('params', {});
         const timeRemaining = api.BigNumber(lastLeadUpdate)
-          .plus(params.expiryTime)
+          .plus(params.expiryTimeMillis)
           .minus(timestamp);
         const timeRemainingExpire = api.BigNumber(expiryTimestamp).minus(timestamp);
 
         // do not cancel bid if auction is about to settle
-        if (api.assert(timeRemaining.gt(params.cancelLockTime)
-          && timeRemainingExpire.gt(params.cancelLockTime), 'can not cancel bid when auction is about to settle')) {
+        if (api.assert(timeRemaining.gt(params.cancelLockTimeMillis)
+          && timeRemainingExpire.gt(params.cancelLockTimeMillis), 'can not cancel bid when auction is about to settle')) {
           // remove this bid from the auction
           auction.bids.splice(bidIndex, 1);
 
@@ -556,7 +577,7 @@ actions.updateAuctions = async () => {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
 
-  const lastValidLead = timestamp - params.expiryTime;
+  const lastValidLead = timestamp - params.expiryTimeMillis;
 
   const auctionsToSettle = await api.db.find('auctions',
     {

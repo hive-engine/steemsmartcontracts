@@ -27,16 +27,35 @@ actions.createSSC = async () => {
 };
 
 actions.updateParams = async (payload) => {
-  const { dtfCreationFee, dtfTickHours } = payload;
+  const {
+    dtfCreationFee,
+    dtfUpdateFee,
+    dtfTickHours,
+    maxDtfsPerBlock,
+    processQueryLimit,
+  } = payload;
+
   if (api.sender !== api.owner) return;
   const params = await api.db.findOne('params', {});
   if (dtfCreationFee) {
     if (!api.assert(typeof dtfCreationFee === 'string' && !api.BigNumber(dtfCreationFee).isNaN() && api.BigNumber(dtfCreationFee).gte(0), 'invalid dtfCreationFee')) return;
     params.dtfCreationFee = dtfCreationFee;
   }
+  if (dtfUpdateFee) {
+    if (!api.assert(typeof dtfUpdateFee === 'string' && !api.BigNumber(dtfUpdateFee).isNaN() && api.BigNumber(dtfUpdateFee).gte(0), 'invalid dtfUpdateFee')) return;
+    params.dtfUpdateFee = dtfUpdateFee;
+  }
   if (dtfTickHours) {
     if (!api.assert(typeof dtfTickHours === 'string' && api.BigNumber(dtfTickHours).isInteger() && api.BigNumber(dtfTickHours).gte(1), 'invalid dtfTickHours')) return;
     params.dtfTickHours = dtfTickHours;
+  }
+  if (maxDtfsPerBlock) {
+    if (!api.assert(typeof maxDtfsPerBlock === 'string' && api.BigNumber(maxDtfsPerBlock).isInteger() && api.BigNumber(maxDtfsPerBlock).gte(1), 'invalid maxDtfsPerBlock')) return;
+    params.maxDtfsPerBlock = api.BigNumber(maxDtfsPerBlock).toNumber();
+  }
+  if (processQueryLimit) {
+    if (!api.assert(typeof processQueryLimit === 'string' && api.BigNumber(processQueryLimit).isInteger() && api.BigNumber(processQueryLimit).gte(1), 'invalid processQueryLimit')) return;
+    params.processQueryLimit = api.BigNumber(processQueryLimit).toNumber();
   }
   await api.db.update('params', params);
 };
@@ -484,15 +503,13 @@ actions.updateProposalApprovals = async (payload) => {
 async function checkPendingProposals(dtf, params) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.payToken });
-  // ratio of daily payment independent of dtfTickHours
-  const passedTimeSec = api.BigNumber(blockDate.getTime()).minus(dtf.lastTickTime).dividedBy(1000);
-  const tickPayRatio = passedTimeSec.dividedBy(86400);
+  const tickPayRatio = api.BigNumber(params.dtfTickHours).dividedBy(24);
 
   const funded = [];
   const fundedLog = [];
   let offset = 0;
   let proposals;
-  let runningPay = api.BigNumber(dtf.maxAmountPerDay);
+  let runningPay = api.BigNumber(dtf.maxAmountPerDay).times(24).dividedBy(params.dtfTickHours);
   while (runningPay.gt(0)) {
     proposals = await api.db.find('proposals',
       {
@@ -510,14 +527,14 @@ async function checkPendingProposals(dtf, params) {
       if (api.BigNumber(proposals[i].amountPerDay).times(tickPayRatio).gte(runningPay)) {
         proposals[i].tickPay = runningPay.toFixed(payTokenObj.precision, api.BigNumber.ROUND_DOWN);
         funded.push(proposals[i]);
-        runningPay = 0;
+        runningPay = api.BigNumber(0);
         break;
       } else {
         proposals[i].tickPay = api.BigNumber(proposals[i].amountPerDay)
           .times(tickPayRatio)
           .toFixed(payTokenObj.precision, api.BigNumber.ROUND_DOWN);
         funded.push(proposals[i]);
-        runningPay = runningPay.minus(proposals[i].amountPerDay);
+        runningPay = runningPay.minus(proposals[i].amountPerDay).times(tickPayRatio);
       }
     }
     if (proposals.length < params.processQueryLimit) break;

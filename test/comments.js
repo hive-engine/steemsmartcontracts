@@ -1223,6 +1223,7 @@ describe('comments', function () {
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1237,6 +1238,8 @@ describe('comments', function () {
       let res = await fixture.database.getLatestBlockInfo();
 
       let vp;
+      let vote;
+      let downvote;
       const votingPowerTable = [];
       const votingRsharesTable = [];
       const downvotingPowerTable = [];
@@ -1245,7 +1248,7 @@ describe('comments', function () {
         transactions = [];
         refBlockNumber = fixture.getNextRefBlockNumber();
         transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
-        transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": -10000 }'));
+        transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test2", "weight": -10000 }'));
           block = {
           refHiveBlockNumber: refBlockNumber,
           refHiveBlockId: 'ABCD1',
@@ -1255,13 +1258,16 @@ describe('comments', function () {
         };
 
         await fixture.sendBlock(block);
-        res = await fixture.database.getLatestBlockInfo();
         await tableAsserts.assertNoErrorInLastBlock();
         vp = await fixture.database.findOne({ contract: 'comments', table: 'votingPower', query: { account: 'voter1', rewardPoolId: 1}});
         votingPowerTable.push(vp.votingPower);
         downvotingPowerTable.push(vp.downvotingPower);
-        const voteRshares = JSON.parse(res.transactions[0].logs).events[0].data.rshares;
-        const downvoteRshares = JSON.parse(res.transactions[1].logs).events[0].data.rshares;
+
+        vote = await fixture.database.findOne({ contract: 'comments', table: 'votes', query: { rewardPoolId: 1, authorperm: '@author1/test1', voter: 'voter1' }});
+        downvote = await fixture.database.findOne({ contract: 'comments', table: 'votes', query: { rewardPoolId: 1, authorperm: '@author1/test2', voter: 'voter1' }});
+
+        const voteRshares = vote.rshares;
+        const downvoteRshares = downvote.rshares;
         votingRsharesTable.push(voteRshares);
         downvotingRsharesTable.push(downvoteRshares);
         if (vp.votingPower === 0 && vp.downvotingPower === 0 && voteRshares === "0.0000000000" && downvoteRshares === "0.0000000000") {

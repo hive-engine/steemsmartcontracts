@@ -473,7 +473,6 @@ actions.issue = async (payload) => {
 actions.issueToContract = async (payload) => {
   const {
     to, symbol, quantity, isSignedWithActiveKey,
-    callingContractInfo,
   } = payload;
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
@@ -487,7 +486,7 @@ actions.issueToContract = async (payload) => {
     // the api.sender must be the issuer
     // then we need to check that the quantity is correct
     if (api.assert(token !== null, 'symbol does not exist')
-      && api.assert(token.issuer === api.sender || (callingContractInfo && callingContractInfo.name === 'comments'), 'not allowed to issue tokens')
+      && api.assert(token.issuer === api.sender, 'not allowed to issue tokens')
       && api.assert(countDecimals(quantity) <= token.precision, 'symbol precision mismatch')
       && api.assert(api.BigNumber(quantity).gt(0), 'must issue positive quantity')
       && api.assert(api.BigNumber(token.maxSupply).minus(token.supply).gte(quantity), 'quantity exceeds available supply')) {

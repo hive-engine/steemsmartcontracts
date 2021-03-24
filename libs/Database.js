@@ -438,6 +438,60 @@ class Database {
   }
 
   /**
+   * Add indexes to an existing table
+   * @param {String} contractName name of the contract
+   * @param {String} tableName name of the table
+   * @param {Array} indexes array of string containing the name of the indexes to create
+   */
+  async addIndexes(payload) {
+    const { contractName, tableName, indexes } = payload;
+    let result = 0;
+
+    // check that the params are correct
+    // each element of the indexes array have to be a string if defined
+    if (validator.isAlphanumeric(tableName)
+      && Array.isArray(indexes)
+      && (indexes.length === 0
+        || (indexes.length > 0 && indexes.every(el => validateIndexSpec(el))))) {
+      const finalTableName = `${contractName}_${tableName}`;
+      // get the table from the database
+      const table = await this.getContractCollection(contractName, finalTableName);
+      if (table !== null) {
+        if (indexes.length > 0) {
+          const nbIndexes = indexes.length;
+
+          const tableIndexes = await indexInformation(table);
+
+          for (let i = 0; i < nbIndexes; i += 1) {
+            const index = indexes[i];
+            // Do not do this within session, cannot add indexes in same tx.
+            const indexOptions = {};
+            let finalIndex = {};
+            if (typeof index === 'object') {
+              if (tableIndexes[index.name] !== undefined) {
+                console.log(`Index with name ${index.name} already exists for ${finalTableName}`); // eslint-disable-line no-console
+                continue;
+              }
+              indexOptions.name = index.name;
+              finalIndex = index.index;
+            } else {
+              if (tableIndexes[`${index}_1`] !== undefined) {
+                console.log(`Index ${index} already exists for ${finalTableName}`); // eslint-disable-line no-console
+                continue;
+              }
+              finalIndex[index] = 1;
+            }
+            await table.createIndex(finalIndex, indexOptions);
+            result += 1;
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * retrieve records from the table of a contract
    * @param {String} contract contract name
    * @param {String} table table name

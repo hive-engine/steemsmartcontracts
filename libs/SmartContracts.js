@@ -99,6 +99,10 @@ class SmartContracts {
           createTable: (tableName, indexes = [], params = {}) => SmartContracts.createTable(
             database, tables, name, tableName, indexes, params,
           ),
+          // add indexes for an existing table
+          addIndexes: (tableName, indexes) => SmartContracts.addIndexes(
+            database, tables, name, tableName, indexes,
+          ),
           // perform a query find on a table of the smart contract
           find: (table, query, limit = 1000, offset = 0, indexes = []) => SmartContracts.find(
             database, name, table, query, limit, offset, indexes,
@@ -693,6 +697,22 @@ class SmartContracts {
           nbIndexes: indexes.length,
           primaryKey: params.primaryKey,
         };
+      }
+    }
+  }
+
+  static async addIndexes(database, tables, contractName, tableName, indexes) {
+    const result = await database.addIndexes({
+      contractName,
+      tableName,
+      indexes,
+    });
+
+    if (result > 0) {
+      // update the index count
+      const finalTableName = `${contractName}_${tableName}`;
+      if (tables[finalTableName] !== undefined) {
+        tables[finalTableName].nbIndexes += result;
       }
     }
   }

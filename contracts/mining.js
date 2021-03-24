@@ -23,6 +23,7 @@ actions.createSSC = async () => {
     await api.db.createTable('pools', ['id']);
     // Given symbol, output which pools are using it.
     await api.db.createTable('tokenPools', ['symbol']);
+    await api.db.createTable('nftTokenPools', ['symbol']);
     await api.db.createTable('params');
 
     const params = {};
@@ -32,9 +33,14 @@ actions.createSSC = async () => {
     params.maxBalancesProcessedPerBlock = 10000;
     params.processQueryLimit = 1000;
     await api.db.insert('params', params);
-  }
-  if (!await api.db.tableExists('nftTokenPools')) {
-    await api.db.createTable('nftTokenPools', ['symbol']);
+  } else {
+    const params = await api.db.findOne('params', {});
+    if (!params.updateIndex) {
+      // would want this to be a primary key, but cannot alter primary keys
+      await api.db.addIndexes('miningPower', [{ name: 'byPoolIdAndAccount', index: {'id': 1, 'account': 1}}]);
+      params.updateIndex = 1;
+      await api.db.update('params', params);
+    }
   }
 };
 

@@ -171,11 +171,11 @@ const settleAuction = async (auction, index = null) => {
   };
 
   if (bids.length > 0) {
-    const bidId = index === null ? currentLead : index;
-    const leadBid = bids[bidId];
+    const bidIndex = index === null ? currentLead : index;
+    const leadBid = bids[bidIndex];
 
     // remove the lead bid from the returning bids
-    bids.splice(bidId, 1);
+    bids.splice(bidIndex, 1);
 
     // return the bids
     await returnBids(bids, priceSymbol);

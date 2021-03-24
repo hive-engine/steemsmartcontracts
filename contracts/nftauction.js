@@ -10,7 +10,7 @@ const CONTRACT_NAME = 'nftauction';
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('auctions');
   if (tableExists === false) {
-    await api.db.createTable('auctions', ['auctionId', 'symbol']);
+    await api.db.createTable('auctions', ['auctionId', 'symbol', 'lastValidLead', 'expiryTimestamp']);
     await api.db.createTable('params');
 
     const params = {};

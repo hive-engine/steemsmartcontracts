@@ -1357,7 +1357,7 @@ describe('mining', function () {
       assert.equal(lotteryEvent.data.winners[0].winner, "satoshi2");
       assert.equal(lotteryEvent.data.winners[0].winningAmount, "1.00000000");
 
-      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKNB', balance: '0', stake: '0' });
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKNB' }); // no balance
       await tableAsserts.assertUserBalances({ account: 'satoshi2', symbol: 'TKNB', balance: '1.00000000', stake: '0' });
 
       resolve();

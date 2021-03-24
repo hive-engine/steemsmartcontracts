@@ -17,7 +17,7 @@ class TableAsserts {
       },
     });
 
-    assert.ok(res, `No balance for ${account}, ${symbol}`);
+    assert.ok(res || (!balance && !stake && !pendingUnstake && !delegationsOut && !delegationsIn), `No balance for ${account}, ${symbol}`);
 
     let pass = true;
     if (res.balance !== balance) {

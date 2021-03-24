@@ -2179,7 +2179,7 @@ describe('mining', function () {
     new Promise(async (resolve) => {
       await fixture.setUp();
 
-      let refBlockNumber = fixture.getNextBlockNumber12345678901;
+      let refBlockNumber = fixture.getNextBlockNumber();
       let transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(nftContractPayload)));

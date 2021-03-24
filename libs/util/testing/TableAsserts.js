@@ -17,7 +17,13 @@ class TableAsserts {
       },
     });
 
-    assert.ok(res || (!balance && !stake && !pendingUnstake && !delegationsOut && !delegationsIn), `No balance for ${account}, ${symbol}`);
+    const expectingNoBalance = !stake && !pendingUnstake && !delegationsOut && !delegationsIn;
+    if (expectingNoBalance) {
+      assert.ok(!balance, `No balance expected for ${account}, ${symbol}`);
+      return;
+    } else {
+      assert.ok(res, `No balance for ${account}, ${symbol}`);
+    }
 
     let pass = true;
     if (res.balance !== balance) {

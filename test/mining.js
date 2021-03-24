@@ -2181,29 +2181,29 @@ describe('mining', function () {
 
       let refBlockNumber = fixture.getNextBlockNumber12345678901;
       let transactions = [];
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(nftContractPayload)));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2100", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TEST.TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TEST.TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TEST.TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'mining', 'updateParams', '{ "poolCreationFee": "0", "poolUpdateFee": "0" }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "0", "enableDelegationFee": "0", "dataPropertyCreationFee": "0", "nftIssuanceFee": {"TEST.TKN": "0"} }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT", "symbol":"TSTNFT", "url":"http://mynft.com", "maxSupply":"1000" }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'enableDelegation', '{ "isSignedWithActiveKey":true, "symbol":"TSTNFT", "undelegationCooldown": 1 }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'addProperty', '{ "isSignedWithActiveKey":true, "symbol":"TSTNFT", "name":"type", "type":"string", "isReadOnly":false }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi", "toType": "user", "feeSymbol": "TEST.TKN", "properties": {"type": "bull"}}'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["1"]} ] }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi2", "toType": "user", "feeSymbol": "TEST.TKN", "properties": {"type": "bear"}}`));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'satoshi2', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "satoshi", "toType": "user", "nfts": [ {"symbol":"TSTNFT", "ids": ["2"]} ] }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TEST.TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "to":"satoshi", "symbol": "TEST.TKN", "quantity": "50", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi", "toType": "user", "feeSymbol": "TEST.TKN", "properties": {"type": "bull"}}'));
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'harpagon', 'mining', 'createPool', '{ "lotteryWinners": 1, "lotteryIntervalHours": 1, "lotteryAmount": "1", "minedToken": "TEST.TKN", "tokenMiners": [{"symbol": "TEST.TKN", "multiplier": 1}], "nftTokenMiner": {"symbol": "TSTNFT", "typeField": "type", "typeMap": {"bear": ["-1.0", "0.5"], "bull": ["2.0", "1.5"]}, "properties": [{"op": "ADD", "name": "power", "burnChange": {"symbol": "TEST.TKN", "quantity": "0.1"}}, {"op": "MULTIPLY", "name": "boost"}]}, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2100", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TEST.TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'enableStaking', '{ "symbol": "TEST.TKN", "unstakingCooldown": 7, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'enableDelegation', '{ "symbol": "TEST.TKN", "undelegationCooldown": 7, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'mining', 'updateParams', '{ "poolCreationFee": "0", "poolUpdateFee": "0" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "0", "enableDelegationFee": "0", "dataPropertyCreationFee": "0", "nftIssuanceFee": {"TEST.TKN": "0"} }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT", "symbol":"TSTNFT", "url":"http://mynft.com", "maxSupply":"1000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'enableDelegation', '{ "isSignedWithActiveKey":true, "symbol":"TSTNFT", "undelegationCooldown": 1 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'addProperty', '{ "isSignedWithActiveKey":true, "symbol":"TSTNFT", "name":"type", "type":"string", "isReadOnly":false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi", "toType": "user", "feeSymbol": "TEST.TKN", "properties": {"type": "bull"}}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "mining", "toType": "contract", "nfts": [ {"symbol":"TSTNFT", "ids": ["1"]} ] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi2", "toType": "user", "feeSymbol": "TEST.TKN", "properties": {"type": "bear"}}`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi2', 'nft', 'delegate', '{ "isSignedWithActiveKey":true, "to": "satoshi", "toType": "user", "nfts": [ {"symbol":"TSTNFT", "ids": ["2"]} ] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TEST.TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'tokens', 'stake', '{ "to":"satoshi", "to":"satoshi", "symbol": "TEST.TKN", "quantity": "50", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'nft', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TSTNFT", "to": "satoshi", "toType": "user", "feeSymbol": "TEST.TKN", "properties": {"type": "bull"}}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'mining', 'createPool', '{ "lotteryWinners": 1, "lotteryIntervalHours": 1, "lotteryAmount": "1", "minedToken": "TEST.TKN", "tokenMiners": [{"symbol": "TEST.TKN", "multiplier": 1}], "nftTokenMiner": {"symbol": "TSTNFT", "typeField": "type", "typeMap": {"bear": ["-1.0", "0.5"], "bull": ["2.0", "1.5"]}, "properties": [{"op": "ADD", "name": "power", "burnChange": {"symbol": "TEST.TKN", "quantity": "0.1"}}, {"op": "MULTIPLY", "name": "boost"}]}, "isSignedWithActiveKey": true }'));
 
       let block = {
-        refHiveBlockNumber: blockNumber,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -2222,18 +2222,18 @@ describe('mining', function () {
       await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TEST.TKN', balance: '50.00000000', stake: '50.00000000' });
 
       // allow to finish update
-      blockNumber = await finishPowerUpdate(blockNumber + 1, 'TEST-TKN:TEST-TKN:TSTNFT');
+      refBlockNumber = await finishPowerUpdate(refBlockNumber + 1, 'TEST-TKN:TEST-TKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TEST-TKN:TEST-TKN:TSTNFT', '50.75', {0: '1', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TEST-TKN:TEST-TKN:TSTNFT', undefined);
       await assertPool({id: 'TEST-TKN:TEST-TKN:TSTNFT', totalPower: '50.75'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
 
-      blockNumber += 1;
+      refBlockNumber += 1;
       transactions = [];
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": "TEST-TKN:TEST-TKN:TSTNFT", "type": "bear", "propertyName": "power", "changeAmount": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": "TEST-TKN:TEST-TKN:TSTNFT", "type": "bear", "propertyName": "power", "changeAmount": "10", "isSignedWithActiveKey": true }'));
 
       block = {
-        refHiveBlockNumber: blockNumber,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T01:00:00',
@@ -2247,18 +2247,18 @@ describe('mining', function () {
       await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TEST.TKN', balance: '49.00000000', stake: '50.00000000' });
   
       // allow to finish update
-      blockNumber = await finishPowerUpdate(blockNumber + 1, 'TEST-TKN:TEST-TKN:TSTNFT');
+      refBlockNumber = await finishPowerUpdate(refBlockNumber + 1, 'TEST-TKN:TEST-TKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TEST-TKN:TEST-TKN:TSTNFT', '58.25', {0: '11', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TEST-TKN:TEST-TKN:TSTNFT', undefined);
       await assertPool({id: 'TEST-TKN:TEST-TKN:TSTNFT', totalPower: '58.25'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
 
-      blockNumber += 1;
+      refBlockNumber += 1;
       transactions = [];
-      transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": "TEST-TKN:TEST-TKN:TSTNFT", "type": "bear", "propertyName": "power", "changeAmount": "-5", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": "TEST-TKN:TEST-TKN:TSTNFT", "type": "bear", "propertyName": "power", "changeAmount": "-5", "isSignedWithActiveKey": true }'));
 
       block = {
-        refHiveBlockNumber: blockNumber,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T02:00:00',
@@ -2272,7 +2272,7 @@ describe('mining', function () {
       await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TEST.TKN', balance: '48.50000000', stake: '50.00000000' });
 
       // allow to finish update
-      blockNumber = await finishPowerUpdate(blockNumber + 1, 'TEST-TKN:TEST-TKN:TSTNFT');
+      refBlockNumber = await finishPowerUpdate(refBlockNumber + 1, 'TEST-TKN:TEST-TKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TEST-TKN:TEST-TKN:TSTNFT', '54.5', {0: '6', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TEST-TKN:TEST-TKN:TSTNFT', undefined);

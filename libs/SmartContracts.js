@@ -454,10 +454,9 @@ class SmartContracts {
         await database.updateContract(contractInDb);
       }
 
-      //console.error(JSON.stringify(results));
       return results;
     } catch (e) {
-      //console.error('ERROR DURING CONTRACT EXECUTION: ', e);
+      // console.error('ERROR DURING CONTRACT EXECUTION: ', e);
       return { logs: { errors: [`${e.name}: ${e.message}`] } };
     }
   }

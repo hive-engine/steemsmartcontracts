@@ -109,7 +109,7 @@ function getNextTxId() {
   return `TXID${txId.toString().padStart(8, '0')}`;
 }
 
-async function assertAuction(auctionId, reverse = false) {
+async function assertAuction(auctionId, reverse = false, bidIndex = null) {
   const res = await database1.findOne({
     contract: 'nftauction',
     table: 'auctions',
@@ -120,6 +120,9 @@ async function assertAuction(auctionId, reverse = false) {
 
   if (!reverse) {
     assert.ok(res, `auction ${auctionId} not found.`);
+    if (bidIndex) {
+      assert.equal(res.currentLead, bidIndex, `expected currentLead to be ${bidIndex} instead got ${res.currentLead}`);
+    }
   } else assert.ok(!res, `auction ${auctionId} is unexpected.`);
 }
 
@@ -459,6 +462,108 @@ describe('NFT Auction Smart Contract', function () {
       });
   });
 
+  it('does not update a previous bid', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      const transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "1", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.01"} }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'nft', 'create', '{ "isSignedWithActiveKey": true, "name":"Test NFT", "symbol":"TEST", "url":"http://mynft.com" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TEST", "to": "ali-h", "feeSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}" }`));
+      transactions.push(new Transaction(38145386, 'AUCTION-TX', 'ali-h', 'nftauction', 'create', `{ "isSignedWithActiveKey": true, "symbol": "TEST", "nfts": ["1"], "minBid": "0.1", "finalPrice": "100", "priceSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "expiry": "2021-03-20T00:00:00" }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"dev", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"bidmaker", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "19" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'dev', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "13" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'bidmaker', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "25" }'));
+
+      // tries to update the bid with less quantity than before
+      transactions.push(new Transaction(38145386, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "15" }'));
+
+      const block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertAuction('AUCTION-TX', false, 2);
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      assertError(txs[14], 'bid must be greater than your previous bid');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('updates a previous bid', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      const transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "1", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.01"} }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'nft', 'create', '{ "isSignedWithActiveKey": true, "name":"Test NFT", "symbol":"TEST", "url":"http://mynft.com" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'nft', 'issue', `{ "isSignedWithActiveKey": true, "symbol": "TEST", "to": "ali-h", "feeSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}" }`));
+      transactions.push(new Transaction(38145386, 'AUCTION-TX', 'ali-h', 'nftauction', 'create', `{ "isSignedWithActiveKey": true, "symbol": "TEST", "nfts": ["1"], "minBid": "0.1", "finalPrice": "100", "priceSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "expiry": "2021-03-20T00:00:00" }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"dev", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"bidmaker", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "19" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'dev', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "13" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'bidmaker', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "25" }'));
+
+      // tries to update the bid with less quantity than before
+      transactions.push(new Transaction(38145386, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "50" }'));
+
+      const block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // now that the bid is updated to be 5% more than the lead bid
+      await assertAuction('AUCTION-TX', false, 0);
+
+      await assertNoErrorInLastBlock();
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
   it('does not cancel bid', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
@@ -499,7 +604,7 @@ describe('NFT Auction Smart Contract', function () {
       assertError(txs[10], 'you must use a custom_json signed with your active key');
       assertError(txs[11], 'invalid params'); // invalid auctionId
       assertError(txs[12], 'auction does not exist or has been expired');
-      assertError(txs[13], 'you don not have a bid in this auction');
+      assertError(txs[13], 'you do not have a bid in this auction');
 
       transactions = [];
       transactions.push(new Transaction(12345678902, getNextTxId(), 'cryptomancer', 'nftauction', 'cancelBid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
@@ -535,7 +640,7 @@ describe('NFT Auction Smart Contract', function () {
 
       await database1.init(conf.databaseURL, conf.databaseName);
 
-      const transactions = [];
+      let transactions = [];
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
@@ -547,12 +652,16 @@ describe('NFT Auction Smart Contract', function () {
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"bidmaker", "quantity":"100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"dave", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"jhonny", "quantity":"100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "10" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "15" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'bidmaker', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "21.5" }'));
-      transactions.push(new Transaction(12345678902, getNextTxId(), 'dave', 'nftauction', 'cancelBid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'jhonny', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "12.5" }'));
 
-      const block = {
+      // cancels a bid < leadbid index
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'dave', 'nftauction', 'cancelBid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
+
+      let block = {
         refHiveBlockNumber: 12345678901,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
@@ -562,12 +671,32 @@ describe('NFT Auction Smart Contract', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      const res = await database1.getLatestBlockInfo();
-      const txs = res.transactions;
-
       await assertBalances(['dave'], ['100'], 'BEE');
 
-      await assertAuction(txs[7].transactionId);
+      // makes sure lead bid's index is 1 (bidmaker)
+      await assertAuction('AUCTION-TX', false, 1);
+
+      await assertNoErrorInLastBlock();
+
+      // new block
+      transactions = [];
+      // cancels a bid > leadbid index
+      transactions.push(new Transaction(12345678902, getNextTxId(), 'jhonny', 'nftauction', 'cancelBid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertBalances(['jhonny'], ['100'], 'BEE');
+
+      // makes sure lead bid's index is still 1 (bidmaker)
+      await assertAuction('AUCTION-TX', false, 1);
 
       await assertNoErrorInLastBlock();
 
@@ -621,7 +750,8 @@ describe('NFT Auction Smart Contract', function () {
 
       await assertNoErrorInLastBlock();
 
-      await assertAuction(txs[7].transactionId);
+      // make sure now the lead bid index is 0 (dave)
+      await assertAuction(txs[7].transactionId, false, 0);
 
       resolve();
     })

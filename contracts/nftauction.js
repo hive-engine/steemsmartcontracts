@@ -151,7 +151,7 @@ const cancelAuction = async (auction) => {
   });
 };
 
-const settleAuction = async (auction, id = null) => {
+const settleAuction = async (auction, index = null) => {
   const {
     auctionId,
     symbol,
@@ -171,7 +171,7 @@ const settleAuction = async (auction, id = null) => {
   };
 
   if (bids.length > 0) {
-    const bidId = id === null ? currentLead : id;
+    const bidId = index === null ? currentLead : index;
     const leadBid = bids[bidId];
 
     // remove the lead bid from the returning bids
@@ -230,14 +230,14 @@ actions.create = async (payload) => {
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
 
   const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
+  if (!api.assert(nft, 'NFT symbol does not exist')) return;
 
   if (api.assert(nfts && typeof nfts === 'object' && Array.isArray(nfts)
     && minBid && typeof minBid === 'string' && api.BigNumber(minBid).isFinite()
     && finalPrice && typeof finalPrice === 'string' && api.BigNumber(finalPrice).isFinite()
     && priceSymbol && typeof priceSymbol === 'string'
     && expiry && typeof expiry === 'string', 'invalid params')
-    && api.assert(nfts.length <= MAX_NUM_UNITS_OPERABLE, `cannot process more than ${MAX_NUM_UNITS_OPERABLE} NFT instances at once`)
-    && api.assert(nft, 'NFT symbol does not exist')) {
+    && api.assert(nfts.length <= MAX_NUM_UNITS_OPERABLE, `cannot process more than ${MAX_NUM_UNITS_OPERABLE} NFT instances at once`)) {
     // get the price token params
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
     const params = await api.db.findOne('params', {});
@@ -524,7 +524,7 @@ actions.cancelBid = async (payload) => {
       const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
       const timestamp = blockDate.getTime();
 
-      if (api.assert(bid, 'you don not have a bid in this auction')
+      if (api.assert(bid, 'you do not have a bid in this auction')
         && api.assert(expiryTimestamp >= timestamp, 'auction has been expired')) {
         const params = await api.db.findOne('params', {});
         const timeRemaining = api.BigNumber(lastLeadUpdate)

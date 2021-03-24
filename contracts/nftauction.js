@@ -344,9 +344,10 @@ actions.settle = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(auctionId && typeof auctionId === 'string'
-      && (!account || (account && typeof account === 'string' && api.isValidAccountName(account))), 'invalid params')) {
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
+
+  if (api.assert(auctionId && typeof auctionId === 'string'
+    && (!account || (account && typeof account === 'string' && api.isValidAccountName(account))), 'invalid params')) {
     const auction = await api.db.findOne('auctions', { auctionId });
 
     if (api.assert(auction, 'auction does not exist or has been expired')
@@ -372,8 +373,9 @@ actions.cancel = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(auctionId && typeof auctionId === 'string', 'invalid params')) {
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
+
+  if (api.assert(auctionId && typeof auctionId === 'string', 'invalid params')) {
     const auction = await api.db.findOne('auctions', { auctionId });
 
     if (api.assert(auction, 'auction does not exist or has been expired')
@@ -390,9 +392,10 @@ actions.bid = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(auctionId && typeof auctionId === 'string'
-      && bid && typeof bid === 'string' && api.BigNumber(bid).isFinite(), 'invalid params')) {
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
+
+  if (api.assert(auctionId && typeof auctionId === 'string'
+    && bid && typeof bid === 'string' && api.BigNumber(bid).isFinite(), 'invalid params')) {
     const auction = await api.db.findOne('auctions', { auctionId });
 
     if (api.assert(auction, 'auction does not exist or has been expired')) {
@@ -505,8 +508,9 @@ actions.cancelBid = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
-    && api.assert(auctionId && typeof auctionId === 'string', 'invalid params')) {
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
+
+  if (api.assert(auctionId && typeof auctionId === 'string', 'invalid params')) {
     const auction = await api.db.findOne('auctions', { auctionId });
 
     if (api.assert(auction, 'auction does not exist or has been expired')) {

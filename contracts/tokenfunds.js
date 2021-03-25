@@ -59,19 +59,15 @@ actions.updateParams = async (payload) => {
   await api.db.update('params', params);
 };
 
-function generateDtfId(dtf) {
-  return `${dtf.payToken.replace('.', '-')}:${dtf.voteToken.replace('.', '-')}`;
-}
-
 async function updateProposalWeight(id, deltaApprovalWeight) {
   const proposal = await api.db.findOne('proposals', { _id: id });
   if (proposal) {
-    proposal.approvalWeight = api.BigNumber(proposal.approvalWeight).plus(deltaApprovalWeight).toNumber();
+    proposal.approvalWeight = { $numberDecimal: api.BigNumber(proposal.approvalWeight.$numberDecimal).plus(deltaApprovalWeight) };
     await api.db.update('proposals', proposal);
   }
 }
 
-async function validateTokens(payTokenObj, voteTokenObj) {
+function validateTokens(payTokenObj, voteTokenObj) {
   if (!api.assert(payTokenObj && (payTokenObj.issuer === api.sender
     // eslint-disable-next-line no-template-curly-in-string
     || (payTokenObj.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of payToken')) return false;
@@ -158,7 +154,7 @@ actions.createFund = async (payload) => {
       creator: api.sender,
       lastTickTime: now.getTime(),
     };
-    newDtf.id = generateDtfId(newDtf);
+    newDtf.id = `${payToken}:${voteToken}`;
     const existingDtf = await api.db.findOne('funds', { id: newDtf.id });
     if (!api.assert(!existingDtf, 'DTF already exists')) return;
 
@@ -187,11 +183,11 @@ actions.updateFund = async (payload) => {
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
 
-  const authorizedCreation = api.BigNumber(dtfUpdateFee).lte(0) || api.sender === api.owner
+  const authorizedUpdate = api.BigNumber(dtfUpdateFee).lte(0) || api.sender === api.owner
     ? true
     : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(dtfUpdateFee);
 
-  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
+  if (api.assert(authorizedUpdate, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     && api.assert(typeof voteThreshold === 'string' && api.BigNumber(voteThreshold).gt(0), 'invalid voteThreshold: greater than 0')
     && api.assert(typeof maxDays === 'string' && api.BigNumber(maxDays).isInteger() && api.BigNumber(maxDays).gt(0) && api.BigNumber(maxDays).lte(730), 'invalid maxDays: integer between 1 and 730')
@@ -250,7 +246,7 @@ actions.setDtfActive = async (payload) => {
 actions.createProposal = async (payload) => {
   const {
     fundId, title, startDate, endDate, amountPerDay,
-    authorperm, payout, isSignedWithActiveKey,
+    authorPermlink, payout, isSignedWithActiveKey,
   } = payload;
 
   const dtf = await api.db.findOne('funds', { id: fundId });
@@ -268,7 +264,7 @@ actions.createProposal = async (payload) => {
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     && api.assert(dtf.active === true, 'DTF is not active')
     && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
-    && api.assert(typeof authorperm === 'string' && authorperm.length > 0 && authorperm.length <= 255, 'invalid authorperm: between 1 and 255 characters')
+    && api.assert(typeof authorPermlink === 'string' && authorPermlink.length > 0 && authorPermlink.length <= 255, 'invalid authorPermlink: between 1 and 255 characters')
     && api.assert(typeof amountPerDay === 'string'
       && api.BigNumber(amountPerDay).isInteger()
       && api.BigNumber(amountPerDay).gt(0), 'invalid amountPerDay: greater than 0')
@@ -284,10 +280,10 @@ actions.createProposal = async (payload) => {
       startDate,
       endDate,
       amountPerDay,
-      authorperm,
+      authorPermlink,
       payout,
       creator: api.sender,
-      approvalWeight: 0,
+      approvalWeight: { $numberDecimal: '0' },
       active: true,
     };
     const insertedProposal = await api.db.insert('proposals', newProposal);
@@ -311,7 +307,7 @@ actions.createProposal = async (payload) => {
 actions.updateProposal = async (payload) => {
   const {
     id, title, endDate, amountPerDay,
-    authorperm, isSignedWithActiveKey,
+    authorPermlink, isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) return;
@@ -325,7 +321,7 @@ actions.updateProposal = async (payload) => {
     && api.assert(dtf.active === true, 'DTF is not active')
     && api.assert(proposal.active === true, 'proposal is not active')
     && api.assert(typeof title === 'string' && title.length > 0 && title.length <= 80, 'invalid title: between 1 and 80 characters')
-    && api.assert(typeof authorperm === 'string' && authorperm.length > 0 && authorperm.length <= 255, 'invalid authorperm: between 1 and 255 characters')
+    && api.assert(typeof authorPermlink === 'string' && authorPermlink.length > 0 && authorPermlink.length <= 255, 'invalid authorPermlink: between 1 and 255 characters')
     && api.assert(typeof amountPerDay === 'string'
       && api.BigNumber(amountPerDay).isInteger()
       && api.BigNumber(amountPerDay).gt(0)
@@ -336,7 +332,7 @@ actions.updateProposal = async (payload) => {
     proposal.title = title;
     proposal.endDate = endDate;
     proposal.amountPerDay = amountPerDay;
-    proposal.authorperm = authorperm;
+    proposal.authorPermlink = authorPermlink;
     await api.db.update('proposals', proposal);
     api.emit('updateProposal', { id: proposal._id });
   }
@@ -514,7 +510,7 @@ async function checkPendingProposals(dtf, params) {
       {
         fundId: dtf.id,
         active: true,
-        approvalWeight: { $gt: api.BigNumber(dtf.voteThreshold).toNumber() },
+        approvalWeight: { $gt: { $numberDecimal: api.BigNumber(dtf.voteThreshold) } },
         startDate: { $lte: blockDate.toISOString() },
         endDate: { $gte: blockDate.toISOString() },
       },

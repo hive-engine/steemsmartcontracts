@@ -96,8 +96,8 @@ class SmartContracts {
         // prepare the db object that will be available in the VM
         const db = {
           // create a new table for the smart contract
-          createTable: (tableName, indexes = [], params = {}) => SmartContracts.createTable(
-            database, tables, name, tableName, indexes, params,
+          createTable: (tableName, indexes = [], tableParams = {}) => SmartContracts.createTable(
+            database, tables, name, tableName, indexes, tableParams,
           ),
           // add indexes for an existing table
           addIndexes: (tableName, indexes) => SmartContracts.addIndexes(
@@ -712,6 +712,7 @@ class SmartContracts {
       // update the index count
       const finalTableName = `${contractName}_${tableName}`;
       if (tables[finalTableName] !== undefined) {
+        // eslint-disable-next-line no-param-reassign
         tables[finalTableName].nbIndexes += result;
       }
     }

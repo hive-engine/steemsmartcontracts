@@ -17,7 +17,7 @@ class TableAsserts {
       },
     });
 
-    const expectingNoBalance = !stake && !pendingUnstake && !delegationsOut && !delegationsIn;
+    const expectingNoBalance = !balance && !stake && !pendingUnstake && !delegationsOut && !delegationsIn;
     if (expectingNoBalance) {
       assert.ok(!balance, `No balance expected for ${account}, ${symbol}`);
       return;

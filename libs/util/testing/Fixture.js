@@ -22,6 +22,7 @@ class Fixture {
     this.currentJobId = 0;
     this.database = null;
     this.txId = 1;
+    this.refBlockNumber = 100000000;
   }
 
   sendBlock(block) {
@@ -95,6 +96,11 @@ class Fixture {
   getNextTxId() {
     this.txId += 1;
     return `TXID${this.txId.toString().padStart(8, '0')}`;
+  }
+
+  getNextRefBlockNumber() {
+    this.refBlockNumber += 1;
+    return this.refBlockNumber;
   }
 
   async setUp() {

@@ -17,13 +17,38 @@ class TableAsserts {
       },
     });
 
-    assert.ok(res, `No balance for ${account}, ${symbol}`);
+    const expectingNoBalance = !balance && !stake && !pendingUnstake && !delegationsOut && !delegationsIn;
+    if (expectingNoBalance) {
+      assert.ok(!balance, `No balance expected for ${account}, ${symbol}`);
+      return;
+    } else {
+      assert.ok(res, `No balance for ${account}, ${symbol}`);
+    }
 
-    assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
-    assert.equal(res.stake, stake, `${account} has ${symbol} stake ${res.stake}, expected ${stake}`);
-    if (pendingUnstake) assert.equal(res.pendingUnstake, pendingUnstake, `${account} has ${symbol} pendingUnstake ${res.pendingUnstake}, expected ${pendingUnstake}`);
-    if (delegationsIn) assert.equal(res.delegationsIn, delegationsIn, `${account} has ${symbol} delegationsIn ${res.delegationsIn}, expected ${delegationsIn}`);
-    if (delegationsOut) assert.equal(res.delegationsOut, delegationsOut, `${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
+    let pass = true;
+    if (res.balance !== balance) {
+      console.error(`${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
+      pass = false;
+    }
+    if (res.stake !== stake) {
+      console.error(`${account} has ${symbol} stake ${res.stake}, expected ${stake}`);
+      pass = false;
+    }
+    if (pendingUnstake && res.pendingUnstake !== pendingUnstake) {
+        console.error(`${account} has ${symbol} pendingUnstake ${res.pendingUnstake}, expected ${pendingUnstake}`);
+        pass = false;
+    }
+    if (delegationsIn && res.delegationsIn !== delegationsIn) {
+        console.error(`${account} has ${symbol} delegationsIn ${res.delegationsIn}, expected ${delegationsIn}`);
+        pass = false;
+    }
+    if (delegationsOut && res.delegationsOut !== delegationsOut) {
+        console.error(`${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
+        pass = false;
+    }
+    if (!pass) {
+      assert.fail('Balance mismatch');
+    }
   }
 
   async assertNoErrorInLastBlock() {

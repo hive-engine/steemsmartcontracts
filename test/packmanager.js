@@ -383,7 +383,7 @@ describe('packmanager', function() {
       assert.equal(balances.length, 2);
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, 'BEE');
-      assert.equal(balances[0].balance, '760.00000000');
+      assert.equal(balances[0].balance, '560.00000000');
       assert.equal(balances[1].account, 'aggroed');
       assert.equal(balances[1].symbol, 'BEE');
       assert.equal(balances[1].balance, '549.94010000');
@@ -468,7 +468,7 @@ describe('packmanager', function() {
       assert.equal(balances.length, 2);
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, 'BEE');
-      assert.equal(balances[0].balance, '760.06000000');
+      assert.equal(balances[0].balance, '560.06000000');
       assert.equal(balances[1].account, 'aggroed');
       assert.equal(balances[1].symbol, 'BEE');
       assert.equal(balances[1].balance, '549.94000000');
@@ -609,7 +609,7 @@ describe('packmanager', function() {
 
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[0].balance, 1260);
+      assert.equal(balances[0].balance, 1060);
       assert.equal(balances[1].account, 'cryptomancer');
       assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
       assert.equal(balances[1].balance, 0);
@@ -844,7 +844,7 @@ describe('packmanager', function() {
 
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[0].balance, 1400);
+      assert.equal(balances[0].balance, 1100);
       assert.equal(balances[1].account, 'cryptomancer');
       assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
       assert.equal(balances[1].balance, 0);

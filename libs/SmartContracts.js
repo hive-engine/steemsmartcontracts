@@ -96,7 +96,11 @@ class SmartContracts {
         // prepare the db object that will be available in the VM
         const db = {
           // create a new table for the smart contract
-          createTable: (tableName, indexes = []) => SmartContracts.createTable(
+          createTable: (tableName, indexes = [], tableParams = {}) => SmartContracts.createTable(
+            database, tables, name, tableName, indexes, tableParams,
+          ),
+          // add indexes for an existing table
+          addIndexes: (tableName, indexes) => SmartContracts.addIndexes(
             database, tables, name, tableName, indexes,
           ),
           // perform a query find on a table of the smart contract
@@ -272,8 +276,8 @@ class SmartContracts {
       // prepare the db object that will be available in the VM
       const db = {
         // create a new table for the smart contract
-        createTable: (tableName, indexes = []) => SmartContracts.createTable(
-          database, tables, contract, tableName, indexes,
+        createTable: (tableName, indexes = [], params = {}) => SmartContracts.createTable(
+          database, tables, contract, tableName, indexes, params,
         ),
         // perform a query find on a table of the smart contract
         find: (table, query, limit = 1000, offset = 0, indexes = []) => SmartContracts.find(
@@ -675,11 +679,12 @@ class SmartContracts {
     return true;
   }
 
-  static async createTable(database, tables, contractName, tableName, indexes = []) {
+  static async createTable(database, tables, contractName, tableName, indexes = [], params = {}) {
     const result = await database.createTable({
       contractName,
       tableName,
       indexes,
+      params,
     });
 
     if (result === true) {
@@ -690,7 +695,25 @@ class SmartContracts {
           size: 0,
           hash: '',
           nbIndexes: indexes.length,
+          primaryKey: params.primaryKey,
         };
+      }
+    }
+  }
+
+  static async addIndexes(database, tables, contractName, tableName, indexes) {
+    const result = await database.addIndexes({
+      contractName,
+      tableName,
+      indexes,
+    });
+
+    if (result > 0) {
+      // update the index count
+      const finalTableName = `${contractName}_${tableName}`;
+      if (tables[finalTableName] !== undefined) {
+        // eslint-disable-next-line no-param-reassign
+        tables[finalTableName].nbIndexes += result;
       }
     }
   }

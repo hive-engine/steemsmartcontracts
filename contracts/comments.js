@@ -14,7 +14,6 @@ actions.createSSC = async () => {
     await api.db.createTable('posts', [
       'authorperm',
       { name: 'byCashoutTime', index: { rewardPoolId: 1, cashoutTime: 1 } },
-      { name: 'byScoreTrend', index: { rewardPoolId: 1, scoreTrend: 1 } },
     ], { primaryKey: ['authorperm', 'rewardPoolId'] });
     await api.db.createTable('votes', [{ name: 'byTimestamp', index: { rewardPoolId: 1, authorperm: 1, timestamp: 1 } }], { primaryKey: ['rewardPoolId', 'authorperm', 'voter'] });
     await api.db.createTable('votingPower', [], { primaryKey: ['rewardPoolId', 'account'] });
@@ -166,8 +165,6 @@ async function payOutPost(rewardPool, token, post, timestamp) {
   post.totalPayoutValue = postPendingToken;
   // eslint-disable-next-line no-param-reassign
   post.curatorPayoutValue = curatorPortion;
-  // eslint-disable-next-line no-param-reassign
-  post.scoreTrend = '0';
 
   await payOutCurators(rewardPool, token, post, curatorPortion);
   api.emit('authorReward', {
@@ -521,7 +518,6 @@ actions.comment = async (payload) => {
         cashoutTime,
         votePositiveRshareSum: '0',
         voteRshareSum: '0',
-        scoreTrend: '0',
       };
       await api.db.insert('posts', post);
     }
@@ -653,8 +649,6 @@ async function processVote(post, voter, weight, timestamp) {
   // eslint-disable-next-line no-param-reassign
   post.voteRshareSum = api.BigNumber(post.voteRshareSum).plus(updatedPostRshares)
     .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-  // eslint-disable-next-line no-param-reassign
-  post.scoreTrend = computeTrendScore(post);
 
   if (api.BigNumber(updatedPostRshares).gt(0)) {
     // eslint-disable-next-line no-param-reassign

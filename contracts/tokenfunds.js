@@ -10,9 +10,12 @@ actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('funds');
   if (tableExists === false) {
     await api.db.createTable('funds', ['id', 'lastTickTime']);
-    await api.db.createTable('proposals', ['fundId', 'approvalWeight']);
+    await api.db.createTable('proposals', [
+      'fundId',
+      { name: 'byApprovalWeight', index: { fundId: 1, approvalWeight: 1 } },
+    ]);
     await api.db.createTable('approvals', ['from', 'to']);
-    await api.db.createTable('accounts', ['account']);
+    await api.db.createTable('accounts', [], { primaryKey: ['account'] });
     await api.db.createTable('params');
 
     const params = {};
@@ -20,6 +23,7 @@ actions.createSSC = async () => {
     params.dtfUpdateFee = '300';
     params.dtfTickHours = '24';
     params.maxDtfsPerBlock = 40;
+    params.maxAccountApprovals = 1000;
     params.processQueryLimit = 1000;
     await api.db.insert('params', params);
   }
@@ -31,6 +35,7 @@ actions.updateParams = async (payload) => {
     dtfUpdateFee,
     dtfTickHours,
     maxDtfsPerBlock,
+    maxAccountApprovals,
     processQueryLimit,
   } = payload;
 
@@ -52,20 +57,16 @@ actions.updateParams = async (payload) => {
     if (!api.assert(typeof maxDtfsPerBlock === 'string' && api.BigNumber(maxDtfsPerBlock).isInteger() && api.BigNumber(maxDtfsPerBlock).gte(1), 'invalid maxDtfsPerBlock')) return;
     params.maxDtfsPerBlock = api.BigNumber(maxDtfsPerBlock).toNumber();
   }
+  if (maxAccountApprovals) {
+    if (!api.assert(typeof maxAccountApprovals === 'string' && api.BigNumber(maxAccountApprovals).isInteger() && api.BigNumber(maxAccountApprovals).gte(1), 'invalid maxDtfsPerBlock')) return;
+    params.maxAccountApprovals = api.BigNumber(maxAccountApprovals).toNumber();
+  }
   if (processQueryLimit) {
     if (!api.assert(typeof processQueryLimit === 'string' && api.BigNumber(processQueryLimit).isInteger() && api.BigNumber(processQueryLimit).gte(1), 'invalid processQueryLimit')) return;
     params.processQueryLimit = api.BigNumber(processQueryLimit).toNumber();
   }
   await api.db.update('params', params);
 };
-
-async function updateProposalWeight(id, deltaApprovalWeight) {
-  const proposal = await api.db.findOne('proposals', { _id: id });
-  if (proposal) {
-    proposal.approvalWeight = { $numberDecimal: api.BigNumber(proposal.approvalWeight.$numberDecimal).plus(deltaApprovalWeight) };
-    await api.db.update('proposals', proposal);
-  }
-}
 
 function validateTokens(payTokenObj, voteTokenObj) {
   if (!api.assert(payTokenObj && (payTokenObj.issuer === api.sender
@@ -106,6 +107,19 @@ function validateDateChange(date, newDate) {
   const repl = new Date(newDate);
   if (!api.assert(repl <= cur, 'date can only be reduced')) return false;
   return true;
+}
+
+function validatePending(proposal) {
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  return new Date(proposal.endDate) >= blockDate;
+}
+
+async function updateProposalWeight(id, deltaApprovalWeight) {
+  const proposal = await api.db.findOne('proposals', { _id: id });
+  if (proposal && validatePending(proposal)) {
+    proposal.approvalWeight = { $numberDecimal: api.BigNumber(proposal.approvalWeight.$numberDecimal).plus(deltaApprovalWeight) };
+    await api.db.update('proposals', proposal);
+  }
 }
 
 actions.createFund = async (payload) => {
@@ -361,7 +375,8 @@ actions.approveProposal = async (payload) => {
   if (api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) {
     const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
 
-    if (api.assert(proposal, 'proposal does not exist')) {
+    if (api.assert(proposal, 'proposal does not exist')
+      && api.assert(validatePending(proposal), 'proposal is not pending')) {
       const dtf = await api.db.findOne('funds', { id: proposal.fundId });
       const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.voteToken });
       let acct = await api.db.findOne('accounts', { account: api.sender });
@@ -410,7 +425,8 @@ actions.disapproveProposal = async (payload) => {
 
   if (api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) {
     const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
-    if (api.assert(proposal, 'proposal does not exist')) {
+    if (api.assert(proposal, 'proposal does not exist')
+      && api.assert(validatePending(proposal), 'proposal is not pending')) {
       const dtf = await api.db.findOne('funds', { id: proposal.fundId });
       const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: dtf.voteToken });
       let acct = await api.db.findOne('accounts', { account: api.sender });
@@ -458,6 +474,8 @@ actions.updateProposalApprovals = async (payload) => {
 
   const acct = await api.db.findOne('accounts', { account });
   if (acct !== null) {
+    const params = await api.db.findOne('params', {});
+
     // calculate approval weight of the account
     const balance = await api.db.findOneInTable('tokens', 'balances', { account, symbol: token.symbol });
     let approvalWeight = 0;
@@ -486,7 +504,11 @@ actions.updateProposalApprovals = async (payload) => {
 
     if (!api.BigNumber(deltaApprovalWeight).eq(0)) {
       await api.db.update('accounts', acct);
-      const approvals = await api.db.find('approvals', { from: account });
+      const approvals = await api.db.find('approvals',
+        { from: account },
+        params.maxAccountApprovals,
+        0,
+        [{ index: '_id', descending: true }]);
       for (let index = 0; index < approvals.length; index += 1) {
         const approval = approvals[index];
         await updateProposalWeight(approval.to, deltaApprovalWeight);
@@ -516,7 +538,7 @@ async function checkPendingProposals(dtf, params) {
       },
       params.processQueryLimit,
       offset,
-      [{ index: 'approvalWeight', descending: true }, { index: '_id', descending: false }]);
+      [{ index: 'byApprovalWeight', descending: true }, { index: '_id', descending: false }]);
 
     for (let i = 0; i < proposals.length; i += 1) {
       if (api.BigNumber(proposals[i].amountPerDay).times(tickPayRatio).gte(runningPay)) {

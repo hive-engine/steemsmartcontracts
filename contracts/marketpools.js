@@ -16,7 +16,7 @@ actions.createSSC = async () => {
   } else {
     const params = await api.db.findOne('params', {});
     if (!params.poolUpdateFee) {
-      params.poolUpdateFee = '100';
+      params.poolUpdateFee = '300';
       await api.db.update('params', params);
     }
   }

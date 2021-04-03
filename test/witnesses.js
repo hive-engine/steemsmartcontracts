@@ -36,8 +36,8 @@ const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js',
     (contractCode) => contractCode.replace(/NB_TOP_WITNESSES = .*;/, 'NB_TOP_WITNESSES = 4;'));
-// Contract where top witnesses is 11 with 9 signatures required.
-const witnessesContract11Payload = setupContractPayload('witnesses', './contracts/witnesses.js');
+// Contract where top witnesses is 21 with 14 signatures required.
+const witnessesContract21Payload = setupContractPayload('witnesses', './contracts/witnesses.js');
 
 function addGovernanceTokenTransactions(fixture, transactions, blockNumber) {
     transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', `{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "precision": 5, "maxSupply": "10000000", "isSignedWithActiveKey": true }`));
@@ -1238,7 +1238,7 @@ describe('witnesses', function () {
 
       // Deploy update to consensus mid block, but make sure the current round still functions as before.
       transactions = [];
-      transactions.push(new Transaction(100000010, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContract11Payload)));
+      transactions.push(new Transaction(100000010, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContract21Payload)));
       block = {
         refHiveBlockNumber: 100000010,
         refHiveBlockId: 'ABCD1',
@@ -1261,8 +1261,8 @@ describe('witnesses', function () {
       let params = res;
 
       // Params show different than current round as we updated mid round.
-      assert(params.numberOfWitnessSlots === 11);
-      assert(params.witnessSignaturesRequired === 9);
+      assert(params.numberOfWitnessSlots === 21);
+      assert(params.witnessSignaturesRequired === 14);
 
       let blockNum = params.lastVerifiedBlockNumber + 1;
       let endBlockRound = params.lastBlockRound;
@@ -1342,8 +1342,8 @@ describe('witnesses', function () {
         await tableAsserts.assertUserBalances({ account: schedules[i].witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0.00951293", stake: 0});
       }
 
-      // This round uses the updated 11 witnesses
-      for (let i = 1; i < 11; i++) {
+      // This round uses the updated 21 witnesses
+      for (let i = 1; i < 21; i++) {
         transactions = [];
         // send whatever transaction;
         transactions.push(new Transaction(110000000 + i, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
@@ -1391,10 +1391,10 @@ describe('witnesses', function () {
         });
 
       schedules = res;
-      assert(schedules.length === 11);
+      assert(schedules.length === 21);
 
       signatures = [];
-      schedules.slice(0, 8).forEach(schedule => {
+      schedules.slice(0, 14).forEach(schedule => {
         const wif = dhive.PrivateKey.fromLogin(schedule.witness, 'testnet', 'active');
         const sig = signPayload(wif, calculatedRoundHash, true)
         signatures.push([schedule.witness, sig])

@@ -7,7 +7,7 @@ const NB_BACKUP_WITNESSES = 1;
 const NB_WITNESSES = NB_TOP_WITNESSES + NB_BACKUP_WITNESSES;
 const NB_WITNESSES_SIGNATURES_REQUIRED = 14;
 const MAX_ROUNDS_MISSED_IN_A_ROW = 3; // after that the witness is disabled
-const MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20; // number of blocks
+const MAX_ROUND_PROPOSITION_WAITING_PERIOD = 40; // number of blocks
 const NB_TOKENS_TO_REWARD = '0.00951293'; // inflation.js tokens per block
 const NB_TOKENS_NEEDED_BEFORE_REWARDING = '0.04756465'; // 5x to reward
 // eslint-disable-next-line no-template-curly-in-string

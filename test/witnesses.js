@@ -35,7 +35,7 @@ const signPayload = (signingKey, payload, isPayloadSHA256 = false) => {
 const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js',
-    (contractCode) => contractCode.replace(/NB_TOP_WITNESSES = .*;/, 'NB_TOP_WITNESSES = 4;'));
+    (contractCode) => contractCode.replace(/NB_TOP_WITNESSES = .*;/, 'NB_TOP_WITNESSES = 4;').replace(/MAX_ROUND_PROPOSITION_WAITING_PERIOD = .*;/, 'MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20;'));
 // Contract where top witnesses is 21 with 14 signatures required.
 const witnessesContract21Payload = setupContractPayload('witnesses', './contracts/witnesses.js');
 

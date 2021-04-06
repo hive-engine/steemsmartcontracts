@@ -158,7 +158,7 @@ const updateOpenInterest = async (side, symbol, priceSymbol, groups, groupBy) =>
 const updateTradesHistory = async (type, account, ownedBy, counterparties, symbol, priceSymbol, price, isMarketFeePaid, marketAccount, fee, isAgentFeePaid, agentAccount, agentFee, volume) => {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestampSec = blockDate.getTime() / 1000;
-  const timestampMinus24hrs = blockDate.setDate(blockDate.getDate() - 1) / 1000;
+  const timestampMinus24hrs = blockDate.setUTCDate(blockDate.getUTCDate() - 1) / 1000;
   const historyTableName = symbol + 'tradesHistory';
 
   // clean history

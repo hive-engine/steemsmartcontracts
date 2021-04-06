@@ -710,7 +710,7 @@ describe('smart tokens', function () {
       assert.equal(pendingUndelegations[0].account, 'satoshi');
       assert.equal(pendingUndelegations[0].quantity, '0.00000001');
       let blockDate = new Date('2018-06-01T00:00:01.000Z')
-      assert.equal(pendingUndelegations[0].completeTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(pendingUndelegations[0].completeTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(pendingUndelegations[0].txID);
 
 
@@ -1317,7 +1317,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000001');
       assert.equal(unstake.numberTransactionsLeft, 1);
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       resolve();
@@ -1549,7 +1549,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID)
 
       const unstakeId = unstake.txID;
@@ -1802,7 +1802,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       let blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       const unstakeId = unstake.txID;
@@ -1854,7 +1854,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       resolve();
@@ -1964,7 +1964,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       transactions = [];
@@ -2119,7 +2119,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       transactions = [];
@@ -2370,7 +2370,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000006');
       assert.equal(unstake.numberTransactionsLeft, 3);
       let blockDate = new Date('2018-07-01T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 1));
       assert.ok(unstake.txID);
 
       const unstakeId = unstake.txID;
@@ -2425,7 +2425,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000004');
       assert.equal(unstake.numberTransactionsLeft, 2);
       blockDate = new Date('2018-07-02T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 1));
       assert.equal(unstake.txID, unstakeId);
 
       transactions = [];
@@ -2478,7 +2478,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000002');
       assert.equal(unstake.numberTransactionsLeft, 1);
       blockDate = new Date('2018-07-03T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 1));
       assert.equal(unstake.txID, unstakeId);
 
       transactions = [];

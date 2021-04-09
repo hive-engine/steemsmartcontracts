@@ -13,26 +13,16 @@ actions.createSSC = async () => {
     const params = {};
     params.poolCreationFee = '1000';
     await api.db.insert('params', params);
-  } else {
-    const params = await api.db.findOne('params', {});
-    if (!params.poolUpdateFee) {
-      params.poolUpdateFee = '300';
-      await api.db.update('params', params);
-    }
   }
 };
 
 actions.updateParams = async (payload) => {
-  const { poolCreationFee, poolUpdateFee } = payload;
+  const { poolCreationFee } = payload;
   if (api.sender !== api.owner) return;
   const params = await api.db.findOne('params', {});
   if (poolCreationFee) {
     if (!api.assert(typeof poolCreationFee === 'string' && !api.BigNumber(poolCreationFee).isNaN() && api.BigNumber(poolCreationFee).gte(0), 'invalid poolCreationFee')) return;
     params.poolCreationFee = poolCreationFee;
-  }
-  if (poolUpdateFee) {
-    if (!api.assert(typeof poolUpdateFee === 'string' && !api.BigNumber(poolUpdateFee).isNaN() && api.BigNumber(poolUpdateFee).gte(0), 'invalid poolUpdateFee')) return;
-    params.poolUpdateFee = poolUpdateFee;
   }
   await api.db.update('params', params);
 };
@@ -191,8 +181,8 @@ actions.createRewardPool = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  // get contract params
-  const params = await api.db.findOne('params', {});
+  // get mining contract params
+  const params = await api.db.findOneInTable('mining', 'params', {});
   const { poolCreationFee } = params;
 
   // eslint-disable-next-line no-template-curly-in-string
@@ -230,8 +220,8 @@ actions.updateRewardPool = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  // get contract params
-  const params = await api.db.findOne('params', {});
+  // get mining contract params
+  const params = await api.db.findOneInTable('mining', 'params', {});
   const { poolUpdateFee } = params;
 
   // eslint-disable-next-line no-template-curly-in-string

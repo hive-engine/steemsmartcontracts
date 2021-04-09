@@ -23,7 +23,7 @@ actions.createSSC = async () => {
     params.dtfUpdateFee = '300';
     params.dtfTickHours = '24';
     params.maxDtfsPerBlock = 40;
-    params.maxAccountApprovals = 1000;
+    params.maxAccountApprovals = 50;
     params.processQueryLimit = 1000;
     await api.db.insert('params', params);
   }
@@ -119,7 +119,9 @@ async function updateProposalWeight(id, deltaApprovalWeight) {
   if (proposal && validatePending(proposal)) {
     proposal.approvalWeight = { $numberDecimal: api.BigNumber(proposal.approvalWeight.$numberDecimal).plus(deltaApprovalWeight) };
     await api.db.update('proposals', proposal);
+    return true;
   }
+  return false;
 }
 
 actions.createFund = async (payload) => {
@@ -153,7 +155,7 @@ actions.createFund = async (payload) => {
     }
     const payTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: payToken });
     const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: voteToken });
-    if (!await validateTokens(payTokenObj, voteTokenObj)
+    if (!validateTokens(payTokenObj, voteTokenObj)
       || !api.assert(api.BigNumber(maxAmountPerDay).dp() <= payTokenObj.precision, 'maxAmountPerDay precision mismatch')
       || !api.assert(api.BigNumber(voteThreshold).dp() <= voteTokenObj.precision, 'voteThreshold precision mismatch')) return;
     const now = new Date(`${api.hiveBlockTimestamp}.000Z`);
@@ -371,6 +373,7 @@ actions.disableProposal = async (payload) => {
 
 actions.approveProposal = async (payload) => {
   const { id } = payload;
+  const params = await api.db.findOne('params', {});
 
   if (api.assert(typeof id === 'string' && api.BigNumber(id).isInteger(), 'invalid id')) {
     const proposal = await api.db.findOne('proposals', { _id: api.BigNumber(id).toNumber() });
@@ -388,11 +391,30 @@ actions.approveProposal = async (payload) => {
         acct = await api.db.insert('accounts', acct);
       }
 
+      let activeApprovals = 0;
+      const approvals = await api.db.find('approvals',
+        { from: api.sender, proposalPending: true },
+        params.maxAccountApprovals,
+        0,
+        [{ index: '_id', descending: true }]);
+      for (let index = 0; index < approvals.length; index += 1) {
+        const approval = approvals[index];
+        const approvalProposal = await api.db.findOne('proposals', { _id: approval.to });
+        if (approvalProposal && validatePending(approvalProposal)) {
+          activeApprovals += 1;
+        } else {
+          approval.proposalPending = false;
+          await api.db.update('approvals', approval);
+        }
+      }
+      if (!api.assert(activeApprovals < params.maxAccountApprovals, `you can only approve ${params.maxAccountApprovals} active proposals`)) return;
+
       let approval = await api.db.findOne('approvals', { from: api.sender, to: proposal._id });
       if (api.assert(approval === null, 'you already approved this proposal')) {
         approval = {
           from: api.sender,
           to: proposal._id,
+          proposalPending: true,
         };
         await api.db.insert('approvals', approval);
 
@@ -505,13 +527,17 @@ actions.updateProposalApprovals = async (payload) => {
     if (!api.BigNumber(deltaApprovalWeight).eq(0)) {
       await api.db.update('accounts', acct);
       const approvals = await api.db.find('approvals',
-        { from: account },
+        { from: account, proposalPending: true },
         params.maxAccountApprovals,
         0,
         [{ index: '_id', descending: true }]);
       for (let index = 0; index < approvals.length; index += 1) {
         const approval = approvals[index];
-        await updateProposalWeight(approval.to, deltaApprovalWeight);
+        const proposalPending = await updateProposalWeight(approval.to, deltaApprovalWeight);
+        if (!proposalPending) {
+          approval.proposalPending = false;
+          await api.db.update('approvals', approval);
+        }
       }
     }
   }

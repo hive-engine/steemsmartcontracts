@@ -21,7 +21,7 @@ actions.createSSC = async () => {
     const params = {
       setupFee: '1000',
       updateFee: '100',
-      maintenanceTokensPerAction: 5,
+      maintenanceTokensPerAction: 1,
       maintenanceTokenOffset: 0,
       maxPostsProcessedPerRound: 1000,
     };
@@ -125,7 +125,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion) {
   while (votesToPayout.length > 0) {
     for (let i = 0; i < votesToPayout.length; i += 1) {
       const vote = votesToPayout[i];
-      if (api.BigNumber(vote.weight) > 0) {
+      if (api.BigNumber(vote.curationWeight) > 0) {
         const totalCurationWeight = calculateCurationWeightRshares(
           rewardPool, post.votePositiveRshareSum,
         );

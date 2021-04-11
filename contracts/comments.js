@@ -14,7 +14,6 @@ actions.createSSC = async () => {
     await api.db.createTable('posts', [
       'authorperm',
       { name: 'byCashoutTime', index: { rewardPoolId: 1, cashoutTime: 1 } },
-      { name: 'byScoreTrend', index: { rewardPoolId: 1, scoreTrend: 1 } },
     ], { primaryKey: ['authorperm', 'rewardPoolId'] });
     await api.db.createTable('votes', [{ name: 'byTimestamp', index: { rewardPoolId: 1, authorperm: 1, timestamp: 1 } }], { primaryKey: ['rewardPoolId', 'authorperm', 'voter'] });
     await api.db.createTable('votingPower', [], { primaryKey: ['rewardPoolId', 'account'] });
@@ -22,7 +21,7 @@ actions.createSSC = async () => {
     const params = {
       setupFee: '1000',
       updateFee: '100',
-      maintenanceTokensPerAction: 5,
+      maintenanceTokensPerAction: 1,
       maintenanceTokenOffset: 0,
       maxPostsProcessedPerRound: 1000,
     };
@@ -126,7 +125,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion) {
   while (votesToPayout.length > 0) {
     for (let i = 0; i < votesToPayout.length; i += 1) {
       const vote = votesToPayout[i];
-      if (api.BigNumber(vote.weight) > 0) {
+      if (api.BigNumber(vote.curationWeight) > 0) {
         const totalCurationWeight = calculateCurationWeightRshares(
           rewardPool, post.votePositiveRshareSum,
         );
@@ -166,8 +165,6 @@ async function payOutPost(rewardPool, token, post, timestamp) {
   post.totalPayoutValue = postPendingToken;
   // eslint-disable-next-line no-param-reassign
   post.curatorPayoutValue = curatorPortion;
-  // eslint-disable-next-line no-param-reassign
-  post.scoreTrend = '0';
 
   await payOutCurators(rewardPool, token, post, curatorPortion);
   api.emit('authorReward', {
@@ -524,10 +521,8 @@ actions.comment = async (payload) => {
         cashoutTime,
         votePositiveRshareSum: '0',
         voteRshareSum: '0',
-        scoreTrend: '0',
       };
       await api.db.insert('posts', post);
-      api.emit('newComment', { rewardPoolId, symbol: rewardPool.symbol });
     }
   }
 };
@@ -638,7 +633,6 @@ async function processVote(post, voter, weight, timestamp) {
     updatedPostRshares = api.BigNumber(voteRshares).minus(oldVoteRshares)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
     await api.db.update('votes', vote);
-    api.emit('updateVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
   } else {
     vote = {
       rewardPoolId,
@@ -652,15 +646,12 @@ async function processVote(post, voter, weight, timestamp) {
     };
     updatedPostRshares = voteRshares;
     await api.db.insert('votes', vote);
-    api.emit('newVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
   }
 
   const oldPostClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
   // eslint-disable-next-line no-param-reassign
   post.voteRshareSum = api.BigNumber(post.voteRshareSum).plus(updatedPostRshares)
     .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-  // eslint-disable-next-line no-param-reassign
-  post.scoreTrend = computeTrendScore(post);
 
   if (api.BigNumber(updatedPostRshares).gt(0)) {
     // eslint-disable-next-line no-param-reassign

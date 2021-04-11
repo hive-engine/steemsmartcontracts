@@ -12,7 +12,7 @@ const enableHashLogging = false;
 function validateIndexSpec(spec) {
   if (typeof spec === 'string') return validator.isAlphanumeric(spec);
   if (typeof spec === 'object') {
-      return spec.name && validator.isAlphanumeric(spec.name) && typeof spec.index === 'object'
+    return spec.name && validator.isAlphanumeric(spec.name) && typeof spec.index === 'object'
           && Object.keys(spec.index).every(indexName => validator.isAlphanumeric(indexName))
           && Object.values(spec.index).every(asc => asc === 1 || asc === -1);
   }
@@ -390,9 +390,13 @@ class Database {
    * @param {String} contractName name of the contract
    * @param {String} tableName name of the table
    * @param {Array} indexes array of string containing the name of the indexes to create
+   * @param {Object} params extra table creation parameters:
+   *   - primaryKey { Array<String> } array of string keys comprising the primary key
    */
   async createTable(payload) {
-    const { contractName, tableName, indexes, params } = payload;
+    const {
+      contractName, tableName, indexes, params,
+    } = payload;
     let result = false;
 
     // check that the params are correct
@@ -431,6 +435,63 @@ class Database {
         }
 
         result = true;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Add indexes to an existing table
+   * @param {String} contractName name of the contract
+   * @param {String} tableName name of the table
+   * @param {Array} indexes array of string containing the name of the indexes to create
+   */
+  async addIndexes(payload) {
+    const { contractName, tableName, indexes } = payload;
+    let result = 0;
+
+    // check that the params are correct
+    // each element of the indexes array have to be a string if defined
+    if (validator.isAlphanumeric(tableName)
+      && Array.isArray(indexes)
+      && (indexes.length === 0
+        || (indexes.length > 0 && indexes.every(el => validateIndexSpec(el))))) {
+      const finalTableName = `${contractName}_${tableName}`;
+      // get the table from the database
+      const table = await this.getContractCollection(contractName, finalTableName);
+      if (table !== null) {
+        if (indexes.length > 0) {
+          const nbIndexes = indexes.length;
+
+          const tableIndexes = await indexInformation(table);
+
+          for (let i = 0; i < nbIndexes; i += 1) {
+            const index = indexes[i];
+            // Do not do this within session, cannot add indexes in same tx.
+            const indexOptions = {};
+            let finalIndex = {};
+            let createIndex = true;
+            if (typeof index === 'object') {
+              if (tableIndexes[index.name] !== undefined) {
+                console.log(`Index with name ${index.name} already exists for ${finalTableName}`); // eslint-disable-line no-console
+                createIndex = false;
+              } else {
+                indexOptions.name = index.name;
+                finalIndex = index.index;
+              }
+            } else if (tableIndexes[`${index}_1`] !== undefined) {
+              console.log(`Index ${index} already exists for ${finalTableName}`); // eslint-disable-line no-console
+              createIndex = false;
+            } else {
+              finalIndex[index] = 1;
+            }
+            if (createIndex) {
+              await table.createIndex(finalIndex, indexOptions);
+              result += 1;
+            }
+          }
+        }
       }
     }
 
@@ -478,19 +539,22 @@ class Database {
         && lim > 0 && lim <= 1000
         && off >= 0) {
         const finalTableName = `${contract}_${table}`;
-        const tableData = await this.getContractCollection(contract, finalTableName);
-
         const contractInDb = await this.findContract({ name: contract });
-        const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
-        if (customPrimaryKey) {
-          customPrimaryKey.forEach(k => {
-            if (k in query) {
-                query[`_id.${k}`] = query[k];
-            }
-          });
+        let tableData = null;
+        if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
+          tableData = this.database.collection(finalTableName);
         }
 
         if (tableData) {
+          const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
+          if (customPrimaryKey) {
+            customPrimaryKey.forEach((k) => {
+              if (k in query) {
+                query[`_id.${k}`] = query[k];
+              }
+            });
+          }
+
           // if there is an index passed, check if it exists
           if (ind.length > 0) {
             const tableIndexes = await indexInformation(tableData);
@@ -498,20 +562,20 @@ class Database {
             let sort;
             if (ind.every(el => tableIndexes[`${el.index}_1`] !== undefined || el.index === '$loki' || el.index === '_id' || tableIndexes[el.index] !== undefined)) {
               sort = [];
-              ind.forEach(el => {
-                  if (tableIndexes[el.index] !== undefined) {
-                      tableIndexes[el.index].forEach(indexPart => {
-                          const indexField = indexPart[0];
-                          const indexSort = indexPart[1];
-                          if (el.descending === true) {
-                              sort.push([indexField, indexSort === 1 ? 'desc' : 'asc']);
-                          } else {
-                              sort.push([indexField, indexSort === 1 ? 'asc' : 'desc']);
-                          }
-                      });
-                  } else {
-                      sort.push([el.index === '$loki' ? '_id' : el.index, el.descending === true ? 'desc' : 'asc']);
-                  }
+              ind.forEach((el) => {
+                if (tableIndexes[el.index] !== undefined) {
+                  tableIndexes[el.index].forEach((indexPart) => {
+                    const indexField = indexPart[0];
+                    const indexSort = indexPart[1];
+                    if (el.descending === true) {
+                      sort.push([indexField, indexSort === 1 ? 'desc' : 'asc']);
+                    } else {
+                      sort.push([indexField, indexSort === 1 ? 'asc' : 'desc']);
+                    }
+                  });
+                } else {
+                  sort.push([el.index === '$loki' ? '_id' : el.index, el.descending === true ? 'desc' : 'asc']);
+                }
               });
             } else {
               // This can happen when creating a table and using find with index all in the same transaction
@@ -566,28 +630,31 @@ class Database {
         }
         const finalTableName = `${contract}_${table}`;
         const contractInDb = await this.findContract({ name: contract });
-        const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
-        if (customPrimaryKey) {
-          customPrimaryKey.forEach(k => {
-            if (k in query) {
-                query[`_id.${k}`] = query[k];
-            }
-          });
+        let tableData = null;
+        if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
+          tableData = this.database.collection(finalTableName);
         }
-
-        if (this.session) {
-          const cacheKey = objectCacheKey(contract, table, query);
-          if (cacheKey) {
-            if (this.objectCache[cacheKey]) {
-              return this.objectCache[cacheKey];
-            }
-          } else {
-            await this.flushCache();
-          }
-        }
-
-        const tableData = await this.getContractCollection(contract, finalTableName);
         if (tableData) {
+          const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
+          if (customPrimaryKey) {
+            customPrimaryKey.forEach((k) => {
+              if (k in query) {
+                query[`_id.${k}`] = query[k];
+              }
+            });
+          }
+
+          if (this.session) {
+            const cacheKey = objectCacheKey(contract, table, query);
+            if (cacheKey) {
+              if (this.objectCache[cacheKey]) {
+                return this.objectCache[cacheKey];
+              }
+            } else {
+              await this.flushCache();
+            }
+          }
+
           result = await tableData.findOne(EJSON.deserialize(query), { session: this.session });
           if (result) {
             result = EJSON.serialize(result);
@@ -621,9 +688,9 @@ class Database {
         finalRecord = EJSON.deserialize(record);
         const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
         if (customPrimaryKey) {
-          finalRecord._id = {};
-          customPrimaryKey.forEach(k => {
-            finalRecord._id[k] = finalRecord[k];
+          finalRecord._id = {}; // eslint-disable-line no-underscore-dangle
+          customPrimaryKey.forEach((k) => {
+            finalRecord._id[k] = finalRecord[k]; // eslint-disable-line no-underscore-dangle
           });
         } else {
           finalRecord._id = await this.getNextSequence(finalTableName); // eslint-disable-line

@@ -1,5 +1,5 @@
 {
-    "chainId": "mainnet-hive",
+    "chainId": "testnet-eon",
     "rpcNodePort": 5000,
     "p2pPort": 5001,
     "databaseURL": "mongodb://localhost:27017",
@@ -14,7 +14,7 @@
         "https://api.hive.blog",
         "https://api.openhive.network"
     ],
-    "startHiveBlock": 52321178,
+    "startHiveBlock": 52586641,
     "genesisHiveBlock": 41967000,
     "witnessEnabled": false
 }

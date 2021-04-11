@@ -107,7 +107,20 @@ const parseTransactions = (refBlockNumber, block) => {
               id = commentMeta.ssc.id; // eslint-disable-line prefer-destructuring
               sscTransactions = commentMeta.ssc.transactions;
               permlink = operation[1].permlink; // eslint-disable-line prefer-destructuring
-            } else {
+            } else if (commentMeta && commentMeta.tags.find(t => t === 'palnet')) {
+              // add comment to this reward pool
+              id = `ssc-${chainIdentifier}`;
+              sscTransactions = [{
+                contractName: 'comments',
+                contractAction: 'comment',
+                contractPayload: {
+                  author: operation[1].author,
+                  permlink: operation[1].permlink,
+                  rewardPools: [1],
+                },
+	      }];
+              permlink = operation[1].permlink;
+	    } else {
               const commentBody = JSON.parse(operation[1].body);
               id = commentBody.id; // eslint-disable-line prefer-destructuring
               sscTransactions = Array.isArray(commentBody.json)

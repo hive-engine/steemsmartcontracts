@@ -7,12 +7,9 @@ const { Transaction } = require('../libs/Transaction');
 const { setupContractPayload } = require('../libs/util/contractUtil');
 
 const commentsContractPayload = setupContractPayload('comments', './contracts/comments.js');
-
-    // DO NOT KEEP THIS IN PRIMARY NODE. TEST NETWORK ONLY
-    if (this.refHiveBlockNumber === 52321178) {
-      // Append and enable relevant contracts for P2P
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(commentsContractPayload)));
-    }
+const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const nftContractPayload = setupContractPayload('nft', './contracts/nft.js');
+const packmanagerContractPayload = setupContractPayload('packmanager', './contracts/packmanager.js');
 
 class Block {
   constructor(timestamp, refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, previousBlockNumber, previousHash = '', previousDatabaseHash = '') {
@@ -107,6 +104,18 @@ class Block {
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
     await this.blockAdjustments(database);
+
+    // DO NOT KEEP THIS IN PRIMARY NODE. TEST NETWORK ONLY
+    if (this.refHiveBlockNumber === 52584399) {
+      // Append and enable relevant contracts for P2P
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(commentsContractPayload)));
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "minnoswupport", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardPerBlock": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000};
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_3', 'minnowsupport', 'comments', 'createRewardPool', `{ "symbol": "PAL", "config": ${JSON.stringify(config)}, "isSignedWithActiveKey": true }`));
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_4', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(nftContractPayload)));
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(packmanagerContractPayload)));
+    }
 
     const nbTransactions = this.transactions.length;
 

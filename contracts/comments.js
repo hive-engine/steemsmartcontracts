@@ -254,10 +254,13 @@ async function tokenMaintenance() {
         .dividedBy(3000)
         .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       if (api.BigNumber(rewardToAdd).gt(0)) {
-        await api.executeSmartContractAsOwner('tokens', 'issueToContract',
+        let res = await api.executeSmartContractAsOwner('tokens', 'issueToContract',
           {
             symbol: rewardPool.symbol, quantity: rewardToAdd, to: 'comments', isSignedWithActiveKey: true,
           });
+	if (res.errors) {
+	  api.debug(`Error issuing to ${rewardToAdd} ${rewardPool.symbol} to comments contract (TXID ${api.transactionId}): \n${res.errors}`);
+	}
         rewardPool.rewardPool = api.BigNumber(rewardPool.rewardPool).plus(rewardToAdd)
           .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       }

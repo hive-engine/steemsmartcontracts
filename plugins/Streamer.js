@@ -107,24 +107,30 @@ const parseTransactions = (refBlockNumber, block) => {
               id = commentMeta.ssc.id; // eslint-disable-line prefer-destructuring
               sscTransactions = commentMeta.ssc.transactions;
               permlink = operation[1].permlink; // eslint-disable-line prefer-destructuring
-            } else if (commentMeta && commentMeta.tags.find(t => t === 'palnet')) {
-              // add comment to this reward pool
-              id = `ssc-${chainIdentifier}`;
-              sscTransactions = [{
-                contractName: 'comments',
-                contractAction: 'comment',
-                contractPayload: {
-                  author: operation[1].author,
-                  permlink: operation[1].permlink,
-                  rewardPools: [1],
-                },
-	      }];
-              permlink = operation[1].permlink;
-	    } else {
-              const commentBody = JSON.parse(operation[1].body);
-              id = commentBody.id; // eslint-disable-line prefer-destructuring
-              sscTransactions = Array.isArray(commentBody.json)
-                ? commentBody.json : [commentBody.json];
+            } else {
+              try {
+                const commentBody = JSON.parse(operation[1].body);
+                id = commentBody.id; // eslint-disable-line prefer-destructuring
+                sscTransactions = Array.isArray(commentBody.json)
+                  ? commentBody.json : [commentBody.json];
+              } catch (e) {
+                // If this fails to parse, treat as a comment op
+                id = `ssc-${chainIdentifier}`;
+                sender = 'null';
+                permlink = operation[1].permlink; // eslint-disable-line prefer-destructuring
+                sscTransactions = [
+                  {
+                    contractName: 'comments',
+                    contractAction: 'comment',
+                    contractPayload: {
+                      author: operation[1].author,
+                      jsonMetadata: commentMeta,
+                      parentAuthor: operation[1].parent_author,
+                      parentPermlink: operation[1].permlink,
+                    },
+                  },
+                ];
+              }
             }
           } else if (operation[0] === 'comment_options') {
             id = `ssc-${chainIdentifier}`;

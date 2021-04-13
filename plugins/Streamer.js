@@ -116,7 +116,6 @@ const parseTransactions = (refBlockNumber, block) => {
               } catch (e) {
                 // If this fails to parse, treat as a comment op
                 id = `ssc-${chainIdentifier}`;
-                sender = 'null';
                 permlink = operation[1].permlink; // eslint-disable-line prefer-destructuring
                 sscTransactions = [
                   {

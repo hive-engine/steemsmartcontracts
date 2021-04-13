@@ -560,6 +560,7 @@ actions.comment = async (payload) => {
         voteRshareSum: '0',
       };
       await api.db.insert('posts', post);
+      api.emit('newComment', { rewardPoolId, symbol: rewardPool.symbol });
     }
   }
 };
@@ -662,6 +663,7 @@ async function processVote(post, voter, weight, timestamp) {
     updatedPostRshares = api.BigNumber(voteRshares).minus(oldVoteRshares)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
     await api.db.update('votes', vote);
+    api.emit('updateVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
   } else {
     vote = {
       rewardPoolId,
@@ -675,6 +677,7 @@ async function processVote(post, voter, weight, timestamp) {
     };
     updatedPostRshares = voteRshares;
     await api.db.insert('votes', vote);
+    api.emit('newVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
   }
 
   const oldPostClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);

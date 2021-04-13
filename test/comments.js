@@ -645,7 +645,6 @@ describe('comments', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "author": "author1", "permlink": "test1", "voter": "voter1", "weight": "10" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "author": "author1", "permlink": "test1", "voter": "voter1", "weight": -10001 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "author": "author1", "permlink": "test1", "voter": "voter1", "weight": 10001 }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "author": "author1", "permlink": "test2", "voter": "voter1", "weight": 10000 }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -663,7 +662,6 @@ describe('comments', function () {
       assertError(txs[2], 'weight must be an integer from -10000 to 10000');
       assertError(txs[3], 'weight must be an integer from -10000 to 10000');
       assertError(txs[4], 'weight must be an integer from -10000 to 10000');
-      assertError(txs[5], 'post not found');
 
       let votes = await fixture.database.find({ contract: 'comments', table: 'votes', query: { rewardPoolId: 1, authorperm: "@author1/test1"}});
       assert.equal(votes.length, 0);

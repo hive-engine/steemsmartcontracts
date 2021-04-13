@@ -714,7 +714,7 @@ actions.vote = async (payload) => {
   const authorperm = `@${author}/${permlink}`;
   const posts = await api.db.find('posts', { authorperm });
 
-  if (!api.assert(posts && posts.length > 0, 'post not found')) return;
+  if (!posts) return;
   for (let i = 0; i < posts.length; i += 1) {
     const post = posts[i];
     await processVote(post, voter, weight, timestamp);

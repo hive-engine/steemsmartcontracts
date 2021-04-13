@@ -299,7 +299,7 @@ describe('comments', function () {
       });
   });
 
-  it.only('should update reward pool', (done) => {
+  it('should update reward pool', (done) => {
     new Promise(async (resolve) => {
       await fixture.setUp();
 

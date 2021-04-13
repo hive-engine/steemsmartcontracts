@@ -9,11 +9,19 @@ const { EJSON } = require('bson');
 // Change this to turn on hash logging.
 const enableHashLogging = false;
 
+function validateIndexName(indexName) {
+  if (typeof indexName !== 'string') {
+    return false;
+  }
+  const indexNameParts = indexName.split('.');
+  return indexNameParts.every(p => p.length > 0 && validator.isAlphanumeric(p));
+}
+
 function validateIndexSpec(spec) {
-  if (typeof spec === 'string') return validator.isAlphanumeric(spec);
+  if (typeof spec === 'string') return validateIndexName(spec);
   if (typeof spec === 'object') {
     return spec.name && validator.isAlphanumeric(spec.name) && typeof spec.index === 'object'
-          && Object.keys(spec.index).every(indexName => validator.isAlphanumeric(indexName))
+          && Object.keys(spec.index).every(indexName => validateIndexName(indexName))
           && Object.values(spec.index).every(asc => asc === 1 || asc === -1);
   }
   return false;
@@ -436,6 +444,8 @@ class Database {
 
         result = true;
       }
+    } else {
+      console.warn(`Table invalid, was not created, payload: ${JSON.stringify(payload)}`); // eslint-disable-line no-console
     }
 
     return result;

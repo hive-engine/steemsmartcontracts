@@ -10,7 +10,7 @@ actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('rewardPools');
   if (tableExists === false) {
     await api.db.createTable('params');
-    await api.db.createTable('rewardPools');
+    await api.db.createTable('rewardPools', ['config.tags']);
     await api.db.createTable('posts', [
       'authorperm',
       { name: 'byCashoutTime', index: { rewardPoolId: 1, cashoutTime: 1 } },
@@ -313,6 +313,7 @@ actions.createRewardPool = async (payload) => {
     stakedRewardPercentage,
     votePowerConsumption,
     downvotePowerConsumption,
+    tags,
   } = config;
 
   if (!api.assert(postRewardCurve && postRewardCurve === 'power', 'postRewardCurve should be one of: [power]')) return;
@@ -336,6 +337,8 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(stakedRewardPercentage && Number.isInteger(stakedRewardPercentage) && stakedRewardPercentage >= 0 && stakedRewardPercentage <= 100, 'stakedRewardPercentage should be an integer between 0 and 100')) return;
   if (!api.assert(votePowerConsumption && Number.isInteger(votePowerConsumption) && votePowerConsumption >= 1 && votePowerConsumption <= 10000, 'votePowerConsumption should be an integer between 1 and 10000')) return;
   if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
+
+  if (!api.assert(Array.isArray(tags) && tags.every(t => typeof t === 'string'), 'tags should be an array of strings')) return;
 
   // for now, restrict to 1 pool per symbol, and creator must be issuer.
   if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
@@ -483,6 +486,36 @@ actions.setActive = async (payload) => {
   await api.db.update('rewardPools', existingRewardPool);
 };
 
+async function getRewardPoolIds(payload) {
+  const {
+    rewardPools,
+    jsonMetadata,
+    parentAuthor,
+    parentPermlink,
+  } = payload;
+
+  // Check if it is a reply, and inherit the settings
+  // from the parent.
+  if (parentAuthor && parentPermlink) {
+    const parentAuthorperm = `@${parentAuthor}/${parentPermlink}`;
+    const parentPosts = await api.db.find('posts', { authorperm: parentAuthorperm });
+    if (parentPosts && parentPosts.length > 0) {
+      return parentPosts.map(p => p.rewardPoolId);
+    }
+    return [];
+  }
+  // Check metadata for tags / parent permlink
+  // for community.
+  if (jsonMetadata && jsonMetadata.tags && Array.isArray(jsonMetadata.tags) && jsonMetadata.tags.every(t => typeof t === 'string')) {
+    const tagRewardPools = await api.db.find('rewardPools', { 'config.tags': { $in: jsonMetadata.tags } });
+    if (tagRewardPools && tagRewardPools.length > 0) {
+      return tagRewardPools.map(r => r._id);
+    }
+  }
+  if (rewardPools && Array.isArray(rewardPools) && rewardPools.length > 0) return rewardPools;
+  return [];
+}
+
 actions.comment = async (payload) => {
   const {
     author,
@@ -493,18 +526,21 @@ actions.comment = async (payload) => {
   await tokenMaintenance();
   // Node enforces author / permlinks from Hive. Check that sender is null.
   if (!api.assert(api.sender === 'null', 'action must use comment operation')) return;
+  if (!api.assert(!rewardPools || (Array.isArray(rewardPools) && rewardPools.every(rp => Number.isInteger(rp))), 'rewardPools must be an array of integers')) return;
 
-  if (!api.assert(rewardPools && Array.isArray(rewardPools) && rewardPools.length > 0 && rewardPools.length <= 5, 'rewardPools must have length between 1 and 5')) return;
-
+  const rewardPoolIds = await getRewardPoolIds(payload);
   const authorperm = `@${author}/${permlink}`;
+
   // Validate that comment is not an edit (cannot add multiple pools)
   const existingPost = await api.db.findOne('posts', { authorperm });
-  if (!api.assert(!existingPost, 'cannot change reward configuration')) return;
+  if (existingPost) {
+    return;
+  }
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
-  for (let i = 0; i < rewardPools.length; i += 1) {
-    const rewardPoolId = rewardPools[i];
+  for (let i = 0; i < rewardPoolIds.length; i += 1) {
+    const rewardPoolId = rewardPoolIds[i];
     const rewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
     if (rewardPool && rewardPool.active) {
       const cashoutTime = timestamp + rewardPool.config.cashoutWindowDays * 24 * 3600 * 1000;
@@ -523,14 +559,6 @@ actions.comment = async (payload) => {
     }
   }
 };
-
-function computeTrendScore(post) {
-  const modScore = parseFloat(post.voteRshareSum);
-  const order = Math.log10(Math.max(Math.abs(modScore), 1));
-  const sign = modScore > 0 ? 1 : -1;
-  return api.BigNumber(sign * order + post.created / 480000000)
-    .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-}
 
 async function processVote(post, voter, weight, timestamp) {
   const {
@@ -676,7 +704,6 @@ actions.vote = async (payload) => {
   } = payload;
   await tokenMaintenance();
 
-  // TODO: Handle separate direct voting action.
   if (!api.assert(api.sender === 'null', 'can only vote with voting op')) return;
 
   if (!api.assert(Number.isInteger(weight) && weight >= -10000 && weight <= 10000,

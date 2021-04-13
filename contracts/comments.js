@@ -408,6 +408,7 @@ actions.updateRewardPool = async (payload) => {
     stakedRewardPercentage,
     votePowerConsumption,
     downvotePowerConsumption,
+    tags,
   } = config;
 
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
@@ -452,6 +453,9 @@ actions.updateRewardPool = async (payload) => {
 
   if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
   existingRewardPool.config.downvotePowerConsumption = downvotePowerConsumption;
+
+  if (!api.assert(Array.isArray(tags) && tags.every(t => typeof t === 'string'), 'tags should be an array of strings')) return;
+  existingRewardPool.config.tags = tags;
 
   if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
 

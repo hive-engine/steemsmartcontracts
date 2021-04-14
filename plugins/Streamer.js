@@ -125,7 +125,7 @@ const parseTransactions = (refBlockNumber, block) => {
                       author: operation[1].author,
                       jsonMetadata: commentMeta,
                       parentAuthor: operation[1].parent_author,
-                      parentPermlink: operation[1].permlink,
+                      parentPermlink: operation[1].parent_permlink,
                     },
                   },
                 ];

@@ -1339,7 +1339,7 @@ describe('witnesses', function () {
       }
 
       for (i = 0; i < schedules.length; i += 1) {
-        await tableAsserts.assertUserBalances({ account: schedules[i].witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0.00951293", stake: 0});
+        await tableAsserts.assertUserBalances({ account: schedules[i].witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0.00951293", stake: "0"});
       }
 
       // This round uses the updated 21 witnesses

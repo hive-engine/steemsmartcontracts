@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+/* eslint-disable no-console */
 const assert = require('assert');
 
 class TableAsserts {

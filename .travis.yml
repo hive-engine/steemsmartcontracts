@@ -1,6 +1,7 @@
 branches:
   only:
     - "master"
+    - "hive-engine"
 
 language: node_js
 node_js:

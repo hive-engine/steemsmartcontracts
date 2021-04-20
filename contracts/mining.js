@@ -37,7 +37,7 @@ actions.createSSC = async () => {
     const params = await api.db.findOne('params', {});
     if (!params.updateIndex) {
       // would want this to be a primary key, but cannot alter primary keys
-      await api.db.addIndexes('miningPower', [{ name: 'byPoolIdAndAccount', index: {'id': 1, 'account': 1}}]);
+      await api.db.addIndexes('miningPower', [{ name: 'byPoolIdAndAccount', index: { id: 1, account: 1 } }]);
       params.updateIndex = 1;
       await api.db.update('params', params);
     }

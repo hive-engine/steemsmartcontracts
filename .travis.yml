@@ -15,7 +15,7 @@ before_script:
   - mkdir ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/data
   - ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/bin/mongod --dbpath ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/data --logpath ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/mongodb.log --fork
   - sleep 20
-  - mongo --eval 'rs.initiate()'
+  - ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/bin/mongo --eval 'rs.initiate()'
   - sleep 15
 
 script:

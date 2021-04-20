@@ -22,7 +22,7 @@ before_script:
   - sleep 20
   - ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/bin/mongo --eval 'rs.initiate()'
   - sleep 15
-  - npm install
+  - npm ci
 
 script:
   - npm run lint

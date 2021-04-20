@@ -98,6 +98,10 @@ class Fixture {
     return `TXID${this.txId.toString().padStart(8, '0')}`;
   }
 
+  resetRefBlockNumber() {
+    this.refBlockNumber = 100000000;
+  }
+
   getNextRefBlockNumber() {
     this.refBlockNumber += 1;
     return this.refBlockNumber;

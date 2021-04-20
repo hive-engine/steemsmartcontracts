@@ -6,7 +6,9 @@ node_js:
 # make mongodb a replica set
 before_script:
   - mongo --version
-  - echo "replSet = myReplSetName" | sudo tee -a /etc/mongod.conf
+  - echo "replication:" | sudo tee -a /etc/mongod.conf
+  - |-
+    echo "  replSetName: \"rs0\"" | sudo tee -a /etc/mongod.conf
   - sudo service mongod restart
   - sleep 20
   - mongo --eval 'rs.initiate()'

@@ -2,6 +2,15 @@ services: mongodb
 language: node_js
 node_js:
   - "10.5"
+
+# make mongodb a replica set
+before_script:
+  - echo "replSet = myReplSetName" | sudo tee -a /etc/mongodb.conf
+  - sudo service mongodb restart
+  - sleep 20
+  - mongo --eval 'rs.initiate()'
+  - sleep 15
+
 script:
   - npm run lint
   - npm run test

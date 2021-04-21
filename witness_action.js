@@ -2,11 +2,14 @@ require('dotenv').config();
 const dhive = require('@hiveio/dhive');
 const program = require('commander');
 const packagejson = require('./package.json');
+const config = require('./config.json');
 
 const ip = process.env.NODE_IP;
 const witnessAccount = process.env.ACCOUNT;
 const privateSigningKey = dhive.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY);
 const publicSigningKey = privateSigningKey.createPublic().toString();
+const rpcPort = config.rpcNodePort;
+const p2pPort = config.p2pPort;
 
 function broadcastWitnessAction(contractAction, contractPayload) {
   const client = new dhive.Client('https://api.hive.blog');
@@ -37,8 +40,8 @@ program
   .command('register')
   .action(() => broadcastWitnessAction('register', {
     IP: ip,
-    RPCPort: 5000,
-    P2PPort: 5001,
+    RPCPort: rpcPort,
+    P2PPort: p2pPort,
     signingKey: publicSigningKey,
     enabled: true,
   }));
@@ -47,8 +50,8 @@ program
   .command('unregister')
   .action(() => broadcastWitnessAction('register', {
     IP: ip,
-    RPCPort: 5000,
-    P2PPort: 5001,
+    RPCPort: rpcPort,
+    P2PPort: p2pPort,
     signingKey: publicSigningKey,
     enabled: false,
   }));

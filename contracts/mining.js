@@ -23,6 +23,7 @@ actions.createSSC = async () => {
     await api.db.createTable('pools', ['id']);
     // Given symbol, output which pools are using it.
     await api.db.createTable('tokenPools', ['symbol']);
+    await api.db.createTable('nftTokenPools', ['symbol']);
     await api.db.createTable('params');
 
     const params = {};
@@ -32,9 +33,14 @@ actions.createSSC = async () => {
     params.maxBalancesProcessedPerBlock = 10000;
     params.processQueryLimit = 1000;
     await api.db.insert('params', params);
-  }
-  if (!await api.db.tableExists('nftTokenPools')) {
-    await api.db.createTable('nftTokenPools', ['symbol']);
+  } else {
+    const params = await api.db.findOne('params', {});
+    if (!params.updateIndex) {
+      // would want this to be a primary key, but cannot alter primary keys
+      await api.db.addIndexes('miningPower', [{ name: 'byPoolIdAndAccount', index: { id: 1, account: 1 } }]);
+      params.updateIndex = 1;
+      await api.db.update('params', params);
+    }
   }
 };
 
@@ -474,7 +480,7 @@ actions.setActive = async (payload) => {
 actions.updatePool = async (payload) => {
   const {
     id, lotteryWinners, lotteryIntervalHours, lotteryAmount, tokenMiners,
-    nftTokenMiner, isSignedWithActiveKey,
+    nftTokenMiner, callingContractInfo, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
@@ -500,38 +506,43 @@ actions.updatePool = async (payload) => {
         // eslint-disable-next-line no-template-curly-in-string
         if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')
           && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')) {
-          const validMinersChange = await validateTokenMinersChange(
-            pool.tokenMiners, tokenMiners, pool.nftTokenMiner, nftTokenMiner,
-          );
-          if (validMinersChange) {
+          if (!callingContractInfo) {
+            const validMinersChange = await validateTokenMinersChange(
+              pool.tokenMiners, tokenMiners, pool.nftTokenMiner, nftTokenMiner,
+            );
+            if (validMinersChange) {
+              pool.lotteryWinners = lotteryWinners;
+              pool.lotteryIntervalHours = lotteryIntervalHours;
+              pool.lotteryAmount = lotteryAmount;
+              pool.tokenMiners = tokenMiners;
+              pool.nftTokenMiner = nftTokenMiner;
+
+              const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+
+              if (validMinersChange.changed) {
+                pool.updating.updatePoolTimestamp = api.BigNumber(blockDate.getTime()).toNumber();
+                pool.updating.inProgress = true;
+                pool.updating.tokenIndex = 0;
+                pool.updating.nftTokenIndex = 0;
+                pool.updating.lastId = 0;
+              }
+
+              pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
+                .plus(lotteryIntervalHours * 3600 * 1000).toNumber();
+            }
+          } else {
             pool.lotteryWinners = lotteryWinners;
             pool.lotteryIntervalHours = lotteryIntervalHours;
             pool.lotteryAmount = lotteryAmount;
-            pool.tokenMiners = tokenMiners;
-            pool.nftTokenMiner = nftTokenMiner;
+          }
+          await api.db.update('pools', pool);
 
-            const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-
-            if (validMinersChange.changed) {
-              pool.updating.updatePoolTimestamp = api.BigNumber(blockDate.getTime()).toNumber();
-              pool.updating.inProgress = true;
-              pool.updating.tokenIndex = 0;
-              pool.updating.nftTokenIndex = 0;
-              pool.updating.lastId = 0;
-            }
-
-            pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
-              .plus(lotteryIntervalHours * 3600 * 1000).toNumber();
-
-            await api.db.update('pools', pool);
-
-            // burn the token creation fees
-            if (api.sender !== api.owner && api.BigNumber(poolUpdateFee).gt(0)) {
-              await api.executeSmartContract('tokens', 'transfer', {
-                // eslint-disable-next-line no-template-curly-in-string
-                to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolUpdateFee, isSignedWithActiveKey,
-              });
-            }
+          // burn the token creation fees
+          if (api.sender !== api.owner && api.BigNumber(poolUpdateFee).gt(0)) {
+            await api.executeSmartContract('tokens', 'transfer', {
+              // eslint-disable-next-line no-template-curly-in-string
+              to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolUpdateFee, isSignedWithActiveKey,
+            });
           }
         }
       }
@@ -598,7 +609,9 @@ actions.changeNftProperty = async (payload) => {
 };
 
 function generatePoolId(pool) {
-  const tokenMinerString = pool.tokenMiners.map(t => t.symbol.replace('.', '-')).sort().join(',');
+  const tokenMinerString = pool.externalContract && pool.externalMiners
+    ? `EXT-${pool.externalMiners.replace(':', '')}`
+    : pool.tokenMiners.map(t => t.symbol.replace('.', '-')).sort().join(',');
   const nftTokenMinerString = pool.nftTokenMiner ? `:${pool.nftTokenMiner.symbol}` : '';
   return `${pool.minedToken.replace('.', '-')}:${tokenMinerString}${nftTokenMinerString}`;
 }
@@ -606,12 +619,17 @@ function generatePoolId(pool) {
 actions.createPool = async (payload) => {
   const {
     lotteryWinners, lotteryIntervalHours, lotteryAmount, minedToken, tokenMiners, nftTokenMiner,
-    isSignedWithActiveKey,
+    externalMiners, callingContractInfo, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
   const params = await api.db.findOne('params', {});
   const { poolCreationFee } = params;
+
+  if (externalMiners !== undefined) {
+    if (!api.assert(typeof externalMiners === 'string', 'externalMiners must be a string')
+    || !api.assert(callingContractInfo, 'must be called from a contract')) return;
+  }
 
   // get api.sender's UTILITY_TOKEN_SYMBOL balance
   // eslint-disable-next-line no-template-curly-in-string
@@ -634,49 +652,57 @@ actions.createPool = async (payload) => {
       if (api.assert(minedTokenObject, 'minedToken does not exist')
         // eslint-disable-next-line no-template-curly-in-string
         && api.assert(minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner), 'must be issuer of minedToken')
-        && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')
-        && await validateTokenMiners(tokenMiners, nftTokenMiner)) {
-        const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-        const newPool = {
-          minedToken,
-          lotteryWinners,
-          lotteryIntervalHours,
-          lotteryAmount,
-          tokenMiners,
-          nftTokenMiner,
-          active: false,
-          nextLotteryTimestamp: api.BigNumber(blockDate.getTime())
-            .plus(lotteryIntervalHours * 3600 * 1000).toNumber(),
-          totalPower: '0',
-        };
-        newPool.id = generatePoolId(newPool);
-
-        const existingPool = await api.db.findOne('pools', { id: newPool.id });
-        if (api.assert(!existingPool, 'pool already exists')) {
-          for (let i = 0; i < tokenMiners.length; i += 1) {
-            const tokenConfig = tokenMiners[i];
-            await api.db.insert('tokenPools', { symbol: tokenConfig.symbol, id: newPool.id });
-          }
-          if (nftTokenMiner) {
-            await api.db.insert('nftTokenPools', { symbol: nftTokenMiner.symbol, id: newPool.id });
-          }
-          newPool.updating = {
-            inProgress: true,
-            updatePoolTimestamp: api.BigNumber(blockDate.getTime()).toNumber(),
-            tokenIndex: 0,
-            nftTokenIndex: 0,
-            lastId: 0,
+        && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')) {
+        if (callingContractInfo || await validateTokenMiners(tokenMiners, nftTokenMiner)) {
+          const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+          const newPool = {
+            minedToken,
+            lotteryWinners,
+            lotteryIntervalHours,
+            lotteryAmount,
+            tokenMiners: tokenMiners || [],
+            nftTokenMiner,
+            active: false,
+            nextLotteryTimestamp: api.BigNumber(blockDate.getTime())
+              .plus(lotteryIntervalHours * 3600 * 1000).toNumber(),
+            totalPower: '0',
           };
-          const insertedPool = await api.db.insert('pools', newPool);
-
-          // burn the token creation fees
-          if (api.sender !== api.owner && api.BigNumber(poolCreationFee).gt(0)) {
-            await api.executeSmartContract('tokens', 'transfer', {
-              // eslint-disable-next-line no-template-curly-in-string
-              to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolCreationFee, isSignedWithActiveKey,
-            });
+          if (callingContractInfo) {
+            if (!api.assert(!nftTokenMiner, 'external nftTokenMiner not currently supported')) return;
+            newPool.externalContract = callingContractInfo.name;
+            newPool.externalMiners = externalMiners;
           }
-          api.emit('createPool', { id: insertedPool.id });
+          newPool.id = generatePoolId(newPool);
+
+          const existingPool = await api.db.findOne('pools', { id: newPool.id });
+          if (api.assert(!existingPool, 'pool already exists')) {
+            if (tokenMiners) {
+              for (let i = 0; i < tokenMiners.length; i += 1) {
+                const tokenConfig = tokenMiners[i];
+                await api.db.insert('tokenPools', { symbol: tokenConfig.symbol, id: newPool.id });
+              }
+            }
+            if (nftTokenMiner) {
+              await api.db.insert('nftTokenPools', { symbol: nftTokenMiner.symbol, id: newPool.id });
+            }
+            newPool.updating = {
+              inProgress: true,
+              updatePoolTimestamp: api.BigNumber(blockDate.getTime()).toNumber(),
+              tokenIndex: 0,
+              nftTokenIndex: 0,
+              lastId: 0,
+            };
+            const insertedPool = await api.db.insert('pools', newPool);
+
+            // burn the token creation fees
+            if (api.sender !== api.owner && api.BigNumber(poolCreationFee).gt(0)) {
+              await api.executeSmartContract('tokens', 'transfer', {
+                // eslint-disable-next-line no-template-curly-in-string
+                to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolCreationFee, isSignedWithActiveKey,
+              });
+            }
+            api.emit('createPool', { id: insertedPool.id });
+          }
         }
       }
     }
@@ -689,9 +715,17 @@ async function runLottery(pool, params) {
   const minedToken = await api.db.findOneInTable('tokens', 'tokens',
     { symbol: pool.minedToken });
   const winningAmount = api.BigNumber(pool.lotteryAmount).dividedBy(pool.lotteryWinners)
-    .toFixed(minedToken.precision);
-  for (let i = 0; i < pool.lotteryWinners; i += 1) {
-    winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
+    .toFixed(minedToken.precision, api.BigNumber.ROUND_HALF_UP);
+  // determine winning numbers
+  if (!pool.externalContract) {
+    for (let i = 0; i < pool.lotteryWinners; i += 1) {
+      winningNumbers[i] = api.BigNumber(pool.totalPower).multipliedBy(api.random());
+    }
+  } else if (pool.externalContract === 'marketpools') {
+    const marketpool = await api.db.findOneInTable('marketpools', 'pools', { tokenPair: pool.externalMiners });
+    for (let i = 0; i < pool.lotteryWinners; i += 1) {
+      winningNumbers[i] = api.BigNumber(marketpool.totalShares).multipliedBy(api.random());
+    }
   }
   let offset = 0;
   let miningPowers;
@@ -700,10 +734,23 @@ async function runLottery(pool, params) {
   let computedWinners = 0;
   const winners = [];
   while (computedWinners < pool.lotteryWinners) {
-    miningPowers = await api.db.find('miningPower', { id: pool.id, power: { $gt: { $numberDecimal: '0' } } },
-      params.processQueryLimit,
-      offset,
-      [{ index: 'power', descending: true }, { index: '_id', descending: false }]);
+    if (!pool.externalContract) {
+      miningPowers = await api.db.find('miningPower', { id: pool.id, power: { $gt: { $numberDecimal: '0' } } },
+        params.processQueryLimit,
+        offset,
+        [{ index: 'power', descending: true }, { index: '_id', descending: false }]);
+    } else if (pool.externalContract === 'marketpools') {
+      miningPowers = await api.db.findInTable('marketpools', 'liquidityPositions', { tokenPair: pool.externalMiners },
+        params.processQueryLimit,
+        offset,
+        [{ index: '_id', descending: false }]);
+      for (let i = 0; i < miningPowers.length; i += 1) {
+        miningPowers[i].power = {
+          $numberDecimal: api.BigNumber(miningPowers[i].shares)
+            .toFixed(minedToken.precision, api.BigNumber.ROUND_HALF_UP),
+        };
+      }
+    }
     for (let i = 0; i < miningPowers.length; i += 1) {
       const miningPower = miningPowers[i];
       nextCumulativePower = cumulativePower.plus(miningPower.power.$numberDecimal);

@@ -73,6 +73,13 @@ async function getCompareBlock(blockNumber) {
     return getCompareBlock(blockNumber);
 }
 
+function getRefBlockNumber(block) {
+  if (block.otherHashChangeRefHiveBlocks) {
+    return block.otherHashChangeRefHiveBlocks[block.otherHashChangeRefHiveBlocks.length - 1];
+  }
+  return block.refHiveBlockNumber;
+}
+
 // produce all the pending transactions, that will result in the creation of a block
 async function producePendingTransactions(
   refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, timestamp,
@@ -80,7 +87,8 @@ async function producePendingTransactions(
   const previousBlock = await getLatestBlockMetadata();
   if (previousBlock) {
     // skip block if it has been parsed already
-    if (refHiveBlockNumber <= previousBlock.refHiveBlockNumber) {
+    const lastRefBlockNumber = getRefBlockNumber(previousBlock);
+    if (refHiveBlockNumber <= lastRefBlockNumber) {
       // eslint-disable-next-line no-console
       console.warn(`skipping Hive block ${refHiveBlockNumber} as it has already been parsed`);
       return;

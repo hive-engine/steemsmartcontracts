@@ -664,7 +664,7 @@ describe('botcontroller', function() {
 
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[0].balance, 500);
+      assert.equal(balances[0].balance, 200);
       assert.equal(balances[1].account, 'cryptomancer');
       assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
       assert.equal(balances[1].balance, 400);
@@ -840,7 +840,7 @@ describe('botcontroller', function() {
 
       assert.equal(balances[0].account, 'null');
       assert.equal(balances[0].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
-      assert.equal(balances[0].balance, 301);
+      assert.equal(balances[0].balance, 101);
       assert.equal(balances[1].account, 'cryptomancer');
       assert.equal(balances[1].symbol, CONSTANTS.UTILITY_TOKEN_SYMBOL);
       assert.equal(balances[1].balance, 699);

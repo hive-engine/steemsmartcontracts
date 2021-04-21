@@ -97,6 +97,7 @@ const unloadPlugin = (plugin) => {
 const contractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const oldContractPayload = setupContractPayload('tokens', './contracts/testing/tokens_20200923.js');
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
+const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
 
 async function assertUserBalances({ account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn }) {
   let res = await database1.findOne({
@@ -349,6 +350,7 @@ describe('smart tokens', function () {
       let transactions = [];
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
@@ -477,6 +479,7 @@ describe('smart tokens', function () {
       await database1.init(conf.databaseURL, conf.databaseName);
       let transactions = [];
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
@@ -504,14 +507,14 @@ describe('smart tokens', function () {
       let res = await database1.getLatestBlockInfo();
       let txs = res.transactions;
 
-      assertError(txs[5], 'invalid to');
-      assertError(txs[6], 'symbol does not exist');
-      assertError(txs[7], 'symbol precision mismatch');
-      assertError(txs[8], 'delegation not enabled');
-      assertError(txs[10], 'must delegate positive quantity');
-      assertError(txs[11], 'balanceFrom does not exist');
-      assertError(txs[12], 'overdrawn stake');
-      assertError(txs[13], 'cannot delegate to yourself');
+      assertError(txs[6], 'invalid to');
+      assertError(txs[7], 'symbol does not exist');
+      assertError(txs[8], 'symbol precision mismatch');
+      assertError(txs[9], 'delegation not enabled');
+      assertError(txs[11], 'must delegate positive quantity');
+      assertError(txs[12], 'balanceFrom does not exist');
+      assertError(txs[13], 'overdrawn stake');
+      assertError(txs[14], 'cannot delegate to yourself');
 
       res = await database1.findOne({
           contract: 'tokens',
@@ -549,6 +552,7 @@ describe('smart tokens', function () {
       let transactions = [];
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "3000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
@@ -710,7 +714,7 @@ describe('smart tokens', function () {
       assert.equal(pendingUndelegations[0].account, 'satoshi');
       assert.equal(pendingUndelegations[0].quantity, '0.00000001');
       let blockDate = new Date('2018-06-01T00:00:01.000Z')
-      assert.equal(pendingUndelegations[0].completeTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(pendingUndelegations[0].completeTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(pendingUndelegations[0].txID);
 
 
@@ -1317,7 +1321,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000001');
       assert.equal(unstake.numberTransactionsLeft, 1);
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       resolve();
@@ -1399,6 +1403,7 @@ describe('smart tokens', function () {
       let transactions = [];
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
       transactions.push(new Transaction(12345678901, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "2000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "100", "to": "satoshi", "isSignedWithActiveKey": true }'));
@@ -1549,7 +1554,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID)
 
       const unstakeId = unstake.txID;
@@ -1802,7 +1807,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       let blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       const unstakeId = unstake.txID;
@@ -1854,7 +1859,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       resolve();
@@ -1964,7 +1969,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       transactions = [];
@@ -2119,7 +2124,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.account, 'satoshi');
       assert.equal(unstake.quantity, '0.00000001');
       const blockDate = new Date('2018-06-30T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 7));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(unstake.txID);
 
       transactions = [];
@@ -2370,7 +2375,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000006');
       assert.equal(unstake.numberTransactionsLeft, 3);
       let blockDate = new Date('2018-07-01T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 1));
       assert.ok(unstake.txID);
 
       const unstakeId = unstake.txID;
@@ -2425,7 +2430,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000004');
       assert.equal(unstake.numberTransactionsLeft, 2);
       blockDate = new Date('2018-07-02T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 1));
       assert.equal(unstake.txID, unstakeId);
 
       transactions = [];
@@ -2478,7 +2483,7 @@ describe('smart tokens', function () {
       assert.equal(unstake.quantityLeft, '0.00000002');
       assert.equal(unstake.numberTransactionsLeft, 1);
       blockDate = new Date('2018-07-03T00:02:00.000Z')
-      assert.equal(unstake.nextTransactionTimestamp, blockDate.setDate(blockDate.getDate() + 1));
+      assert.equal(unstake.nextTransactionTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 1));
       assert.equal(unstake.txID, unstakeId);
 
       transactions = [];

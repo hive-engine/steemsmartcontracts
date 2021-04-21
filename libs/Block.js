@@ -145,7 +145,7 @@ class Block {
         .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
     }
 
-    if (this.refHiveBlockNumber >= 52500000) {
+    if (this.refHiveBlockNumber >= 53610300) {
       virtualTransactions
         .push(new Transaction(0, '', 'null', 'tokenfunds', 'checkPendingDtfs', ''));
     }

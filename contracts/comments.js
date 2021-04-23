@@ -291,7 +291,7 @@ async function tokenMaintenance() {
         .dividedBy(3000)
         .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       if (api.BigNumber(rewardToAdd).gt(0)) {
-        await api.executeSmartContractAsOwner('tokens', 'issueToContract',
+        await api.executeSmartContract('tokens', 'issueToContract',
           {
             symbol: rewardPool.symbol, quantity: rewardToAdd, to: 'comments', isSignedWithActiveKey: true,
           });

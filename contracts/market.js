@@ -41,7 +41,7 @@ const updateVolumeMetric = async (symbol, quantity, add = true) => {
     metric.volume = api.BigNumber(metric.volume)
       .plus(quantity)
       .toFixed(HIVE_PEGGED_SYMBOL_PRESICION);
-    metric.volumeExpiration = blockDate.setDate(blockDate.getDate() + 1) / 1000;
+    metric.volumeExpiration = blockDate.setUTCDate(blockDate.getUTCDate() + 1) / 1000;
   } else {
     metric.volume = api.BigNumber(metric.volume)
       .minus(quantity)
@@ -65,7 +65,7 @@ const updatePriceMetrics = async (symbol, price) => {
 
   if (metric.lastDayPriceExpiration < timestampSec) {
     metric.lastDayPrice = price;
-    metric.lastDayPriceExpiration = blockDate.setDate(blockDate.getDate() + 1) / 1000;
+    metric.lastDayPriceExpiration = blockDate.setUTCDate(blockDate.getUTCDate() + 1) / 1000;
     metric.priceChangeHive = '0';
     metric.priceChangePercent = '0%';
   } else {
@@ -122,7 +122,7 @@ const updateAskMetric = async (symbol) => {
 const updateTradesHistory = async (type, buyer, seller, symbol, quantity, price, volume, buyTxId, sellTxId) => {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestampSec = blockDate.getTime() / 1000;
-  const timestampMinus24hrs = blockDate.setDate(blockDate.getDate() - 1) / 1000;
+  const timestampMinus24hrs = blockDate.setUTCDate(blockDate.getUTCDate() - 1) / 1000;
   // clean history
 
   let tradesToDelete = await api.db.find(

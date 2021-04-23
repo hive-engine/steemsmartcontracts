@@ -1,7 +1,32 @@
-services: mongodb
+branches:
+  only:
+    - "master"
+    - "hive-engine"
+
 language: node_js
 node_js:
   - "10.5"
+
+install:
+  - wget http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1604-4.4.5.tgz
+  - tar xzf mongodb-linux-x86_64-ubuntu1604-4.4.5.tgz
+  - ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/bin/mongod --version
+
+# make mongodb a replica set
+before_script:
+  - echo "replication:" | sudo tee -a /etc/mongod.conf
+  - |-
+    echo "  replSetName: \"rs0\"" | sudo tee -a /etc/mongod.conf
+  - mkdir ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/data
+  - ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/bin/mongod --dbpath ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/data --config /etc/mongod.conf --logpath ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/mongodb.log --fork
+  - sleep 20
+  - ${PWD}/mongodb-linux-x86_64-ubuntu1604-4.4.5/bin/mongo --eval 'rs.initiate()'
+  - sleep 15
+  - npm ci
+
 script:
   - npm run lint
   - npm run test
+
+after_script:
+  - pkill mongod

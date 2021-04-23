@@ -496,6 +496,13 @@ const startStreaming = (conf) => {
   });
 };
 
+function getRefBlockNumber(block) {
+  if (block.otherHashChangeRefHiveBlocks) {
+    return block.otherHashChangeRefHiveBlocks[block.otherHashChangeRefHiveBlocks.length - 1];
+  }
+  return block.refHiveBlockNumber;
+}
+
 // stream the Hive blockchain to find transactions related to the sidechain
 const init = async (conf) => {
   const {
@@ -509,9 +516,10 @@ const init = async (conf) => {
   // get latest block metadata to ensure that startHiveBlock saved in the config.json is not lower
   const block = await getLatestBlockMetadata();
   if (block) {
-    if (finalConf.startHiveBlock < block.refHiveBlockNumber) {
-      console.log('adjusted startHiveBlock automatically as it was lower than the refHiveBlockNumber available'); // eslint-disable-line no-console
-      finalConf.startHiveBlock = block.refHiveBlockNumber + 1;
+    const refBlockNumber = getRefBlockNumber(block);
+    if (finalConf.startHiveBlock < refBlockNumber) {
+      console.log(`adjusted startHiveBlock automatically to block ${refBlockNumber + 1} as it was lower than the refHiveBlockNumber available`); // eslint-disable-line no-console
+      finalConf.startHiveBlock = refBlockNumber + 1;
     }
   }
 

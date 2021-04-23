@@ -146,6 +146,11 @@ class Block {
         .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
     }
 
+    if (this.refHiveBlockNumber >= 53610300) {
+      virtualTransactions
+        .push(new Transaction(0, '', 'null', 'tokenfunds', 'checkPendingDtfs', ''));
+    }
+
     if (this.refHiveBlockNumber % 1200 === 0) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'inflation', 'issueNewTokens', '{ "isSignedWithActiveKey": true }'));
     }
@@ -184,6 +189,10 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'airdrops'
           && transaction.action === 'checkPendingAirdrops'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
+        } else if (transaction.contract === 'tokenfunds'
+          && transaction.action === 'checkPendingDtfs'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else {

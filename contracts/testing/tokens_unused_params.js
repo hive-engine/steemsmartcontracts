@@ -1,34 +1,7 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable quote-props */
+/* eslint-disable max-len */
 /* global actions, api */
-
-// transfers to these accounts are blocked
-const ACCOUNT_BLACKLIST = {
-  'gateiodeposit': 1,
-  'deepcrypto8': 1,
-  'bittrex': 1,
-  'poloniex': 1,
-  'huobi-pro': 1,
-  'binance-hot': 1,
-  'bitvavo': 1,
-  'blocktrades': 1,
-  'probitsteem': 1,
-  'probithive': 1,
-  'ionomy': 1,
-  'mxchive': 1,
-  'coinbasebase': 1,
-  'orinoco': 1,
-  'user.dunamu': 1,
-};
-
-// these accounts are allowed to create SWAP.xxx tokens
-const HE_ACCOUNTS = {
-  'hive-engine': 1,
-  'swap-eth': 1,
-  'btc-swap': 1,
-  'graphene-swap': 1,
-  'honey-swap': 1,
-};
 
 const RESERVED_SYMBOLS = {
   ENG: 'null',

@@ -196,7 +196,6 @@ program
   .parse(process.argv);
 
 const requestedPlugins = program.plugins.split(',');
-console.log(requestedPlugins);
 if (program.replay !== undefined) {
   replayBlocksLog();
 } else {

@@ -377,6 +377,8 @@ describe('NFT Auction Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "0.5" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "0.3" }'));
 
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "15" }'));
+
       const block = {
         refHiveBlockNumber: 12345678901,
         refHiveBlockId: 'ABCD1',
@@ -399,6 +401,7 @@ describe('NFT Auction Smart Contract', function () {
       assertError(txs[14], 'bid can not be less than 0.1');
       assertError(txs[15], 'insufficient balance for this bid');
       assertError(txs[18], 'bid must be greater than your previous bid');
+      assertError(txs[19], 'auction seller can not bid');
 
       resolve();
     })
@@ -885,7 +888,8 @@ describe('NFT Auction Smart Contract', function () {
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TXas" }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'dave', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX" }'));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "10.04" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'cryptomancer', 'nftauction', 'bid', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "bid": "10.04" }'));
       transactions.push(new Transaction(12345678902, getNextTxId(), 'ali-h', 'nftauction', 'settle', '{ "isSignedWithActiveKey": true, "auctionId": "AUCTION-TX", "account": "jojo" }'));
 
       const block = {
@@ -907,7 +911,7 @@ describe('NFT Auction Smart Contract', function () {
       assertError(txs[11], 'auction does not exist or has been expired');
       assertError(txs[12], 'you must be the owner of the auction');
       assertError(txs[13], 'there are no bids in the auction');
-      assertError(txs[15], 'no bid from account found in the auction');
+      assertError(txs[16], 'no bid from account found in the auction');
 
       resolve();
     })

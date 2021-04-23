@@ -146,6 +146,9 @@ const cancelAuction = async (auction) => {
   // return NFTs to the seller
   await sendNfts(seller, wrappedNfts);
 
+  // remove auction object from the db
+  await api.db.remove('auctions', auction);
+
   api.emit('cancelAuction', {
     auctionId,
   });
@@ -400,6 +403,7 @@ actions.bid = async (payload) => {
 
     if (api.assert(auction, 'auction does not exist or has been expired')) {
       const {
+        seller,
         priceSymbol,
         minBid,
         finalPrice,
@@ -410,7 +414,8 @@ actions.bid = async (payload) => {
       const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
       const timestamp = blockDate.getTime();
 
-      if (api.assert(api.BigNumber(bid).gt(0)
+      if (api.assert(api.sender !== seller, 'auction seller can not bid')
+        && api.assert(api.BigNumber(bid).gt(0)
           && countDecimals(bid) <= token.precision, 'invalid bid')
         && api.assert(api.BigNumber(bid).gte(minBid), `bid can not be less than ${minBid}`)
         && api.assert(expiryTimestamp >= timestamp, 'auction has been expired')) {

@@ -21,6 +21,7 @@ actions.createSSC = async () => {
     const params = {
       setupFee: '1000',
       updateFee: '100',
+      maxPoolsPerPost: 20,
       maintenanceTokensPerAction: 1,
       maintenanceTokenOffset: 0,
       maxPostsProcessedPerRound: 1000,
@@ -538,10 +539,13 @@ async function getRewardPoolIds(payload) {
     parentPermlink,
   } = payload;
 
+  const params = await api.db.findOne('params', {});
+
   // Check if it is a reply, and inherit the settings
   // from the parent.
   if (parentAuthor && parentPermlink) {
     const parentAuthorperm = `@${parentAuthor}/${parentPermlink}`;
+    // Can only return params.maxPoolsPerPost (<1000) posts
     const parentPosts = await api.db.find('posts', { authorperm: parentAuthorperm });
     if (parentPosts && parentPosts.length > 0) {
       return parentPosts.map(p => p.rewardPoolId);
@@ -550,8 +554,11 @@ async function getRewardPoolIds(payload) {
   }
   // Check metadata for tags / parent permlink
   // for community.
-  if (jsonMetadata && jsonMetadata.tags && Array.isArray(jsonMetadata.tags) && jsonMetadata.tags.every(t => typeof t === 'string')) {
-    const tagRewardPools = await api.db.find('rewardPools', { 'config.tags': { $in: jsonMetadata.tags } });
+  if (jsonMetadata && jsonMetadata.tags && Array.isArray(jsonMetadata.tags)
+      && jsonMetadata.tags.every(t => typeof t === 'string')) {
+    const tagRewardPools = await api.db.find('rewardPools',
+      { 'config.tags': { $in: jsonMetadata.tags } },
+      params.maxPoolsPerPost, 0, [{ index: '_id', descending: false }]);
     if (tagRewardPools && tagRewardPools.length > 0) {
       return tagRewardPools.map(r => r._id);
     }
@@ -605,19 +612,6 @@ actions.comment = async (payload) => {
   }
 };
 
-/*
- * {
-                contractName: 'comments',
-                contractAction: 'commentOptions',
-                contractPayload: {
-                  author: operation[1].author,
-                  maxAcceptedPayout: operation[1].max_accepted_payout,
-                  allowVotes: operation[1].allow_votes,
-                  allowCurationRewards: operation[1].allow_curation_rewards,
-                  beneficiaries,
-                },
-              }
- */
 actions.commentOptions = async (payload) => {
   const {
     author,
@@ -798,6 +792,7 @@ actions.vote = async (payload) => {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
   const authorperm = `@${author}/${permlink}`;
+  // Can only return params.maxPoolsPerPost (<1000) posts
   const posts = await api.db.find('posts', { authorperm });
 
   if (!posts) return;

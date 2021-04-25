@@ -1254,7 +1254,7 @@ describe('comments', function () {
       });
   });
 
-  it.only('voting repeatedly decays as expected', (done) => {
+  it('voting repeatedly decays as expected', (done) => {
     new Promise(async (resolve) => {
       await fixture.setUp();
       await setUpRewardPool({ postRewardCurveParameter: "1.03", curationRewardCurveParameter: "0.5"});

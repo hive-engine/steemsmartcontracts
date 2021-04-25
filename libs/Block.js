@@ -104,7 +104,7 @@ class Block {
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;
-    let allowCommentContract = this.refHiveBlockNumber > 43447729; // TODO: adjust me
+    const allowCommentContract = this.refHiveBlockNumber > 99999999; // TODO: adjust me
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line

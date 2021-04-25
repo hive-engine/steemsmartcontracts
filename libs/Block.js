@@ -138,7 +138,7 @@ class Block {
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;
-    let allowCommentContract = this.refHiveBlockNumber > 43447729; // TODO: adjust me
+    const allowCommentContract = this.refHiveBlockNumber > 99999999; // TODO: adjust me
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
@@ -180,6 +180,11 @@ class Block {
         .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
     }
 
+    if (this.refHiveBlockNumber >= 53610300) {
+      virtualTransactions
+        .push(new Transaction(0, '', 'null', 'tokenfunds', 'checkPendingDtfs', ''));
+    }
+
     if (this.refHiveBlockNumber % 1200 === 0) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'inflation', 'issueNewTokens', '{ "isSignedWithActiveKey": true }'));
     }
@@ -218,6 +223,10 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'airdrops'
           && transaction.action === 'checkPendingAirdrops'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
+        } else if (transaction.contract === 'tokenfunds'
+          && transaction.action === 'checkPendingDtfs'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else {

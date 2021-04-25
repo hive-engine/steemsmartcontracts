@@ -1,6 +1,6 @@
 {
   "name": "steemsmartcontracts",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -21,7 +21,8 @@
     "test11": "./node_modules/mocha/bin/mocha ./test/claimdrops.js",
     "test12": "./node_modules/mocha/bin/mocha ./test/distribution.js",
     "test13": "./node_modules/mocha/bin/mocha ./test/witnesses.js",
-    "test14": "./node_modules/mocha/bin/mocha ./test/marketpools.js"
+    "test14": "./node_modules/mocha/bin/mocha ./test/marketpools.js",
+    "test15": "./node_modules/mocha/bin/mocha ./test/tokenfunds.js"
   },
   "engines": {
     "node": ">=13.7.0",

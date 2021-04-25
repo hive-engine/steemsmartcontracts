@@ -1,3 +1,5 @@
+/* eslint-disable max-len */
+/* eslint-disable no-console */
 const assert = require('assert');
 
 class TableAsserts {
@@ -21,9 +23,8 @@ class TableAsserts {
     if (expectingNoBalance) {
       assert.ok(!balance, `No balance expected for ${account}, ${symbol}`);
       return;
-    } else {
-      assert.ok(res, `No balance for ${account}, ${symbol}`);
     }
+    assert.ok(res, `No balance for ${account}, ${symbol}`);
 
     let pass = true;
     if (res.balance !== balance) {
@@ -35,16 +36,16 @@ class TableAsserts {
       pass = false;
     }
     if (pendingUnstake && res.pendingUnstake !== pendingUnstake) {
-        console.error(`${account} has ${symbol} pendingUnstake ${res.pendingUnstake}, expected ${pendingUnstake}`);
-        pass = false;
+      console.error(`${account} has ${symbol} pendingUnstake ${res.pendingUnstake}, expected ${pendingUnstake}`);
+      pass = false;
     }
     if (delegationsIn && res.delegationsIn !== delegationsIn) {
-        console.error(`${account} has ${symbol} delegationsIn ${res.delegationsIn}, expected ${delegationsIn}`);
-        pass = false;
+      console.error(`${account} has ${symbol} delegationsIn ${res.delegationsIn}, expected ${delegationsIn}`);
+      pass = false;
     }
     if (delegationsOut && res.delegationsOut !== delegationsOut) {
-        console.error(`${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
-        pass = false;
+      console.error(`${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
+      pass = false;
     }
     if (!pass) {
       assert.fail('Balance mismatch');

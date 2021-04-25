@@ -37,7 +37,7 @@ actions.createSSC = async () => {
     const params = await api.db.findOne('params', {});
     if (!params.updateIndex) {
       // would want this to be a primary key, but cannot alter primary keys
-      await api.db.addIndexes('miningPower', [{ name: 'byPoolIdAndAccount', index: {'id': 1, 'account': 1}}]);
+      await api.db.addIndexes('miningPower', [{ name: 'byPoolIdAndAccount', index: { id: 1, account: 1 } }]);
       params.updateIndex = 1;
       await api.db.update('params', params);
     }
@@ -480,7 +480,7 @@ actions.setActive = async (payload) => {
 actions.updatePool = async (payload) => {
   const {
     id, lotteryWinners, lotteryIntervalHours, lotteryAmount, tokenMiners,
-    nftTokenMiner, isSignedWithActiveKey,
+    nftTokenMiner, callingContractInfo, isSignedWithActiveKey,
   } = payload;
 
   // get contract params
@@ -506,38 +506,43 @@ actions.updatePool = async (payload) => {
         // eslint-disable-next-line no-template-curly-in-string
         if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')
           && api.assert(api.BigNumber(lotteryAmount).dp() <= minedTokenObject.precision, 'minedToken precision mismatch for lotteryAmount')) {
-          const validMinersChange = await validateTokenMinersChange(
-            pool.tokenMiners, tokenMiners, pool.nftTokenMiner, nftTokenMiner,
-          );
-          if (validMinersChange) {
+          if (!callingContractInfo) {
+            const validMinersChange = await validateTokenMinersChange(
+              pool.tokenMiners, tokenMiners, pool.nftTokenMiner, nftTokenMiner,
+            );
+            if (validMinersChange) {
+              pool.lotteryWinners = lotteryWinners;
+              pool.lotteryIntervalHours = lotteryIntervalHours;
+              pool.lotteryAmount = lotteryAmount;
+              pool.tokenMiners = tokenMiners;
+              pool.nftTokenMiner = nftTokenMiner;
+
+              const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+
+              if (validMinersChange.changed) {
+                pool.updating.updatePoolTimestamp = api.BigNumber(blockDate.getTime()).toNumber();
+                pool.updating.inProgress = true;
+                pool.updating.tokenIndex = 0;
+                pool.updating.nftTokenIndex = 0;
+                pool.updating.lastId = 0;
+              }
+
+              pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
+                .plus(lotteryIntervalHours * 3600 * 1000).toNumber();
+            }
+          } else {
             pool.lotteryWinners = lotteryWinners;
             pool.lotteryIntervalHours = lotteryIntervalHours;
             pool.lotteryAmount = lotteryAmount;
-            pool.tokenMiners = tokenMiners;
-            pool.nftTokenMiner = nftTokenMiner;
+          }
+          await api.db.update('pools', pool);
 
-            const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-
-            if (validMinersChange.changed) {
-              pool.updating.updatePoolTimestamp = api.BigNumber(blockDate.getTime()).toNumber();
-              pool.updating.inProgress = true;
-              pool.updating.tokenIndex = 0;
-              pool.updating.nftTokenIndex = 0;
-              pool.updating.lastId = 0;
-            }
-
-            pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
-              .plus(lotteryIntervalHours * 3600 * 1000).toNumber();
-
-            await api.db.update('pools', pool);
-
-            // burn the token creation fees
-            if (api.sender !== api.owner && api.BigNumber(poolUpdateFee).gt(0)) {
-              await api.executeSmartContract('tokens', 'transfer', {
-                // eslint-disable-next-line no-template-curly-in-string
-                to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolUpdateFee, isSignedWithActiveKey,
-              });
-            }
+          // burn the token creation fees
+          if (api.sender !== api.owner && api.BigNumber(poolUpdateFee).gt(0)) {
+            await api.executeSmartContract('tokens', 'transfer', {
+              // eslint-disable-next-line no-template-curly-in-string
+              to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: poolUpdateFee, isSignedWithActiveKey,
+            });
           }
         }
       }

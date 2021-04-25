@@ -21,6 +21,7 @@ actions.createSSC = async () => {
     const params = {
       setupFee: '1000',
       updateFee: '100',
+      maxPoolsPerPost: 20,
       maintenanceTokensPerAction: 1,
       maintenanceTokenOffset: 0,
       maxPostsProcessedPerRound: 1000,
@@ -114,6 +115,31 @@ async function payUser(symbol, quantity, user, stakedRewardPercentage) {
   }
 }
 
+async function payOutBeneficiaries(rewardPool, token, post, authorBenePortion) {
+  const {
+    authorperm,
+    symbol,
+    rewardPoolId,
+    beneficiaries,
+  } = post;
+  if (!beneficiaries || beneficiaries.length === 0) {
+    return api.BigNumber(0);
+  }
+  let totalBenePay = api.BigNumber(0);
+  for (let i = 0; i < beneficiaries.length; i += 1) {
+    const beneficiary = beneficiaries[i];
+    const benePay = api.BigNumber(authorBenePortion).multipliedBy(beneficiary.weight)
+      .dividedBy(10000)
+      .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+    api.emit('beneficiaryReward', {
+      rewardPoolId, authorperm, symbol, account: beneficiary.account, quantity: benePay,
+    });
+    await payUser(symbol, benePay, beneficiary.account, rewardPool.config.stakedRewardPercentage);
+    totalBenePay = api.BigNumber(totalBenePay).plus(benePay);
+  }
+  return totalBenePay;
+}
+
 async function payOutCurators(rewardPool, token, post, curatorPortion) {
   const {
     authorperm,
@@ -147,6 +173,14 @@ async function payOutCurators(rewardPool, token, post, curatorPortion) {
 }
 
 async function payOutPost(rewardPool, token, post, timestamp) {
+  if (post.declinePayout) {
+    // eslint-disable-next-line no-param-reassign
+    post.lastPayout = timestamp;
+    // eslint-disable-next-line no-param-reassign
+    post.totalPayoutValue = api.BigNumber(0);
+    await api.db.update('posts', post);
+    return;
+  }
   const postClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
   const postPendingToken = api.BigNumber(rewardPool.pendingClaims).gt(0)
     ? api.BigNumber(rewardPool.rewardPool).multipliedBy(postClaims)
@@ -157,7 +191,14 @@ async function payOutPost(rewardPool, token, post, timestamp) {
     .multipliedBy(rewardPool.config.curationRewardPercentage)
     .dividedBy(100)
     .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
-  const authorPortion = api.BigNumber(postPendingToken).minus(curatorPortion)
+  const authorBenePortion = api.BigNumber(postPendingToken).minus(curatorPortion)
+    .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+
+  // eslint-disable-next-line no-param-reassign
+  post.beneficiariesPayoutValue = await payOutBeneficiaries(
+    rewardPool, token, post, authorBenePortion,
+  );
+  const authorPortion = api.BigNumber(authorBenePortion).minus(post.beneficiariesPayoutValue)
     .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
   // eslint-disable-next-line no-param-reassign
   post.lastPayout = timestamp;
@@ -251,7 +292,7 @@ async function tokenMaintenance() {
         .dividedBy(3000)
         .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       if (api.BigNumber(rewardToAdd).gt(0)) {
-        let res = await api.executeSmartContractAsOwner('tokens', 'issueToContract',
+        let res = await api.executeSmartContract('tokens', 'issueToContract',
           {
             symbol: rewardPool.symbol, quantity: rewardToAdd, to: 'comments', isSignedWithActiveKey: true,
           });
@@ -501,10 +542,13 @@ async function getRewardPoolIds(payload) {
     parentPermlink,
   } = payload;
 
+  const params = await api.db.findOne('params', {});
+
   // Check if it is a reply, and inherit the settings
   // from the parent.
   if (parentAuthor && parentPermlink) {
     const parentAuthorperm = `@${parentAuthor}/${parentPermlink}`;
+    // Can only return params.maxPoolsPerPost (<1000) posts
     const parentPosts = await api.db.find('posts', { authorperm: parentAuthorperm });
     if (parentPosts && parentPosts.length > 0) {
       return parentPosts.map(p => p.rewardPoolId);
@@ -513,8 +557,11 @@ async function getRewardPoolIds(payload) {
   }
   // Check metadata for tags / parent permlink
   // for community.
-  if (jsonMetadata && jsonMetadata.tags && Array.isArray(jsonMetadata.tags) && jsonMetadata.tags.every(t => typeof t === 'string')) {
-    const tagRewardPools = await api.db.find('rewardPools', { 'config.tags': { $in: jsonMetadata.tags } });
+  if (jsonMetadata && jsonMetadata.tags && Array.isArray(jsonMetadata.tags)
+      && jsonMetadata.tags.every(t => typeof t === 'string')) {
+    const tagRewardPools = await api.db.find('rewardPools',
+      { 'config.tags': { $in: jsonMetadata.tags } },
+      params.maxPoolsPerPost, 0, [{ index: '_id', descending: false }]);
     if (tagRewardPools && tagRewardPools.length > 0) {
       return tagRewardPools.map(r => r._id);
     }
@@ -565,6 +612,32 @@ actions.comment = async (payload) => {
       await api.db.insert('posts', post);
       api.emit('newComment', { rewardPoolId, symbol: rewardPool.symbol });
     }
+  }
+};
+
+actions.commentOptions = async (payload) => {
+  const {
+    author,
+    permlink,
+    maxAcceptedPayout,
+    beneficiaries,
+  } = payload;
+
+  // Node enforces author / permlinks from Hive. Check that sender is null.
+  if (!api.assert(api.sender === 'null', 'action must use commentOptions operation')) return;
+  const authorperm = `@${author}/${permlink}`;
+
+  const existingPosts = await api.db.find('posts', { authorperm });
+  if (!existingPosts) {
+    return;
+  }
+
+  const declinePayout = maxAcceptedPayout.startsWith('0.000');
+  for (let i = 0; i < existingPosts.length; i += 1) {
+    const post = existingPosts[i];
+    post.declinePayout = declinePayout;
+    post.beneficiaries = beneficiaries;
+    await api.db.update('posts', post);
   }
 };
 
@@ -722,6 +795,7 @@ actions.vote = async (payload) => {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
   const authorperm = `@${author}/${permlink}`;
+  // Can only return params.maxPoolsPerPost (<1000) posts
   const posts = await api.db.find('posts', { authorperm });
 
   if (!posts) return;

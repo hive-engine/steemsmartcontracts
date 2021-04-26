@@ -472,7 +472,7 @@ actions.updateRewardPool = async (payload) => {
   if (!api.assert(typeof curationRewardCurveParameter === 'string' && curationExponent.isFinite() && curationExponent.gte('0.5') && curationExponent.lte('1') && curationExponent.dp() <= 2, 'curationRewardCurveParameter can only be between "0.5" and "1" with precision at most 2')) return;
   existingRewardPool.config.curationRewardCurveParameter = curationRewardCurveParameter;
 
-  if (!api.assert(Number.isInteger(curationRewardPercentage) && curationRewardPercentage >= 0 && curationRewardPercentage <.= 100, 'curationRewardPercentage should be an integer between 0 and 100')) return;
+  if (!api.assert(Number.isInteger(curationRewardPercentage) && curationRewardPercentage >= 0 && curationRewardPercentage <= 100, 'curationRewardPercentage should be an integer between 0 and 100')) return;
   existingRewardPool.config.curationRewardPercentage = curationRewardPercentage;
 
   if (!api.assert(cashoutWindowDays && Number.isInteger(cashoutWindowDays) && cashoutWindowDays >= 1 && cashoutWindowDays <= 30, 'cashoutWindowDays should be an integer between 1 and 30')) return;

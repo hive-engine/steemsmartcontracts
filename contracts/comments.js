@@ -365,7 +365,7 @@ actions.createRewardPool = async (payload) => {
   const curationExponent = api.BigNumber(curationRewardCurveParameter);
   if (!api.assert(typeof curationRewardCurveParameter === 'string' && curationExponent.isFinite() && curationExponent.gte('0.5') && curationExponent.lte('1') && curationExponent.dp() <= 2, 'curationRewardCurveParameter can only be between "0.5" and "1" with precision at most 2')) return;
 
-  if (!api.assert(curationRewardPercentage && Number.isInteger(curationRewardPercentage) && curationRewardPercentage >= 0 && curationRewardPercentage <= 100, 'curationRewardPercentage should be an integer between 0 and 100')) return;
+  if (!api.assert(Number.isInteger(curationRewardPercentage) && curationRewardPercentage >= 0 && curationRewardPercentage <= 100, 'curationRewardPercentage should be an integer between 0 and 100')) return;
 
   if (!api.assert(cashoutWindowDays && Number.isInteger(cashoutWindowDays) && cashoutWindowDays >= 1 && cashoutWindowDays <= 30, 'cashoutWindowDays should be an integer between 1 and 30')) return;
 
@@ -375,7 +375,7 @@ actions.createRewardPool = async (payload) => {
 
   if (!api.assert(voteRegenerationDays && Number.isInteger(voteRegenerationDays) && voteRegenerationDays >= 1 && voteRegenerationDays <= 30, 'voteRegenerationDays should be an integer between 1 and 30')) return;
   if (!api.assert(downvoteRegenerationDays && Number.isInteger(downvoteRegenerationDays) && downvoteRegenerationDays >= 1 && downvoteRegenerationDays <= 30, 'downvoteRegenerationDays should be an integer between 1 and 30')) return;
-  if (!api.assert(stakedRewardPercentage && Number.isInteger(stakedRewardPercentage) && stakedRewardPercentage >= 0 && stakedRewardPercentage <= 100, 'stakedRewardPercentage should be an integer between 0 and 100')) return;
+  if (!api.assert(Number.isInteger(stakedRewardPercentage) && stakedRewardPercentage >= 0 && stakedRewardPercentage <= 100, 'stakedRewardPercentage should be an integer between 0 and 100')) return;
   if (!api.assert(votePowerConsumption && Number.isInteger(votePowerConsumption) && votePowerConsumption >= 1 && votePowerConsumption <= 10000, 'votePowerConsumption should be an integer between 1 and 10000')) return;
   if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
 
@@ -469,7 +469,7 @@ actions.updateRewardPool = async (payload) => {
   if (!api.assert(typeof curationRewardCurveParameter === 'string' && curationExponent.isFinite() && curationExponent.gte('0.5') && curationExponent.lte('1') && curationExponent.dp() <= 2, 'curationRewardCurveParameter can only be between "0.5" and "1" with precision at most 2')) return;
   existingRewardPool.config.curationRewardCurveParameter = curationRewardCurveParameter;
 
-  if (!api.assert(curationRewardPercentage && Number.isInteger(curationRewardPercentage) && curationRewardPercentage >= 0 && curationRewardPercentage <= 100, 'curationRewardPercentage should be an integer between 0 and 100')) return;
+  if (!api.assert(Number.isInteger(curationRewardPercentage) && curationRewardPercentage >= 0 && curationRewardPercentage <.= 100, 'curationRewardPercentage should be an integer between 0 and 100')) return;
   existingRewardPool.config.curationRewardPercentage = curationRewardPercentage;
 
   if (!api.assert(cashoutWindowDays && Number.isInteger(cashoutWindowDays) && cashoutWindowDays >= 1 && cashoutWindowDays <= 30, 'cashoutWindowDays should be an integer between 1 and 30')) return;
@@ -486,7 +486,7 @@ actions.updateRewardPool = async (payload) => {
   if (!api.assert(downvoteRegenerationDays && Number.isInteger(downvoteRegenerationDays) && downvoteRegenerationDays >= 1 && downvoteRegenerationDays <= 30, 'downvoteRegenerationDays should be an integer between 1 and 30')) return;
   existingRewardPool.config.downvoteRegenerationDays = downvoteRegenerationDays;
 
-  if (!api.assert(stakedRewardPercentage && Number.isInteger(stakedRewardPercentage) && stakedRewardPercentage >= 0 && stakedRewardPercentage <= 100, 'stakedRewardPercentage should be an integer between 0 and 100')) return;
+  if (!api.assert(Number.isInteger(stakedRewardPercentage) && stakedRewardPercentage >= 0 && stakedRewardPercentage <= 100, 'stakedRewardPercentage should be an integer between 0 and 100')) return;
   existingRewardPool.config.stakedRewardPercentage = stakedRewardPercentage;
 
   if (!api.assert(votePowerConsumption && Number.isInteger(votePowerConsumption) && votePowerConsumption >= 1 && votePowerConsumption <= 10000, 'votePowerConsumption should be an integer between 1 and 10000')) return;

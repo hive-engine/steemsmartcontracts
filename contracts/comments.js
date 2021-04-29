@@ -22,6 +22,7 @@ actions.createSSC = async () => {
       setupFee: '1000',
       updateFee: '100',
       maxPoolsPerPost: 20,
+      maxTagsPerPool: 5,
       maintenanceTokensPerAction: 1,
       maintenanceTokenOffset: 0,
       maxPostsProcessedPerRound: 1000,
@@ -324,7 +325,7 @@ actions.createRewardPool = async (payload) => {
   }
 
   const params = await api.db.findOne('params', {});
-  const { setupFee } = params;
+  const { setupFee, maxTagsPerPool } = params;
 
   // get api.sender's UTILITY_TOKEN_SYMBOL balance
   // eslint-disable-next-line no-template-curly-in-string
@@ -379,7 +380,7 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(votePowerConsumption && Number.isInteger(votePowerConsumption) && votePowerConsumption >= 1 && votePowerConsumption <= 10000, 'votePowerConsumption should be an integer between 1 and 10000')) return;
   if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
 
-  if (!api.assert(Array.isArray(tags) && tags.every(t => typeof t === 'string'), 'tags should be an array of strings')) return;
+  if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
 
   // for now, restrict to 1 pool per symbol, and creator must be issuer.
   if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
@@ -423,7 +424,7 @@ actions.updateRewardPool = async (payload) => {
   }
   // get contract params
   const params = await api.db.findOne('params', {});
-  const { updateFee } = params;
+  const { updateFee, maxTagsPerPool } = params;
   // get api.sender's UTILITY_TOKEN_SYMBOL balance
   // eslint-disable-next-line no-template-curly-in-string
   const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
@@ -495,7 +496,7 @@ actions.updateRewardPool = async (payload) => {
   if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
   existingRewardPool.config.downvotePowerConsumption = downvotePowerConsumption;
 
-  if (!api.assert(Array.isArray(tags) && tags.every(t => typeof t === 'string'), 'tags should be an array of strings')) return;
+  if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
   existingRewardPool.config.tags = tags;
 
   if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;

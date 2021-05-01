@@ -12,6 +12,7 @@ actions.createSSC = async () => {
   if (tableExists === false) {
     await api.db.createTable('auctions', ['auctionId', 'symbol', 'lastValidLead', 'expiryTimestamp']);
     await api.db.createTable('params');
+    await api.db.createTable('marketParams', ['symbol']);
 
     const params = {};
     // fee required to set up an auction
@@ -183,15 +184,66 @@ const settleAuction = async (auction, index = null) => {
     // return the bids
     await returnBids(bids, priceSymbol);
 
-    // send payment to the seller
-    await api.transferTokens(seller, priceSymbol, leadBid.bid, 'user');
+    const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
+    const price = api.BigNumber(leadBid.bid);
+    const feePercent = auction.fee / 10000;
+    let fee = price.multipliedBy(feePercent).decimalPlaces(token.precision);
+    if (fee.gt(price)) {
+      fee = price; // unlikely but need to be sure
+    }
+
+    let payment = price.minus(fee).decimalPlaces(token.precision);
+    if (payment.lt(0)) {
+      payment = api.BigNumber(0); // unlikely but need to be sure
+    }
+
+    // check if we have to split the fee into market & agent fees
+    const marketParams = await api.db.findOne('marketParams', { symbol });
+    let agentFee = api.BigNumber(0);
+    if (marketParams && marketParams.officialMarket
+      && marketParams.agentCut !== undefined
+      && marketParams.agentCut > 0 && fee.gt(0)) {
+      const agentFeePercent = marketParams.agentCut / 10000;
+      agentFee = fee.multipliedBy(agentFeePercent).decimalPlaces(token.precision);
+      if (agentFee.gt(fee)) {
+        agentFee = api.BigNumber(fee); // unlikely but need to be sure
+      }
+
+      fee = fee.minus(agentFee).decimalPlaces(token.precision);
+      if (fee.lt(0)) {
+        fee = api.BigNumber(0); // unlikely but need to be sure
+      }
+    }
+
+    // send fee to market account
+    const officialMarketAccount = (marketParams && marketParams.officialMarket)
+      ? marketParams.officialMarket : leadBid.marketAccount;
+    let isMarketFeePaid = false;
+    if (fee.gt(0)) {
+      isMarketFeePaid = true;
+      fee = fee.toFixed(token.precision);
+      await api.transferTokens(officialMarketAccount, priceSymbol, fee, 'user');
+    }
+
+    // send fee to agent account
+    let isAgentFeePaid = false;
+    if (agentFee.gt(0)) {
+      isAgentFeePaid = true;
+      agentFee = agentFee.toFixed(token.precision);
+      await api.transferTokens(leadBid.marketAccount, priceSymbol, agentFee, 'user');
+    }
+
+    if (payment.gt(0)) {
+      // send payment to the seller
+      await api.transferTokens(seller, priceSymbol, payment, 'user');
+    }
 
     // send NFTs to the buyer
     await sendNfts(leadBid.account, wrappedNfts);
 
     await api.db.remove('auctions', auction);
 
-    api.emit('settleAuction', {
+    const ackPacket = {
       auctionId,
       symbol,
       seller,
@@ -200,7 +252,18 @@ const settleAuction = async (auction, index = null) => {
       price: leadBid.bid,
       priceSymbol,
       timestamp,
-    });
+    };
+
+    if (isMarketFeePaid) {
+      ackPacket.marketAccount = officialMarketAccount;
+      ackPacket.fee = fee;
+    }
+    if (isAgentFeePaid) {
+      ackPacket.agentAccount = leadBid.marketAccount;
+      ackPacket.agentFee = agentFee;
+    }
+
+    api.emit('settleAuction', ackPacket);
   } else {
     // if there are no bids, expire the auction
     await api.db.remove('auctions', auction);
@@ -225,6 +288,7 @@ actions.create = async (payload) => {
     minBid,
     finalPrice,
     priceSymbol,
+    fee,
     expiry,
     isSignedWithActiveKey,
   } = payload;
@@ -239,8 +303,16 @@ actions.create = async (payload) => {
     && minBid && typeof minBid === 'string' && api.BigNumber(minBid).isFinite()
     && finalPrice && typeof finalPrice === 'string' && api.BigNumber(finalPrice).isFinite()
     && priceSymbol && typeof priceSymbol === 'string'
+    && typeof fee === 'number' && fee >= 0 && fee <= 10000 && Number.isInteger(fee)
     && expiry && typeof expiry === 'string', 'invalid params')
     && api.assert(nfts.length <= MAX_NUM_UNITS_OPERABLE, `cannot process more than ${MAX_NUM_UNITS_OPERABLE} NFT instances at once`)) {
+    const marketParams = await api.db.findOne('marketParams', { symbol });
+    if (marketParams && marketParams.minFee !== undefined) {
+      if (!api.assert(fee >= marketParams.minFee, `fee must be >= ${marketParams.minFee}`)) {
+        return;
+      }
+    }
+
     // get the price token params
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
     const params = await api.db.findOne('params', {});
@@ -313,6 +385,7 @@ actions.create = async (payload) => {
                 priceSymbol,
                 minBid,
                 finalPrice,
+                fee,
                 expiryTimestamp,
                 bids: [],
                 currentLead: null,
@@ -392,13 +465,15 @@ actions.bid = async (payload) => {
   const {
     auctionId,
     bid,
+    marketAccount,
     isSignedWithActiveKey,
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
 
   if (api.assert(auctionId && typeof auctionId === 'string'
-    && bid && typeof bid === 'string' && api.BigNumber(bid).isFinite(), 'invalid params')) {
+    && bid && typeof bid === 'string' && api.BigNumber(bid).isFinite()
+    && marketAccount && typeof marketAccount === 'string', 'invalid params')) {
     const auction = await api.db.findOne('auctions', { auctionId });
 
     if (api.assert(auction, 'auction does not exist or has been expired')) {
@@ -418,7 +493,8 @@ actions.bid = async (payload) => {
         && api.assert(api.BigNumber(bid).gt(0)
           && countDecimals(bid) <= token.precision, 'invalid bid')
         && api.assert(api.BigNumber(bid).gte(minBid), `bid can not be less than ${minBid}`)
-        && api.assert(expiryTimestamp >= timestamp, 'auction has been expired')) {
+        && api.assert(expiryTimestamp >= timestamp, 'auction has been expired')
+        && api.assert(api.isValidAccountName(marketAccount), 'invalid marketAccount')) {
         let nbTokensToLock = api.BigNumber(bid).gt(finalPrice) ? finalPrice : bid;
         // find if the account has any previous bid in this auction
         const previousBidIndex = auction.bids.findIndex(el => el.account === api.sender);
@@ -427,6 +503,7 @@ actions.bid = async (payload) => {
         const newBid = {
           account: api.sender,
           bid: nbTokensToLock,
+          marketAccount,
           timestamp,
         };
 
@@ -486,14 +563,21 @@ actions.bid = async (payload) => {
             await api.db.update('auctions', auction);
 
             if (previousBid) {
-              api.emit('updateBid', {
+              const ackPacket = {
                 auctionId,
                 account: newBid.account,
                 oldBid: previousBid.bid,
-                newBid: newBid.bid,
+                bid: newBid.bid,
+                marketAccount: newBid.marketAccount,
                 oldTimestamp: previousBid.timestamp,
-                newTimestamp: newBid.timestamp,
-              });
+                timestamp: newBid.timestamp,
+              };
+
+              if (previousBid.marketAccount !== marketAccount) {
+                ackPacket.oldMarketAccount = previousBid.marketAccount;
+              }
+
+              api.emit('updateBid', ackPacket);
             } else {
               api.emit('bid', {
                 auctionId,
@@ -603,4 +687,83 @@ actions.updateAuctions = async () => {
     const auction = auctionsToSettle[i];
     await settleAuction(auction);
   }
+};
+
+actions.setMarketParams = async (payload) => {
+  const {
+    symbol, officialMarket, agentCut, minFee, isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(symbol && typeof symbol === 'string', 'invalid params')) {
+    return false;
+  }
+
+  // if no parameters supplied, we have nothing to do
+  if (officialMarket === undefined && agentCut === undefined && minFee === undefined) {
+    return false;
+  }
+
+  const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
+
+  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    && api.assert(nft, 'nft symbol does not exist')
+    && api.assert((officialMarket === undefined || (officialMarket && typeof officialMarket === 'string' && api.isValidAccountName(officialMarket)))
+      && (agentCut === undefined || (typeof agentCut === 'number' && agentCut >= 0 && agentCut <= 10000 && Number.isInteger(agentCut)))
+      && (minFee === undefined || (typeof minFee === 'number' && minFee >= 0 && minFee <= 10000 && Number.isInteger(minFee))), 'invalid params')) {
+    if (api.assert(nft.issuer === api.sender, 'must be the issuer')) {
+      let shouldUpdate = false;
+      let isFirstTimeSet = false;
+      const update = {
+        symbol,
+      };
+
+      let params = await api.db.findOne('marketParams', { symbol });
+      if (!params) {
+        isFirstTimeSet = true;
+        params = {
+          symbol,
+        };
+      }
+
+      const finalOfficialMarket = (officialMarket !== undefined) ? officialMarket : null;
+      if (officialMarket !== undefined
+        && (params.officialMarket === undefined || finalOfficialMarket !== params.officialMarket)) {
+        if (params.officialMarket !== undefined) {
+          update.oldOfficialMarket = params.officialMarket;
+        }
+        params.officialMarket = finalOfficialMarket;
+        update.officialMarket = finalOfficialMarket;
+        shouldUpdate = true;
+      }
+      if (agentCut !== undefined
+        && (params.agentCut === undefined || agentCut !== params.agentCut)) {
+        if (params.agentCut !== undefined) {
+          update.oldAgentCut = params.agentCut;
+        }
+        params.agentCut = agentCut;
+        update.agentCut = agentCut;
+        shouldUpdate = true;
+      }
+      if (minFee !== undefined && (params.minFee === undefined || minFee !== params.minFee)) {
+        if (params.minFee !== undefined) {
+          update.oldMinFee = params.minFee;
+        }
+        params.minFee = minFee;
+        update.minFee = minFee;
+        shouldUpdate = true;
+      }
+
+      if (shouldUpdate) {
+        if (isFirstTimeSet) {
+          await api.db.insert('marketParams', params);
+        } else {
+          await api.db.update('marketParams', params);
+        }
+
+        api.emit('setMarketParams', update);
+        return true;
+      }
+    }
+  }
+  return false;
 };

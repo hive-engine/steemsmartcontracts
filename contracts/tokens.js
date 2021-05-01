@@ -44,6 +44,11 @@ const RESERVED_SYMBOLS = {
   HIVEP: 'steem-tokens',
 };
 
+const VERIFIED_ISSUERS = [
+  'mining',
+  'tokenfunds',
+];
+
 const calculateBalance = (balance, quantity, precision, add) => (add
   ? api.BigNumber(balance).plus(quantity).toFixed(precision)
   : api.BigNumber(balance).minus(quantity).toFixed(precision));
@@ -417,9 +422,9 @@ actions.issue = async (payload) => {
     callingContractInfo,
   } = payload;
 
-  const fromMiningContract = (api.sender === 'null'
-      && callingContractInfo.name === 'mining');
-  if (fromMiningContract
+  const fromVerifiedContract = (api.sender === 'null'
+      && VERIFIED_ISSUERS.indexOf(callingContractInfo.name) !== -1);
+  if (fromVerifiedContract
     || (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
       && api.assert(to && typeof to === 'string'
         && symbol && typeof symbol === 'string'
@@ -431,7 +436,7 @@ actions.issue = async (payload) => {
     // the api.sender must be the issuer
     // then we need to check that the quantity is correct
     if (api.assert(token !== null, 'symbol does not exist')
-      && api.assert(fromMiningContract || token.issuer === api.sender, 'not allowed to issue tokens')
+      && api.assert(fromVerifiedContract || token.issuer === api.sender, 'not allowed to issue tokens')
       && api.assert(countDecimals(quantity) <= token.precision, 'symbol precision mismatch')
       && api.assert(api.BigNumber(quantity).gt(0), 'must issue positive quantity')
       && api.assert(api.BigNumber(token.maxSupply).minus(token.supply).gte(quantity), 'quantity exceeds available supply')) {
@@ -473,12 +478,16 @@ actions.issue = async (payload) => {
 actions.issueToContract = async (payload) => {
   const {
     to, symbol, quantity, isSignedWithActiveKey,
+    callingContractInfo,
   } = payload;
 
-  if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+  const fromVerifiedContract = (api.sender === 'null'
+      && VERIFIED_ISSUERS.indexOf(callingContractInfo.name) !== -1);
+  if (fromVerifiedContract
+    || (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(to && typeof to === 'string'
       && symbol && typeof symbol === 'string'
-      && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')) {
+      && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params'))) {
     const finalTo = to.trim();
     const token = await api.db.findOne('tokens', { symbol });
 
@@ -486,7 +495,7 @@ actions.issueToContract = async (payload) => {
     // the api.sender must be the issuer
     // then we need to check that the quantity is correct
     if (api.assert(token !== null, 'symbol does not exist')
-      && api.assert(token.issuer === api.sender, 'not allowed to issue tokens')
+      && api.assert(fromVerifiedContract || token.issuer === api.sender, 'not allowed to issue tokens')
       && api.assert(countDecimals(quantity) <= token.precision, 'symbol precision mismatch')
       && api.assert(api.BigNumber(quantity).gt(0), 'must issue positive quantity')
       && api.assert(api.BigNumber(token.maxSupply).minus(token.supply).gte(quantity), 'quantity exceeds available supply')) {
@@ -743,6 +752,7 @@ const processUnstake = async (unstake) => {
           }
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account, symbol, quantity: api.BigNumber(nextTokensToRelease).negated() });
+          await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
         }
 
         await api.db.update('balances', balance);
@@ -879,6 +889,7 @@ actions.stake = async (payload) => {
           }
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
+          await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
         }
       }
     }
@@ -924,6 +935,7 @@ actions.stakeFromContract = async (payload) => {
           }
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
+          await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
         }
       }
     }
@@ -983,6 +995,7 @@ const startUnstake = async (account, token, quantity) => {
         symbol: token.symbol,
         quantity: api.BigNumber(nextTokensToRelease).negated(),
       });
+      await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
     }
   } else {
     return false;
@@ -1081,6 +1094,7 @@ const processCancelUnstake = async (unstake) => {
       }
       await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity: tokensToRelease });
+      await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
 
       return true;
     }
@@ -1271,6 +1285,8 @@ actions.delegate = async (payload) => {
               });
             await api.executeSmartContract('mining', 'handleStakeChange',
               { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
+            await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: api.sender, token });
+            await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
           } else {
             // if a delegation already exists, increase it
 
@@ -1318,6 +1334,8 @@ actions.delegate = async (payload) => {
               });
             await api.executeSmartContract('mining', 'handleStakeChange',
               { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
+            await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: api.sender, token });
+            await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
           }
         }
       }
@@ -1420,6 +1438,7 @@ actions.undelegate = async (payload) => {
                   quantity: api.BigNumber(quantity).negated(),
                   delegated: true,
                 });
+              await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalFrom, token });
             }
           }
         }
@@ -1468,6 +1487,7 @@ const processUndelegation = async (undelegation) => {
       }
       await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity });
+      await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
     }
   }
 };

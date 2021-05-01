@@ -181,8 +181,8 @@ actions.createRewardPool = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  // get contract params
-  const params = await api.db.findOne('params', {});
+  // get mining contract params
+  const params = await api.db.findOneInTable('mining', 'params', {});
   const { poolCreationFee } = params;
 
   // eslint-disable-next-line no-template-curly-in-string
@@ -210,6 +210,43 @@ actions.createRewardPool = async (payload) => {
       && res.events && res.events.find(el => el.contract === 'mining' && el.event === 'createPool') !== undefined) {
       await api.executeSmartContract('mining', 'setActive', { id: rewardPoolId, active: true });
       api.emit('createRewardPool', { tokenPair, rewardPoolId });
+    }
+  }
+};
+
+actions.updateRewardPool = async (payload) => {
+  const {
+    tokenPair, lotteryWinners, lotteryIntervalHours, lotteryAmount, minedToken,
+    isSignedWithActiveKey,
+  } = payload;
+
+  // get mining contract params
+  const params = await api.db.findOneInTable('mining', 'params', {});
+  const { poolUpdateFee } = params;
+
+  // eslint-disable-next-line no-template-curly-in-string
+  const utilityTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" });
+
+  const authorizedUpdate = api.BigNumber(poolUpdateFee).lte(0) || api.sender === api.owner
+    ? true
+    : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(poolUpdateFee);
+
+  const poolPositions = await api.db.find('liquidityPositions', { tokenPair });
+
+  if (api.assert(authorizedUpdate, 'you must have enough tokens to cover the update fee')
+  && await validateTokenPair(tokenPair)
+  && api.assert(poolPositions && poolPositions.length > 0, 'pool must have liquidity positions')
+  && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
+    const rewardPoolId = `${minedToken}:EXT-${tokenPair.replace(':', '')}`;
+    const res = await api.executeSmartContract('mining', 'updatePool', {
+      id: rewardPoolId,
+      lotteryWinners,
+      lotteryIntervalHours,
+      lotteryAmount,
+    });
+    if (res.errors === undefined
+      && res.events && res.events.find(el => el.contract === 'mining' && el.event === 'updatePool') !== undefined) {
+      api.emit('updateRewardPool', { tokenPair, rewardPoolId });
     }
   }
 };

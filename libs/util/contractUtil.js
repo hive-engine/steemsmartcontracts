@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const { Base64 } = require('js-base64');
 const { CONSTANTS } = require('../Constants');
 
-function setupContractPayload(name, file, additionalReplacements=null) {
+function setupContractPayload(name, file, additionalReplacements = null) {
   let contractCode = fs.readFileSync(file);
   contractCode = contractCode.toString();
   contractCode = contractCode.replace(/'\$\{CONSTANTS.UTILITY_TOKEN_PRECISION\}\$'/g, CONSTANTS.UTILITY_TOKEN_PRECISION);

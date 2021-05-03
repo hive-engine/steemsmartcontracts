@@ -222,7 +222,7 @@ async function payOutPost(rewardPool, token, post, timestamp) {
 
 async function computePostRewards(params, rewardPool, token) {
   const {
-    lastRewardTimestamp,
+    lastPostRewardTimestamp,
     config,
     pendingClaims,
   } = rewardPool;
@@ -235,7 +235,7 @@ async function computePostRewards(params, rewardPool, token) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
   const claimsDecayPeriodDays = cashoutWindowDays * 2 + 1;
-  const adjustNumer = timestamp - lastRewardTimestamp;
+  const adjustNumer = timestamp - lastPostRewardTimestamp;
   const adjustDenom = claimsDecayPeriodDays * 24 * 3600 * 1000;
 
   let newPendingClaims = api.BigNumber(pendingClaims)
@@ -283,26 +283,30 @@ async function tokenMaintenance() {
   const timestamp = blockDate.getTime();
   const params = await api.db.findOne('params', {});
   const { maintenanceTokensPerAction, maintenanceTokenOffset } = params;
-  const rewardPools = await api.db.find('rewardPools', { active: true, lastRewardTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerAction, maintenanceTokenOffset);
+  const rewardPools = await api.db.find('rewardPools', { active: true, lastPostRewardTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerAction, maintenanceTokenOffset);
   if (rewardPools) {
     for (let i = 0; i < rewardPools.length; i += 1) {
       const rewardPool = rewardPools[i];
       const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: rewardPool.symbol });
-      const rewardToAdd = api.BigNumber(rewardPool.config.rewardPerBlock)
-        .multipliedBy(timestamp - rewardPool.lastRewardTimestamp)
-        .dividedBy(3000)
-        .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
-      if (api.BigNumber(rewardToAdd).gt(0)) {
-        await api.executeSmartContract('tokens', 'issueToContract',
-          {
-            symbol: rewardPool.symbol, quantity: rewardToAdd, to: 'comments', isSignedWithActiveKey: true,
-          });
-        rewardPool.rewardPool = api.BigNumber(rewardPool.rewardPool).plus(rewardToAdd)
+      if (timestamp - rewardPool.lastRewardTimestamp
+          >= rewardPool.config.rewardIntervalSeconds * 1000) {
+        const rewardToAdd = api.BigNumber(rewardPool.config.rewardPerInterval)
+          .multipliedBy(timestamp - rewardPool.lastRewardTimestamp)
+          .dividedBy(rewardPool.config.rewardIntervalSeconds * 1000)
           .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+        if (api.BigNumber(rewardToAdd).gt(0)) {
+          await api.executeSmartContract('tokens', 'issueToContract',
+            {
+              symbol: rewardPool.symbol, quantity: rewardToAdd, to: 'comments', isSignedWithActiveKey: true,
+            });
+          rewardPool.rewardPool = api.BigNumber(rewardPool.rewardPool).plus(rewardToAdd)
+            .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+        }
+        rewardPool.lastRewardTimestamp = timestamp;
       }
       // Compute post rewards
       await computePostRewards(params, rewardPool, token);
-      rewardPool.lastRewardTimestamp = timestamp;
+      rewardPool.lastPostRewardTimestamp = timestamp;
       await api.db.update('rewardPools', rewardPool);
     }
     if (rewardPools.length < maintenanceTokensPerAction) {
@@ -349,7 +353,8 @@ actions.createRewardPool = async (payload) => {
     curationRewardCurveParameter,
     curationRewardPercentage,
     cashoutWindowDays,
-    rewardPerBlock,
+    rewardPerInterval,
+    rewardIntervalSeconds,
     voteRegenerationDays,
     downvoteRegenerationDays,
     stakedRewardPercentage,
@@ -370,9 +375,11 @@ actions.createRewardPool = async (payload) => {
 
   if (!api.assert(cashoutWindowDays && Number.isInteger(cashoutWindowDays) && cashoutWindowDays >= 1 && cashoutWindowDays <= 30, 'cashoutWindowDays should be an integer between 1 and 30')) return;
 
-  const parsedRewardPerBlock = api.BigNumber(rewardPerBlock);
-  if (!api.assert(typeof rewardPerBlock === 'string' && parsedRewardPerBlock.isFinite() && parsedRewardPerBlock.gt(0), 'rewardPerBlock invalid')
-        || !api.assert(parsedRewardPerBlock.dp() <= token.precision, 'token precision mismatch for rewardPerBlock')) return;
+  const parsedRewardPerInterval = api.BigNumber(rewardPerInterval);
+  if (!api.assert(typeof rewardPerInterval === 'string' && parsedRewardPerInterval.isFinite() && parsedRewardPerInterval.gt(0), 'rewardPerInterval invalid')
+        || !api.assert(parsedRewardPerInterval.dp() <= token.precision, 'token precision mismatch for rewardPerInterval')) return;
+
+  if (!api.assert(rewardIntervalSeconds && Number.isInteger(rewardIntervalSeconds) && rewardIntervalSeconds >= 3 && rewardIntervalSeconds <= 86400, 'rewardIntervalSeconds should be an integer between 3 and 86400')) return;
 
   if (!api.assert(voteRegenerationDays && Number.isInteger(voteRegenerationDays) && voteRegenerationDays >= 1 && voteRegenerationDays <= 30, 'voteRegenerationDays should be an integer between 1 and 30')) return;
   if (!api.assert(downvoteRegenerationDays && Number.isInteger(downvoteRegenerationDays) && downvoteRegenerationDays >= 1 && downvoteRegenerationDays <= 30, 'downvoteRegenerationDays should be an integer between 1 and 30')) return;
@@ -396,8 +403,24 @@ actions.createRewardPool = async (payload) => {
     symbol,
     rewardPool: '0',
     lastRewardTimestamp: timestamp,
+    lastPostRewardTimestamp: timestamp,
     createdTimestamp: timestamp,
-    config,
+    config: {
+      postRewardCurve,
+      postRewardCurveParameter,
+      curationRewardCurve,
+      curationRewardCurveParameter,
+      curationRewardPercentage,
+      cashoutWindowDays,
+      rewardPerInterval,
+      rewardIntervalSeconds,
+      voteRegenerationDays,
+      downvoteRegenerationDays,
+      stakedRewardPercentage,
+      votePowerConsumption,
+      downvotePowerConsumption,
+      tags,
+    },
     pendingClaims: '0',
     active: true,
   };
@@ -444,7 +467,8 @@ actions.updateRewardPool = async (payload) => {
     curationRewardCurveParameter,
     curationRewardPercentage,
     cashoutWindowDays,
-    rewardPerBlock,
+    rewardPerInterval,
+    rewardIntervalSeconds,
     voteRegenerationDays,
     downvoteRegenerationDays,
     stakedRewardPercentage,
@@ -476,10 +500,13 @@ actions.updateRewardPool = async (payload) => {
   if (!api.assert(cashoutWindowDays && Number.isInteger(cashoutWindowDays) && cashoutWindowDays >= 1 && cashoutWindowDays <= 30, 'cashoutWindowDays should be an integer between 1 and 30')) return;
   existingRewardPool.config.cashoutWindowDays = cashoutWindowDays;
 
-  const parsedRewardPerBlock = api.BigNumber(rewardPerBlock);
-  if (!api.assert(typeof rewardPerBlock === 'string' && parsedRewardPerBlock.isFinite() && parsedRewardPerBlock.gt(0), 'rewardPerBlock invalid')
-        || !api.assert(parsedRewardPerBlock.dp() <= token.precision, 'token precision mismatch for rewardPerBlock')) return;
-  existingRewardPool.config.rewardPerBlock = rewardPerBlock;
+  const parsedRewardPerInterval = api.BigNumber(rewardPerInterval);
+  if (!api.assert(typeof rewardPerInterval === 'string' && parsedRewardPerInterval.isFinite() && parsedRewardPerInterval.gt(0), 'rewardPerInterval invalid')
+        || !api.assert(parsedRewardPerInterval.dp() <= token.precision, 'token precision mismatch for rewardPerInterval')) return;
+  existingRewardPool.config.rewardPerInterval = rewardPerInterval;
+
+  if (!api.assert(rewardIntervalSeconds && Number.isInteger(rewardIntervalSeconds) && rewardIntervalSeconds >= 3 && rewardIntervalSeconds <= 86400, 'rewardIntervalSeconds should be an integer between 3 and 86400')) return;
+  existingRewardPool.config.rewardIntervalSeconds = rewardIntervalSeconds;
 
   if (!api.assert(voteRegenerationDays && Number.isInteger(voteRegenerationDays) && voteRegenerationDays >= 1 && voteRegenerationDays <= 30, 'voteRegenerationDays should be an integer between 1 and 30')) return;
   existingRewardPool.config.voteRegenerationDays = voteRegenerationDays;

@@ -21,8 +21,13 @@ function broadcastWitnessAction(contractAction, contractPayload) {
     }),
   };
 
-  // eslint-disable-next-line no-console
-  client.broadcast.json(transaction, privateSigningKey, (x, y) => console.log(x || y));
+  client.broadcast.json(transaction, privateSigningKey).then((res) => {
+    // eslint-disable-next-line no-console
+    console.log(`Successful, trx id: ${res.id}`);
+  }).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('Error', err);
+  });
 }
 
 program.version(packagejson.version);

@@ -556,6 +556,11 @@ actions.setActive = async (payload) => {
   if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
 
   existingRewardPool.active = active;
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  const timestamp = blockDate.getTime();
+  if (active) {
+    existingRewardPool.lastRewardTimestamp = timestamp;
+  }
   await api.db.update('rewardPools', existingRewardPool);
 };
 
@@ -584,8 +589,10 @@ async function getRewardPoolIds(payload) {
   // for community.
   if (jsonMetadata && jsonMetadata.tags && Array.isArray(jsonMetadata.tags)
       && jsonMetadata.tags.every(t => typeof t === 'string')) {
+    const searchTags = parentPermlink ? jsonMetadata.tags.concat([parentPermlink])
+      : jsonMetadata.tags;
     const tagRewardPools = await api.db.find('rewardPools',
-      { 'config.tags': { $in: jsonMetadata.tags } },
+      { 'config.tags': { $in: searchTags } },
       params.maxPoolsPerPost, 0, [{ index: '_id', descending: false }]);
     if (tagRewardPools && tagRewardPools.length > 0) {
       return tagRewardPools.map(r => r._id);

@@ -186,33 +186,25 @@ const settleAuction = async (auction, index = null) => {
 
     const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: priceSymbol });
     const price = api.BigNumber(leadBid.bid);
-    const feePercent = auction.fee / 10000;
-    let fee = price.multipliedBy(feePercent).decimalPlaces(token.precision);
-    if (fee.gt(price)) {
-      fee = price; // unlikely but need to be sure
-    }
+    const feePercent = auction.feePercent / 10000;
+    let fee = price.multipliedBy(feePercent)
+      .decimalPlaces(token.precision, api.BigNumber.ROUND_DOWN);
 
-    let payment = price.minus(fee).decimalPlaces(token.precision);
-    if (payment.lt(0)) {
-      payment = api.BigNumber(0); // unlikely but need to be sure
-    }
+    const payment = price.minus(fee)
+      .decimalPlaces(token.precision, api.BigNumber.ROUND_DOWN);
 
     // check if we have to split the fee into market & agent fees
     const marketParams = await api.db.findOne('marketParams', { symbol });
     let agentFee = api.BigNumber(0);
     if (marketParams && marketParams.officialMarket
-      && marketParams.agentCut !== undefined
-      && marketParams.agentCut > 0 && fee.gt(0)) {
-      const agentFeePercent = marketParams.agentCut / 10000;
-      agentFee = fee.multipliedBy(agentFeePercent).decimalPlaces(token.precision);
-      if (agentFee.gt(fee)) {
-        agentFee = api.BigNumber(fee); // unlikely but need to be sure
-      }
+      && marketParams.agentFeePercent !== undefined
+      && marketParams.agentFeePercent > 0 && fee.gt(0)) {
+      const agentFeePercent = marketParams.agentFeePercent / 10000;
+      agentFee = fee.multipliedBy(agentFeePercent)
+        .decimalPlaces(token.precision, api.BigNumber.ROUND_DOWN);
 
-      fee = fee.minus(agentFee).decimalPlaces(token.precision);
-      if (fee.lt(0)) {
-        fee = api.BigNumber(0); // unlikely but need to be sure
-      }
+      fee = fee.minus(agentFee)
+        .decimalPlaces(token.precision, api.BigNumber.ROUND_DOWN);
     }
 
     // send fee to market account
@@ -221,7 +213,7 @@ const settleAuction = async (auction, index = null) => {
     let isMarketFeePaid = false;
     if (fee.gt(0)) {
       isMarketFeePaid = true;
-      fee = fee.toFixed(token.precision);
+      fee = fee.toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       await api.transferTokens(officialMarketAccount, priceSymbol, fee, 'user');
     }
 
@@ -229,7 +221,7 @@ const settleAuction = async (auction, index = null) => {
     let isAgentFeePaid = false;
     if (agentFee.gt(0)) {
       isAgentFeePaid = true;
-      agentFee = agentFee.toFixed(token.precision);
+      agentFee = agentFee.toFixed(token.precision, api.BigNumber.ROUND_DOWN);
       await api.transferTokens(leadBid.marketAccount, priceSymbol, agentFee, 'user');
     }
 
@@ -288,7 +280,7 @@ actions.create = async (payload) => {
     minBid,
     finalPrice,
     priceSymbol,
-    fee,
+    feePercent,
     expiry,
     isSignedWithActiveKey,
   } = payload;
@@ -303,12 +295,12 @@ actions.create = async (payload) => {
     && minBid && typeof minBid === 'string' && api.BigNumber(minBid).isFinite()
     && finalPrice && typeof finalPrice === 'string' && api.BigNumber(finalPrice).isFinite()
     && priceSymbol && typeof priceSymbol === 'string'
-    && typeof fee === 'number' && fee >= 0 && fee <= 10000 && Number.isInteger(fee)
+    && typeof feePercent === 'number' && feePercent >= 0 && feePercent <= 10000 && Number.isInteger(feePercent)
     && expiry && typeof expiry === 'string', 'invalid params')
     && api.assert(nfts.length <= MAX_NUM_UNITS_OPERABLE, `cannot process more than ${MAX_NUM_UNITS_OPERABLE} NFT instances at once`)) {
     const marketParams = await api.db.findOne('marketParams', { symbol });
-    if (marketParams && marketParams.minFee !== undefined) {
-      if (!api.assert(fee >= marketParams.minFee, `fee must be >= ${marketParams.minFee}`)) {
+    if (marketParams && marketParams.minFeePercent !== undefined) {
+      if (!api.assert(feePercent >= marketParams.minFeePercent, `feePercent must be >= ${marketParams.minFeePercent}`)) {
         return;
       }
     }
@@ -385,7 +377,7 @@ actions.create = async (payload) => {
                 priceSymbol,
                 minBid,
                 finalPrice,
-                fee,
+                feePercent,
                 expiryTimestamp,
                 bids: [],
                 currentLead: null,
@@ -691,15 +683,21 @@ actions.updateAuctions = async () => {
 
 actions.setMarketParams = async (payload) => {
   const {
-    symbol, officialMarket, agentCut, minFee, isSignedWithActiveKey,
+    symbol,
+    officialMarket,
+    agentFeePercent,
+    minFeePercent,
+    isSignedWithActiveKey,
   } = payload;
 
-  if (!api.assert(symbol && typeof symbol === 'string', 'invalid params')) {
+  if (!api.assert(symbol && typeof symbol === 'string', 'invalid symbol')) {
     return false;
   }
 
   // if no parameters supplied, we have nothing to do
-  if (officialMarket === undefined && agentCut === undefined && minFee === undefined) {
+  if (officialMarket === undefined
+    && agentFeePercent === undefined
+    && minFeePercent === undefined) {
     return false;
   }
 
@@ -708,14 +706,10 @@ actions.setMarketParams = async (payload) => {
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
     && api.assert(nft, 'nft symbol does not exist')
     && api.assert((officialMarket === undefined || (officialMarket && typeof officialMarket === 'string' && api.isValidAccountName(officialMarket)))
-      && (agentCut === undefined || (typeof agentCut === 'number' && agentCut >= 0 && agentCut <= 10000 && Number.isInteger(agentCut)))
-      && (minFee === undefined || (typeof minFee === 'number' && minFee >= 0 && minFee <= 10000 && Number.isInteger(minFee))), 'invalid params')) {
+      && (agentFeePercent === undefined || (typeof agentFeePercent === 'number' && agentFeePercent >= 0 && agentFeePercent <= 10000 && Number.isInteger(agentFeePercent)))
+      && (minFeePercent === undefined || (typeof minFeePercent === 'number' && minFeePercent >= 0 && minFeePercent <= 10000 && Number.isInteger(minFeePercent))), 'invalid params')) {
     if (api.assert(nft.issuer === api.sender, 'must be the issuer')) {
-      let shouldUpdate = false;
       let isFirstTimeSet = false;
-      const update = {
-        symbol,
-      };
 
       let params = await api.db.findOne('marketParams', { symbol });
       if (!params) {
@@ -725,44 +719,23 @@ actions.setMarketParams = async (payload) => {
         };
       }
 
-      const finalOfficialMarket = (officialMarket !== undefined) ? officialMarket : null;
-      if (officialMarket !== undefined
-        && (params.officialMarket === undefined || finalOfficialMarket !== params.officialMarket)) {
-        if (params.officialMarket !== undefined) {
-          update.oldOfficialMarket = params.officialMarket;
-        }
-        params.officialMarket = finalOfficialMarket;
-        update.officialMarket = finalOfficialMarket;
-        shouldUpdate = true;
+      if (officialMarket !== undefined) {
+        params.officialMarket = officialMarket;
       }
-      if (agentCut !== undefined
-        && (params.agentCut === undefined || agentCut !== params.agentCut)) {
-        if (params.agentCut !== undefined) {
-          update.oldAgentCut = params.agentCut;
-        }
-        params.agentCut = agentCut;
-        update.agentCut = agentCut;
-        shouldUpdate = true;
+      if (agentFeePercent !== undefined) {
+        params.agentFeePercent = agentFeePercent;
       }
-      if (minFee !== undefined && (params.minFee === undefined || minFee !== params.minFee)) {
-        if (params.minFee !== undefined) {
-          update.oldMinFee = params.minFee;
-        }
-        params.minFee = minFee;
-        update.minFee = minFee;
-        shouldUpdate = true;
+      if (minFeePercent !== undefined) {
+        params.minFeePercent = minFeePercent;
       }
 
-      if (shouldUpdate) {
-        if (isFirstTimeSet) {
-          await api.db.insert('marketParams', params);
-        } else {
-          await api.db.update('marketParams', params);
-        }
-
-        api.emit('setMarketParams', update);
-        return true;
+      if (isFirstTimeSet) {
+        await api.db.insert('marketParams', params);
+      } else {
+        await api.db.update('marketParams', params);
       }
+
+      return true;
     }
   }
   return false;

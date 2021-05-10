@@ -598,7 +598,9 @@ async function getRewardPoolIds(payload) {
       return tagRewardPools.map(r => r._id);
     }
   }
-  if (rewardPools && Array.isArray(rewardPools) && rewardPools.length > 0) return rewardPools.slice(0, params.maxPoolsPerPost);
+  if (rewardPools && Array.isArray(rewardPools) && rewardPools.length > 0) {
+    return rewardPools.slice(0, params.maxPoolsPerPost);
+  }
   return [];
 }
 

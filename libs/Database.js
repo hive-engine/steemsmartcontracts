@@ -44,6 +44,21 @@ function objectCacheKey(contract, table, object) {
   return null;
 }
 
+function adjustQueryForPrimaryKey(query, customPrimaryKey) {
+  const primaryKeyQuery = {};
+  let usePrimaryKey = true;
+  customPrimaryKey.forEach((k) => {
+    if (k in query) {
+      primaryKeyQuery[k] = query[k];
+    } else {
+      usePrimaryKey = false;
+    }
+  });
+  if (usePrimaryKey) {
+    query._id = primaryKeyQuery; // eslint-disable-line no-underscore-dangle, no-param-reassign
+  }
+}
+
 
 class Database {
   constructor() {
@@ -558,11 +573,7 @@ class Database {
         if (tableData) {
           const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
           if (customPrimaryKey) {
-            customPrimaryKey.forEach((k) => {
-              if (k in query) {
-                query[`_id.${k}`] = query[k];
-              }
-            });
+            adjustQueryForPrimaryKey(query, customPrimaryKey);
           }
 
           // if there is an index passed, check if it exists
@@ -647,11 +658,7 @@ class Database {
         if (tableData) {
           const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
           if (customPrimaryKey) {
-            customPrimaryKey.forEach((k) => {
-              if (k in query) {
-                query[`_id.${k}`] = query[k];
-              }
-            });
+            adjustQueryForPrimaryKey(query, customPrimaryKey);
           }
 
           if (this.session) {

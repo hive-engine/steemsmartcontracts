@@ -222,6 +222,7 @@ async function payOutPost(rewardPool, token, post, timestamp) {
 
 async function computePostRewards(params, rewardPool, token) {
   const {
+    lastClaimDecayTimestamp,
     lastPostRewardTimestamp,
     config,
     pendingClaims,
@@ -235,7 +236,7 @@ async function computePostRewards(params, rewardPool, token) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
   const claimsDecayPeriodDays = cashoutWindowDays * 2 + 1;
-  const adjustNumer = timestamp - lastPostRewardTimestamp;
+  const adjustNumer = timestamp - lastClaimDecayTimestamp;
   const adjustDenom = claimsDecayPeriodDays * 24 * 3600 * 1000;
 
   let newPendingClaims = api.BigNumber(pendingClaims)
@@ -243,6 +244,8 @@ async function computePostRewards(params, rewardPool, token) {
       .multipliedBy(adjustNumer)
       .dividedBy(adjustDenom))
     .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
+  // eslint-disable-next-line no-param-reassign
+  rewardPool.lastClaimDecayTimestamp = timestamp;
 
   // Add posts claims, compute subsequent rewards based on inclusion into claims to
   // ensure it cannot take more of the current pool
@@ -250,7 +253,7 @@ async function computePostRewards(params, rewardPool, token) {
     {
       rewardPoolId: rewardPool._id,
       lastPayout: { $exists: false },
-      cashoutTime: { $lte: timestamp },
+      cashoutTime: { $gte: lastPostRewardTimestamp, $lte: timestamp },
     },
     maxPostsProcessedPerRound,
     0,
@@ -266,11 +269,15 @@ async function computePostRewards(params, rewardPool, token) {
     rewardPool.pendingClaims = newPendingClaims;
 
     let deductFromRewardPool = api.BigNumber(0);
+    let lastPostCashout = lastPostRewardTimestamp;
     for (let i = 0; i < postsToPayout.length; i += 1) {
       const post = postsToPayout[i];
       await payOutPost(rewardPool, token, post, timestamp);
       deductFromRewardPool = deductFromRewardPool.plus(post.totalPayoutValue);
+      lastPostCashout = post.cashoutTime;
     }
+    // eslint-disable-next-line no-param-reassign
+    rewardPool.lastPostRewardTimestamp = lastPostCashout;
     // eslint-disable-next-line no-param-reassign
     rewardPool.rewardPool = api.BigNumber(rewardPool.rewardPool)
       .minus(deductFromRewardPool)
@@ -283,7 +290,7 @@ async function tokenMaintenance() {
   const timestamp = blockDate.getTime();
   const params = await api.db.findOne('params', {});
   const { maintenanceTokensPerAction, maintenanceTokenOffset } = params;
-  const rewardPools = await api.db.find('rewardPools', { active: true, lastPostRewardTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerAction, maintenanceTokenOffset);
+  const rewardPools = await api.db.find('rewardPools', { active: true, lastClaimDecayTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerAction, maintenanceTokenOffset);
   if (rewardPools) {
     for (let i = 0; i < rewardPools.length; i += 1) {
       const rewardPool = rewardPools[i];
@@ -306,7 +313,6 @@ async function tokenMaintenance() {
       }
       // Compute post rewards
       await computePostRewards(params, rewardPool, token);
-      rewardPool.lastPostRewardTimestamp = timestamp;
       await api.db.update('rewardPools', rewardPool);
     }
     if (rewardPools.length < maintenanceTokensPerAction) {
@@ -404,6 +410,7 @@ actions.createRewardPool = async (payload) => {
     rewardPool: '0',
     lastRewardTimestamp: timestamp,
     lastPostRewardTimestamp: timestamp,
+    lastClaimDecayTimestamp: timestamp,
     createdTimestamp: timestamp,
     config: {
       postRewardCurve,

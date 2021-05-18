@@ -20,7 +20,7 @@ actions.createSSC = async () => {
 
     const params = {
       setupFee: '1000',
-      updateFee: '100',
+      updateFee: '20',
       maxPoolsPerPost: 20,
       maxTagsPerPool: 5,
       maintenanceTokensPerAction: 1,

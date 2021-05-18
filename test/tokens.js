@@ -167,7 +167,7 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678901, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "harpagon", "quantity": "200", "isSignedWithActiveKey": true }`));
 
       // should have to pay 200 BEE creation fee
-      transactions.push(new Transaction(12345678901, 'TXID1236', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN.TEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
+      transactions.push(new Transaction(12345678901, 'TXID1236', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKNTEST", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
 
       // should not pay any creation fee because swap-eth is on the list of Hive Engine owned accounts
       transactions.push(new Transaction(12345678901, 'TXID1237', 'swap-eth', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "SWAP.KOIN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
@@ -187,14 +187,14 @@ describe('Tokens smart contract', function () {
           contract: 'tokens',
           table: 'tokens',
           query: {
-            symbol: 'TKN.TEST'
+            symbol: 'TKNTEST'
           }
         });
 
       let token = res;
 
       console.log(token);
-      assert.equal(token.symbol, 'TKN.TEST');
+      assert.equal(token.symbol, 'TKNTEST');
       assert.equal(token.issuer, 'harpagon');
       assert.equal(token.name, 'token');
       assert.equal(JSON.parse(token.metadata).url, 'https://token.com');
@@ -266,8 +266,11 @@ describe('Tokens smart contract', function () {
       transactions.push(new Transaction(12345678901, 'TXID12348', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": ".TKN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12349', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "TKN.", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(12345678901, 'TXID12350', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "TN.THJ.HDG", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID12351', 'cryptomancer', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "SWAP.KOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(12345678901, 'TXID12352', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "MYKOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12351', 'cryptomancer', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "SWAPKOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12352', 'cryptomancer', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "ETHKOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12353', 'cryptomancer', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "BSCKOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12354', 'cryptomancer', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "MY.KOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(12345678901, 'TXID12355', 'harpagon', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "abd", "symbol": "MYKOIN", "precision": 8, "maxSupply": "1", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -297,6 +300,9 @@ describe('Tokens smart contract', function () {
       console.log(JSON.parse(transactionsBlock1[14].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock1[15].logs).errors[0]);
       console.log(JSON.parse(transactionsBlock1[16].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[17].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[18].logs).errors[0]);
+      console.log(JSON.parse(transactionsBlock1[19].logs).errors[0]);
 
       assert.equal(JSON.parse(transactionsBlock1[4].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[5].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
@@ -310,7 +316,10 @@ describe('Tokens smart contract', function () {
       assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[14].logs).errors[0], 'invalid symbol: uppercase letters only and one "." allowed, max length of 10');
       assert.equal(JSON.parse(transactionsBlock1[15].logs).errors[0], 'invalid symbol: not allowed to use SWAP');
-      assert.equal(JSON.parse(transactionsBlock1[16].logs).errors[0], 'you must have enough tokens to cover the creation fees');
+      assert.equal(JSON.parse(transactionsBlock1[16].logs).errors[0], 'invalid symbol: not allowed to use ETH');
+      assert.equal(JSON.parse(transactionsBlock1[17].logs).errors[0], 'invalid symbol: not allowed to use BSC');
+      assert.equal(JSON.parse(transactionsBlock1[18].logs).errors[0], 'invalid symbol: usage of "." is restricted');
+      assert.equal(JSON.parse(transactionsBlock1[19].logs).errors[0], 'you must have enough tokens to cover the creation fees');
 
       resolve();
     })

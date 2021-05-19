@@ -171,6 +171,8 @@ describe('Tokens smart contract', function () {
 
       // should not pay any creation fee because swap-eth is on the list of Hive Engine owned accounts
       transactions.push(new Transaction(12345678901, 'TXID1237', 'swap-eth', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "SWAP.KOIN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
+      transactions.push(new Transaction(12345678901, 'TXID1238', 'swap-eth', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "ETH.KOIN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
+      transactions.push(new Transaction(12345678901, 'TXID1239', 'swap-eth', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "BSC.KOIN", "precision": 3, "maxSupply": "1000", "isSignedWithActiveKey": true  }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -213,6 +215,42 @@ describe('Tokens smart contract', function () {
 
       console.log(token);
       assert.equal(token.symbol, 'SWAP.KOIN');
+      assert.equal(token.issuer, 'swap-eth');
+      assert.equal(token.name, 'token');
+      assert.equal(JSON.parse(token.metadata).url, 'https://token.com');
+      assert.equal(token.maxSupply, 1000);
+      assert.equal(token.supply, 0);
+
+      res = await database1.findOne({
+        contract: 'tokens',
+        table: 'tokens',
+        query: {
+          symbol: 'ETH.KOIN'
+        }
+      });
+
+      token = res;
+
+      console.log(token);
+      assert.equal(token.symbol, 'ETH.KOIN');
+      assert.equal(token.issuer, 'swap-eth');
+      assert.equal(token.name, 'token');
+      assert.equal(JSON.parse(token.metadata).url, 'https://token.com');
+      assert.equal(token.maxSupply, 1000);
+      assert.equal(token.supply, 0);
+
+      res = await database1.findOne({
+        contract: 'tokens',
+        table: 'tokens',
+        query: {
+          symbol: 'BSC.KOIN'
+        }
+      });
+
+      token = res;
+
+      console.log(token);
+      assert.equal(token.symbol, 'BSC.KOIN');
       assert.equal(token.issuer, 'swap-eth');
       assert.equal(token.name, 'token');
       assert.equal(JSON.parse(token.metadata).url, 'https://token.com');

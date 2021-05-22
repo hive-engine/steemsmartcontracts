@@ -1,5 +1,7 @@
 # Steem Smart Contracts [![Build Status](https://travis-ci.org/harpagon210/steemsmartcontracts.svg?branch=master)](https://travis-ci.org/harpagon210/steemsmartcontracts)[![Coverage Status](https://coveralls.io/repos/github/harpagon210/steemsmartcontracts/badge.svg?branch=master)](https://coveralls.io/github/harpagon210/steemsmartcontracts?branch=master)
 
+**NOTE**: master branch is for Steem Engine, for which further development has been discontinued. Only Hive Engine is currently under active development; please use the **hive-engine branch**.
+
  ## 1.  What is it?
 
 Steem Smart Contracts is a sidechain powered by Steem, it allows you to perform actions on a decentralized database via the power of Smart Contracts.

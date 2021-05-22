@@ -17,7 +17,7 @@ This is actually pretty easy, you basically need a Steem account and that's it. 
 
 ## 4. Setup a Steem Smart Contracts node
 
-see wiki: https://github.com/hive-engine/steemsmartcontracts/wiki/How-to-setup-a-Steem-Smart-Contracts-node
+see wiki: https://github.com/hive-engine/steemsmartcontracts-wiki/blob/master/How-to-setup-a-Steem-Smart-Contracts-node.md
 
 ## 5. Tests
 * npm run test

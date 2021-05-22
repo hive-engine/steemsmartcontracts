@@ -104,13 +104,14 @@ class Block {
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;
+    const allowCommentContract = this.refHiveBlockNumber > 99999999; // TODO: adjust me
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
 
       currentDatabaseHash = transaction.databaseHash;
 
-      if (transaction.contract !== 'comments' || transaction.logs === '{}') {
+      if ((transaction.contract !== 'comments' || allowCommentContract) || transaction.logs === '{}') {
         if (mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
           console.warn(mainBlock.transactions[relIndex]); // eslint-disable-line no-console
           console.warn(transaction); // eslint-disable-line no-console
@@ -121,7 +122,7 @@ class Block {
     }
 
     // remove comment, comment_options and votes if not relevant
-    this.transactions = this.transactions.filter(value => value.contract !== 'comments' || value.logs === '{}');
+    this.transactions = this.transactions.filter(value => (value.contract !== 'comments' || allowCommentContract) || value.logs === '{}');
 
     // handle virtual transactions
     const virtualTransactions = [];

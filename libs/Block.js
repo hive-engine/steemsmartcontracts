@@ -104,7 +104,7 @@ class Block {
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;
-    const allowCommentContract = this.refHiveBlockNumber > 99999999; // TODO: adjust me
+    const allowCommentContract = this.refHiveBlockNumber > 54560500;
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
@@ -140,7 +140,7 @@ class Block {
     if (this.refHiveBlockNumber >= 48664773) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
     }
-    if (this.refHiveBlockNumber >= 52494020) {
+    if (this.refHiveBlockNumber >= 54560500) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'nftauction', 'updateAuctions', ''));
     }
 

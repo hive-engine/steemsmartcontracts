@@ -9,11 +9,19 @@ const { EJSON } = require('bson');
 // Change this to turn on hash logging.
 const enableHashLogging = false;
 
+function validateIndexName(indexName) {
+  if (typeof indexName !== 'string') {
+    return false;
+  }
+  const indexNameParts = indexName.split('.');
+  return indexNameParts.every(p => p.length > 0 && validator.isAlphanumeric(p));
+}
+
 function validateIndexSpec(spec) {
-  if (typeof spec === 'string') return validator.isAlphanumeric(spec);
+  if (typeof spec === 'string') return validateIndexName(spec);
   if (typeof spec === 'object') {
     return spec.name && validator.isAlphanumeric(spec.name) && typeof spec.index === 'object'
-          && Object.keys(spec.index).every(indexName => validator.isAlphanumeric(indexName))
+          && Object.keys(spec.index).every(indexName => validateIndexName(indexName))
           && Object.values(spec.index).every(asc => asc === 1 || asc === -1);
   }
   return false;
@@ -34,6 +42,21 @@ function objectCacheKey(contract, table, object) {
     return `${contract}_${table}_${object.id}_${object.account}`;
   }
   return null;
+}
+
+function adjustQueryForPrimaryKey(query, customPrimaryKey) {
+  const primaryKeyQuery = {};
+  let usePrimaryKey = true;
+  customPrimaryKey.forEach((k) => {
+    if (k in query) {
+      primaryKeyQuery[k] = query[k];
+    } else {
+      usePrimaryKey = false;
+    }
+  });
+  if (usePrimaryKey) {
+    query._id = primaryKeyQuery; // eslint-disable-line no-underscore-dangle, no-param-reassign
+  }
 }
 
 
@@ -436,6 +459,8 @@ class Database {
 
         result = true;
       }
+    } else {
+      console.warn(`Table invalid, was not created, payload: ${JSON.stringify(payload)}`); // eslint-disable-line no-console
     }
 
     return result;
@@ -548,11 +573,7 @@ class Database {
         if (tableData) {
           const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
           if (customPrimaryKey) {
-            customPrimaryKey.forEach((k) => {
-              if (k in query) {
-                query[`_id.${k}`] = query[k];
-              }
-            });
+            adjustQueryForPrimaryKey(query, customPrimaryKey);
           }
 
           // if there is an index passed, check if it exists
@@ -637,11 +658,7 @@ class Database {
         if (tableData) {
           const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
           if (customPrimaryKey) {
-            customPrimaryKey.forEach((k) => {
-              if (k in query) {
-                query[`_id.${k}`] = query[k];
-              }
-            });
+            adjustQueryForPrimaryKey(query, customPrimaryKey);
           }
 
           if (this.session) {

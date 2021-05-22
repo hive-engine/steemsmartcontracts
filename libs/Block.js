@@ -104,13 +104,14 @@ class Block {
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;
+    const allowCommentContract = this.refHiveBlockNumber > 54560500;
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
 
       currentDatabaseHash = transaction.databaseHash;
 
-      if (transaction.contract !== 'comments' || transaction.logs === '{}') {
+      if ((transaction.contract !== 'comments' || allowCommentContract) || transaction.logs === '{}') {
         if (false && mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
           console.warn(mainBlock.transactions[relIndex]); // eslint-disable-line no-console
           console.warn(transaction); // eslint-disable-line no-console
@@ -121,7 +122,7 @@ class Block {
     }
 
     // remove comment, comment_options and votes if not relevant
-    this.transactions = this.transactions.filter(value => value.contract !== 'comments' || value.logs === '{}');
+    this.transactions = this.transactions.filter(value => (value.contract !== 'comments' || allowCommentContract) || value.logs === '{}');
 
     // handle virtual transactions
     const virtualTransactions = [];
@@ -138,6 +139,9 @@ class Block {
     }
     if (this.refHiveBlockNumber >= 48664773) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
+    }
+    if (this.refHiveBlockNumber >= 54560500) {
+      virtualTransactions.push(new Transaction(0, '', 'null', 'nftauction', 'updateAuctions', ''));
     }
 
     if (this.refHiveBlockNumber >= 51022551) {
@@ -188,6 +192,10 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'airdrops'
           && transaction.action === 'checkPendingAirdrops'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
+        } else if (transaction.contract === 'nftauction'
+          && transaction.action === 'updateAuctions'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else if (transaction.contract === 'tokenfunds'

@@ -17,11 +17,11 @@ This is actually pretty easy, you basically need a Steem account and that's it. 
 
 ## 4. Setup a Steem Smart Contracts node
 
-see wiki: https://github.com/harpagon210/steemsmartcontracts/wiki/How-to-setup-a-Steem-Smart-Contracts-node
+see wiki: https://github.com/hive-engine/steemsmartcontracts/wiki/How-to-setup-a-Steem-Smart-Contracts-node
 
 ## 5. Tests
 * npm run test
 
 ## 6. Usage/docs
 
-* see wiki: https://github.com/harpagon210/steemsmartcontracts/wiki
+* see wiki: https://github.com/hive-engine/steemsmartcontracts-wiki

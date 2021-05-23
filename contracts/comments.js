@@ -154,9 +154,8 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
     rewardPoolId,
   } = post;
   const {
-      voteQueryLimit,
+    voteQueryLimit,
   } = params;
-  let offset = 0;
   let votesToPayout = await api.db.find('votes', { authorperm, symbol, rewardPoolId }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
   while (votesToPayout.length > 0) {
     for (let i = 0; i < votesToPayout.length; i += 1) {
@@ -184,8 +183,15 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
 
 async function payOutPost(rewardPool, token, post, timestamp, params) {
   if (post.declinePayout) {
+    api.emit('authorReward', {
+      rewardPoolId: post.rewardPoolId,
+      authorperm: post.authorperm,
+      symbol: post.symbol,
+      account: post.author,
+      quantity: '0',
+    });
     await api.db.remove('posts', post);
-    return;
+    return '0';
   }
   const postClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);
   const postPendingToken = api.BigNumber(rewardPool.pendingClaims).gt(0)
@@ -201,7 +207,7 @@ async function payOutPost(rewardPool, token, post, timestamp, params) {
     .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
 
   const beneficiariesPayoutValue = await payOutBeneficiaries(
-      rewardPool, token, post, authorBenePortion,
+    rewardPool, token, post, authorBenePortion,
   );
   const authorPortion = api.BigNumber(authorBenePortion).minus(beneficiariesPayoutValue)
     .toFixed(token.precision, api.BigNumber.ROUND_DOWN);

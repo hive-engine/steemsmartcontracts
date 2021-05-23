@@ -1967,7 +1967,7 @@ describe('comments', function () {
       res = await fixture.database.getLatestBlockInfo();
       await tableAsserts.assertNoErrorInLastBlock();
 
-      assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'authorReward' && ev.data.authorperm === '@author1/test1'), undefined);
+      assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'authorReward' && ev.data.authorperm === '@author1/test1')), '{"contract":"comments","event":"authorReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"author1","quantity":"0"}}');
       assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene1'), undefined);
       assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene2'), undefined);
       assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'curationReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'voter1'), undefined);
@@ -1979,6 +1979,9 @@ describe('comments', function () {
 
       post = await fixture.database.findOne({ contract: 'comments', table: 'posts', query: { rewardPoolId: 1, authorperm: "@author1/test1" }});
       assert.equal(post, null);
+
+      let rewardPool = await fixture.database.findOne({ contract: 'comments', table: 'rewardPools', query: { _id: 1}});
+      assert.equal(JSON.stringify(rewardPool), '{"_id":1,"symbol":"TKN","rewardPool":"345600.00000000","lastRewardTimestamp":1528502400000,"lastPostRewardTimestamp":1528416000000,"lastClaimDecayTimestamp":1528502400000,"createdTimestamp":1527811200000,"config":{"postRewardCurve":"power","postRewardCurveParameter":"1","curationRewardCurve":"power","curationRewardCurveParameter":"1","curationRewardPercentage":50,"cashoutWindowDays":7,"rewardPerInterval":"1.5","rewardIntervalSeconds":3,"voteRegenerationDays":14,"downvoteRegenerationDays":14,"stakedRewardPercentage":50,"votePowerConsumption":200,"downvotePowerConsumption":2000,"tags":["scottest"]},"pendingClaims":"14.6666666666","active":true}');
 
       resolve();
     })

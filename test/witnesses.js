@@ -1374,7 +1374,7 @@ describe('witnesses', function () {
       });
   });
 
-  it.only('generates a new schedule once the current one is completed', (done) => {
+  it('generates a new schedule once the current one is completed', (done) => {
     new Promise(async (resolve) => {
       
       await fixture.setUp();
@@ -1625,7 +1625,7 @@ describe('witnesses', function () {
 
       params = res;
 
-      assert.equal(JSON.stringify(params), '{"_id":1,"totalApprovalWeight":"3000.00000","numberOfApprovedWitnesses":30,"lastVerifiedBlockNumber":1,"round":1,"lastBlockRound":6,"currentWitness":"witness29","blockNumberWitnessChange":42,"lastWitnesses":["witness33","witness29"],"numberOfApprovalsPerAccount":30,"numberOfTopWitnesses":4,"numberOfWitnessSlots":5,"witnessSignaturesRequired":14,"maxRoundsMissedInARow":3,"maxRoundPropositionWaitingPeriod":20}');
+      assert.equal(JSON.stringify(params), '{"_id":1,"totalApprovalWeight":"3000.00000","numberOfApprovedWitnesses":30,"lastVerifiedBlockNumber":1,"round":1,"lastBlockRound":6,"currentWitness":"witness29","blockNumberWitnessChange":42,"lastWitnesses":["witness33","witness29"],"numberOfApprovalsPerAccount":30,"numberOfTopWitnesses":4,"numberOfWitnessSlots":5,"witnessSignaturesRequired":3,"maxRoundsMissedInARow":3,"maxRoundPropositionWaitingPeriod":20}');
 
       let schedule = await fixture.database.find({
           contract: 'witnesses',
@@ -1643,7 +1643,7 @@ describe('witnesses', function () {
       });
   });
 
-  it.only('update params', (done) => {
+  it('update params', (done) => {
     new Promise(async (resolve) => {
       
       await fixture.setUp();

@@ -38,18 +38,15 @@ actions.createSSC = async () => {
       currentWitness: null,
       blockNumberWitnessChange: 0,
       lastWitnesses: [],
+      numberOfApprovalsPerAccount: NB_APPROVALS_ALLOWED,
+      numberOfTopWitnesses: NB_TOP_WITNESSES,
+      numberOfWitnessSlots: NB_WITNESSES,
+      witnessSignaturesRequired: NB_WITNESSES_SIGNATURES_REQUIRED,
+      maxRoundsMissedInARow: MAX_ROUNDS_MISSED_IN_A_ROW,
+      maxRoundPropositionWaitingPeriod: MAX_ROUND_PROPOSITION_WAITING_PERIOD,
     };
 
     await api.db.insert('params', params);
-  } else {
-    const params = await api.db.findOne('params', {});
-    params.numberOfApprovalsPerAccount = NB_APPROVALS_ALLOWED;
-    params.numberOfTopWitnesses = NB_TOP_WITNESSES;
-    params.numberOfWitnessSlots = NB_WITNESSES;
-    params.witnessSignaturesRequired = NB_WITNESSES_SIGNATURES_REQUIRED;
-    params.maxRoundsMissedInARow = MAX_ROUNDS_MISSED_IN_A_ROW;
-    params.maxRoundPropositionWaitingPeriod = MAX_ROUND_PROPOSITION_WAITING_PERIOD;
-    await api.db.update('params', params);
   }
 };
 
@@ -68,6 +65,49 @@ actions.resetSchedule = async () => {
   params.blockNumberWitnessChange = 0;
   params.lastWitnesses = [];
   await api.db.update('params', params);
+};
+
+actions.updateParams = async (payload) => {
+  if (api.sender !== api.owner) return;
+
+  const {
+    numberOfApprovalsPerAccount,
+    numberOfTopWitnesses,
+    numberOfWitnessSlots,
+    witnessSignaturesRequired,
+    maxRoundsMissedInARow,
+    maxRoundPropositionWaitingPeriod,
+  } = payload;
+
+  const params = await api.db.findOne('params', {});
+  let shouldResetSchedule = false;
+
+  if (numberOfApprovalsPerAccount && Number.isInteger(numberOfApprovalsPerAccount)) {
+    params.numberOfApprovalsPerAccount = numberOfApprovalsPerAccount;
+  }
+  if (numberOfTopWitnesses && Number.isInteger(numberOfTopWitnesses)) {
+    params.numberOfTopWitnesses = numberOfTopWitnesses;
+  }
+  if (numberOfWitnessSlots && Number.isInteger(numberOfWitnessSlots) && params.numberOfWitnessSlots !== numberOfWitnessSlots) {
+    shouldResetSchedule = true;
+    params.numberOfWitnessSlots = numberOfWitnessSlots;
+  }
+  if (witnessSignaturesRequired && Number.isInteger(witnessSignaturesRequired)) {
+    params.witnessSignaturesRequired = witnessSignaturesRequired;
+  }
+  if (maxRoundsMissedInARow && Number.isInteger(maxRoundsMissedInARow)) {
+    params.maxRoundsMissedInARow = maxRoundsMissedInARow;
+  }
+  if (maxRoundPropositionWaitingPeriod && Number.isInteger(maxRoundPropositionWaitingPeriod)) {
+    params.maxRoundPropositionWaitingPeriod = maxRoundPropositionWaitingPeriod;
+  }
+  if (!api.assert(params.numberOfTopWitnesses + 1 === params.numberOfWitnessSlots, 'only 1 backup allowed')) {
+    return;
+  }
+  await api.db.update('params', params);
+  if (shouldResetSchedule) {
+    await actions.resetSchedule();
+  }
 };
 
 const updateWitnessRank = async (witness, approvalWeight) => {
@@ -674,8 +714,7 @@ actions.proposeRound = async (payload) => {
   const schedules = await api.db.find('schedules', { round });
 
   const numberOfWitnessSlots = schedules.length;
-  // Directly use params after transition to 11 witnesses.
-  const witnessSignaturesRequired = numberOfWitnessSlots > 7 ? params.witnessSignaturesRequired : 5;
+  const witnessSignaturesRequired = params.witnessSignaturesRequired;
 
   if (isSignedWithActiveKey === true
     && roundHash && typeof roundHash === 'string' && roundHash.length === 64

@@ -1,6 +1,6 @@
 /* eslint-disable */
 const { fork } = require('child_process');
-const assert = require('assert');
+const assert = require('assert').strict;
 const { MongoClient } = require('mongodb');
 const dhive = require('@hiveio/dhive');
 const SHA256 = require('crypto-js/sha256');
@@ -13,6 +13,7 @@ const { Transaction } = require('../libs/Transaction');
 const { setupContractPayload } = require('../libs/util/contractUtil');
 const { Fixture, conf } = require('../libs/util/testing/Fixture');
 const { TableAsserts } = require('../libs/util/testing/TableAsserts');
+const { assertError } = require('../libs/util/testing/Asserts');
 
 // Will replace contract locally.
 const NB_WITNESSES = 5;
@@ -37,9 +38,7 @@ const miningContractPayload = setupContractPayload('mining', './contracts/mining
 const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
 const nftauctionContractPayload = setupContractPayload('nftauction', './contracts/nftauction.js');
 const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js',
-    (contractCode) => contractCode.replace(/NB_TOP_WITNESSES = .*;/, 'NB_TOP_WITNESSES = 4;').replace(/MAX_ROUND_PROPOSITION_WAITING_PERIOD = .*;/, 'MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20;'));
-// Contract where top witnesses is 21 with 14 signatures required.
-const witnessesContract21Payload = setupContractPayload('witnesses', './contracts/witnesses.js');
+    (contractCode) => contractCode.replace(/NB_TOP_WITNESSES = .*;/, 'NB_TOP_WITNESSES = 4;').replace(/MAX_ROUND_PROPOSITION_WAITING_PERIOD = .*;/, 'MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20;').replace(/NB_WITNESSES_SIGNATURES_REQUIRED = .*;/, 'NB_WITNESSES_SIGNATURES_REQUIRED = 3;'));
 
 function addGovernanceTokenTransactions(fixture, transactions, blockNumber) {
     transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', `{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "precision": 5, "maxSupply": "10000000", "isSignedWithActiveKey": true }`));
@@ -1197,7 +1196,6 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       addGovernanceTokenTransactions(fixture, transactions, 37899120);
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), 'null', 'tokens', 'issueToContract', `{ "to": "witnesses", "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "quantity": "1000", "isSignedWithActiveKey": true, "callingContractInfo": { "name": "mining" } }`));
@@ -1251,33 +1249,44 @@ describe('witnesses', function () {
         await fixture.sendBlock(block);
       }
 
-      // Deploy update to consensus mid block, but make sure the current round still functions as before.
+      // Change witnesses number mid block, which will reset the schedule.
       transactions = [];
-      transactions.push(new Transaction(100000010, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContract21Payload)));
+      transactions.push(new Transaction(100000005, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'updateParams', '{"numberOfTopWitnesses": 20, "numberOfWitnessSlots": 21, "witnessSignaturesRequired": 14}'));
       block = {
-        refHiveBlockNumber: 100000010,
+        refHiveBlockNumber: 100000005,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:10',
+        timestamp: '2018-06-01T00:00:05',
         transactions,
       };
 
       await fixture.sendBlock(block);
       await tableAsserts.assertNoErrorInLastBlock();
 
-      let res = await fixture.database.findOne({
+      let params = await fixture.database.findOne({
           contract: 'witnesses',
           table: 'params',
-          query: {
-            
-          }
+          query: {}
         });
 
-      let params = res;
+      assert.equal(params.numberOfWitnessSlots, 21);
+      assert.equal(params.witnessSignaturesRequired, 14);
 
-      // Params show different than current round as we updated mid round.
-      assert(params.numberOfWitnessSlots === 21);
-      assert(params.witnessSignaturesRequired === 14);
+      // generate enough blocks to get to 21
+      for (let i = NB_WITNESSES + 1; i < 21; i++) {
+        transactions = [];
+        // send whatever transaction;
+        transactions.push(new Transaction(100000000 + i, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+        block = {
+          refHiveBlockNumber: 100000000 + i,
+          refHiveBlockId: 'ABCD1',
+          prevRefHiveBlockId: 'ABCD2',
+          timestamp: `2018-06-01T00:00:0${i}`,
+          transactions,
+        };
+
+        await fixture.sendBlock(block);
+      }
 
       let blockNum = params.lastVerifiedBlockNumber + 1;
       let endBlockRound = params.lastBlockRound;
@@ -1314,7 +1323,7 @@ describe('witnesses', function () {
       });
 
       let json = {
-        round: 1,
+        round: 2,
         roundHash: calculatedRoundHash,
         signatures,
         isSignedWithActiveKey: true,
@@ -1344,7 +1353,7 @@ describe('witnesses', function () {
 
         const blockFromNode = queryRes;
         const wif = dhive.PrivateKey.fromLogin(blockFromNode.witness, 'testnet', 'active');
-        assert.equal(blockFromNode.round, 1);
+        assert.equal(blockFromNode.round, 2);
         assert.equal(blockFromNode.witness, schedules[schedules.length - 1].witness);
         assert.equal(blockFromNode.roundHash, calculatedRoundHash);
         assert.equal(blockFromNode.signingKey, wif.createPublic().toString());
@@ -1357,107 +1366,6 @@ describe('witnesses', function () {
         await tableAsserts.assertUserBalances({ account: schedules[i].witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0.00951293", stake: "0"});
       }
 
-      // This round uses the updated 21 witnesses
-      for (let i = 1; i < 21; i++) {
-        transactions = [];
-        // send whatever transaction;
-        transactions.push(new Transaction(110000000 + i, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
-        block = {
-          refHiveBlockNumber: 110000000 + i,
-          refHiveBlockId: 'ABCD1',
-          prevRefHiveBlockId: 'ABCD2',
-          timestamp: '2018-06-01T00:01:00',
-          transactions,
-        };
-
-        await fixture.sendBlock(block);
-      } 
-
-      res = await fixture.database.findOne({
-        contract: 'witnesses',
-        table: 'params',
-        query: {}
-      });
-
-      params = res;
-
-      blockNum = params.lastVerifiedBlockNumber + 1;
-      endBlockRound = params.lastBlockRound;
-
-      calculatedRoundHash = '';
-      // calculate round hash
-      while (blockNum <= endBlockRound) {
-        // get the block from the current node
-        const queryRes = await fixture.database.getBlockInfo(blockNum);
-
-        const blockFromNode = queryRes;
-        if (blockFromNode !== null) {
-          calculatedRoundHash = SHA256(`${calculatedRoundHash}${blockFromNode.hash}`).toString(enchex);
-        }
-        blockNum += 1;
-      }
-      
-      res = await fixture.database.find({
-          contract: 'witnesses',
-          table: 'schedules',
-          query: {
-            
-          }
-        });
-
-      schedules = res;
-      assert(schedules.length === 21);
-
-      signatures = [];
-      schedules.slice(0, 14).forEach(schedule => {
-        const wif = dhive.PrivateKey.fromLogin(schedule.witness, 'testnet', 'active');
-        const sig = signPayload(wif, calculatedRoundHash, true)
-        signatures.push([schedule.witness, sig])
-      });
-      const wif = dhive.PrivateKey.fromLogin(params.currentWitness, 'testnet', 'active');
-      const sig = signPayload(wif, calculatedRoundHash, true)
-      signatures.push([params.currentWitness, sig])
-
-      json = {
-        round: 2,
-        roundHash: calculatedRoundHash,
-        signatures,
-        isSignedWithActiveKey: true,
-      };
-
-      transactions = [];
-      transactions.push(new Transaction(120000000, fixture.getNextTxId(), params.currentWitness, 'witnesses', 'proposeRound', JSON.stringify(json)));
-
-      block = {
-        refHiveBlockNumber: 120000000,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:02:00',
-        transactions,
-      };
-
-      await fixture.sendBlock(block);
-      await tableAsserts.assertNoErrorInLastBlock();
-
-      blockNum = params.lastVerifiedBlockNumber + 1;
-
-      // check if the blocks are now marked as verified
-      i = 0;
-      while (blockNum <= endBlockRound) {
-        // get the block from the current node
-        const queryRes = await fixture.database.getBlockInfo(blockNum);
-
-        const blockFromNode = queryRes;
-        const wif = dhive.PrivateKey.fromLogin(blockFromNode.witness, 'testnet', 'active');
-        assert.equal(blockFromNode.round, 2);
-        assert.equal(blockFromNode.witness, schedules[schedules.length - 1].witness);
-        assert.equal(blockFromNode.roundHash, calculatedRoundHash);
-        assert.equal(blockFromNode.signingKey, wif.createPublic().toString());
-        assert.equal(blockFromNode.roundSignature, signatures[signatures.length - 1][1]);
-        blockNum += 1;
-        i +=1;
-      }
-
       resolve();
     })
       .then(() => {
@@ -1466,29 +1374,29 @@ describe('witnesses', function () {
       });
   });
 
-  it('generates a new schedule once the current one is completed', (done) => {
+  it.only('generates a new schedule once the current one is completed', (done) => {
     new Promise(async (resolve) => {
       
       await fixture.setUp();
       let transactions = [];
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
-      addGovernanceTokenTransactions(fixture, transactions, 37899120);
-      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
+      addGovernanceTokenTransactions(fixture, transactions, refBlockNumber);
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
 
       // register 100 witnesses
       for (let index = 0; index < 100; index++) {
         const witnessAccount = `witness${index}`;
         const wif = dhive.PrivateKey.fromLogin(witnessAccount, 'testnet', 'active');
-        transactions.push(new Transaction(37899120, fixture.getNextTxId(), witnessAccount, 'witnesses', 'register', `{ "IP": "123.123.123.${index}", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "${wif.createPublic().toString()}", "enabled": true, "isSignedWithActiveKey": true }`));
+        transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), witnessAccount, 'witnesses', 'register', `{ "IP": "123.123.123.${index}", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "${wif.createPublic().toString()}", "enabled": true, "isSignedWithActiveKey": true }`));
       }
 
       let block = {
-        refHiveBlockNumber: 37899120,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -1499,12 +1407,13 @@ describe('witnesses', function () {
       await tableAsserts.assertNoErrorInLastBlock();
 
       transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
       for (let index = 0; index < 30; index++) {
-        transactions.push(new Transaction(37899121, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "witness${index + 5}", "isSignedWithActiveKey": true }`));
+        transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'approve', `{ "witness": "witness${index + 5}", "isSignedWithActiveKey": true }`));
       }
 
       block = {
-        refHiveBlockNumber: 99999999,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
@@ -1518,11 +1427,12 @@ describe('witnesses', function () {
       for (let i = 1; i < NB_WITNESSES; i++) {
         transactions = [];
         // send whatever transaction;
-        transactions.push(new Transaction(37899122 +i, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+        refBlockNumber = fixture.getNextRefBlockNumber();
+        transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
         block = {
-          refHiveBlockNumber: 99999999 + i,
-          refHiveBlockId: `ABCD123${i}`,
-          prevRefHiveBlockId: `ABCD123${i - 1}`,
+          refHiveBlockNumber: refBlockNumber,
+          refHiveBlockId: `ABCD1234`,
+          prevRefHiveBlockId: `ABCD1233`,
           timestamp: `2018-06-01T00:00:0${i}`,
           transactions,
         };
@@ -1530,15 +1440,13 @@ describe('witnesses', function () {
         await fixture.sendBlock(block);
       } 
 
-      let res = await fixture.database.findOne({
+      let params = await fixture.database.findOne({
           contract: 'witnesses',
           table: 'params',
-          query: {
-            
-          }
+          query: {}
         });
 
-      let params = res;
+        console.log(params);
 
       let blockNum = params.lastVerifiedBlockNumber + 1;
       const endBlockRound = params.lastBlockRound;
@@ -1556,21 +1464,17 @@ describe('witnesses', function () {
         blockNum += 1;
       }
       
-      res = await fixture.database.find({
+      const schedule = await fixture.database.find({
           contract: 'witnesses',
           table: 'schedules',
-          query: {
-            
-          }
+          query: {}
         });
 
-      let schedules = res;
-
       const signatures = [];
-      schedules.forEach(schedule => {
-        const wif = dhive.PrivateKey.fromLogin(schedule.witness, 'testnet', 'active');
+      schedule.forEach(scheduleItem => {
+        const wif = dhive.PrivateKey.fromLogin(scheduleItem.witness, 'testnet', 'active');
         const sig = signPayload(wif, calculatedRoundHash, true)
-        signatures.push([schedule.witness, sig])
+        signatures.push([scheduleItem.witness, sig])
       });
 
       const json = {
@@ -1579,66 +1483,47 @@ describe('witnesses', function () {
         signatures,
         isSignedWithActiveKey: true,
       };
+        console.log(json);
 
       transactions = [];
-      transactions.push(new Transaction(38899122, fixture.getNextTxId(), params.currentWitness, 'witnesses', 'proposeRound', JSON.stringify(json)));
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), params.currentWitness, 'witnesses', 'proposeRound', JSON.stringify(json)));
 
       block = {
-        refHiveBlockNumber: 110000000,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
+        timestamp: '2018-06-02T00:00:00',
         transactions,
       };
 
       await fixture.sendBlock(block);
       await tableAsserts.assertNoErrorInLastBlock();
 
-      res = await fixture.database.find({
+      const newSchedule = await fixture.database.find({
           contract: 'witnesses',
           table: 'schedules',
-          query: {
-            
-          }
+          query: {}
         });
 
-      let schedule = res;
+      assert.equal(newSchedule.length, schedule.length);
+      for (let i = 0; i < newSchedule.length; i += 1) {
+        assert.equal(newSchedule[i].blockNumber, schedule.length + 2 + i);
+        assert.equal(newSchedule[i].round, 2);
+      }
+      assert(newSchedule[0].witness !== schedule[schedule.length - 1].witness);
 
-      assert.equal(schedule[0].witness, "witness31");
-      assert.equal(schedule[0].blockNumber, 7);
-      assert.equal(schedule[0].round, 2);
-
-      assert.equal(schedule[1].witness, "witness33");
-      assert.equal(schedule[1].blockNumber, 8);
-      assert.equal(schedule[1].round, 2);
-
-      assert.equal(schedule[2].witness, "witness25");
-      assert.equal(schedule[2].blockNumber, 9);
-      assert.equal(schedule[2].round, 2);
-
-      assert.equal(schedule[3].witness, "witness32");
-      assert.equal(schedule[3].blockNumber, 10);
-      assert.equal(schedule[3].round, 2);
-
-      assert.equal(schedule[4].witness, "witness34");
-      assert.equal(schedule[4].blockNumber, 11);
-      assert.equal(schedule[4].round, 2);
-
-      res = await fixture.database.findOne({
+      params = await fixture.database.findOne({
           contract: 'witnesses',
           table: 'params',
-          query: {
-            
-          }
+          query: {}
         });
-
-      params = res;
 
       assert.equal(params.totalApprovalWeight, '3000.00000');
       assert.equal(params.numberOfApprovedWitnesses, 30);
       assert.equal(params.lastVerifiedBlockNumber, 6);
-      assert.equal(params.currentWitness, 'witness34');
-      assert.equal(params.lastWitnesses.includes('witness34'), true);
+      assert.equal(params.currentWitness, newSchedule[newSchedule.length - 1].witness);
+      assert(params.lastWitnesses.includes(newSchedule[newSchedule.length - 1].witness));
       assert.equal(params.round, 2);
       assert.equal(params.lastBlockRound, 11);
       
@@ -1717,10 +1602,10 @@ describe('witnesses', function () {
       // generate 20 blocks
       for (let index = 30; index < 51; index++) {
         transactions = [];
-        transactions.push(new Transaction(100000000 + index, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+        transactions.push(new Transaction(100000001 + index, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
 
         block = {
-          refHiveBlockNumber: 100000000 + index,
+          refHiveBlockNumber: 100000001 + index,
           refHiveBlockId: 'ABCD1',
           prevRefHiveBlockId: 'ABCD2',
           timestamp: '2018-07-14T00:02:00',
@@ -1730,7 +1615,7 @@ describe('witnesses', function () {
         await fixture.sendBlock(block);
       }
 
-      res = await fixture.database.findOne({
+        res = await fixture.database.findOne({
           contract: 'witnesses',
           table: 'params',
           query: {
@@ -1740,13 +1625,109 @@ describe('witnesses', function () {
 
       params = res;
 
-      assert.equal(params.totalApprovalWeight, '3000.00000');
-      assert.equal(params.numberOfApprovedWitnesses, 30);
-      assert.equal(params.lastVerifiedBlockNumber, 1);
-      assert.equal(params.currentWitness, 'witness27');
-      assert.equal(params.lastWitnesses.includes('witness27'), true);
-      assert.equal(params.round, 1);
-      assert.equal(params.lastBlockRound, 6);
+      assert.equal(JSON.stringify(params), '{"_id":1,"totalApprovalWeight":"3000.00000","numberOfApprovedWitnesses":30,"lastVerifiedBlockNumber":1,"round":1,"lastBlockRound":6,"currentWitness":"witness29","blockNumberWitnessChange":42,"lastWitnesses":["witness33","witness29"],"numberOfApprovalsPerAccount":30,"numberOfTopWitnesses":4,"numberOfWitnessSlots":5,"witnessSignaturesRequired":14,"maxRoundsMissedInARow":3,"maxRoundPropositionWaitingPeriod":20}');
+
+      let schedule = await fixture.database.find({
+          contract: 'witnesses',
+          table: 'schedules',
+          query: {}
+      });
+
+      assert.equal(JSON.stringify(schedule), '[{"_id":1,"witness":"witness31","blockNumber":2,"round":1},{"_id":2,"witness":"witness32","blockNumber":3,"round":1},{"_id":3,"witness":"witness30","blockNumber":4,"round":1},{"_id":4,"witness":"witness34","blockNumber":5,"round":1},{"_id":5,"witness":"witness29","blockNumber":6,"round":1}]');
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it.only('update params', (done) => {
+    new Promise(async (resolve) => {
+      
+      await fixture.setUp();
+      let transactions = [];
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
+      addGovernanceTokenTransactions(fixture, transactions, refBlockNumber);
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'stake', `{ "to": "${CONSTANTS.HIVE_ENGINE_ACCOUNT}", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "100", "isSignedWithActiveKey": true }`));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      let params = await fixture.database.findOne({
+          contract: 'witnesses',
+          table: 'params',
+          query: {}
+        });
+
+      assert.equal(JSON.stringify(params), '{"_id":1,"totalApprovalWeight":"0","numberOfApprovedWitnesses":0,"lastVerifiedBlockNumber":0,"round":0,"lastBlockRound":0,"currentWitness":null,"blockNumberWitnessChange":0,"lastWitnesses":[],"numberOfApprovalsPerAccount":30,"numberOfTopWitnesses":4,"numberOfWitnessSlots":5,"witnessSignaturesRequired":3,"maxRoundsMissedInARow":3,"maxRoundPropositionWaitingPeriod":20}');
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'updateParams', '{"totalApprovalWeight":"1","numberOfApprovedWitnesses":1,"lastVerifiedBlockNumber":1,"round":1,"lastBlockRound":1,"currentWitness":"ignore","blockNumberWitnessChange":1,"lastWitnesses":["ignore"],"maxRoundPropositionWaitingPeriod":21,"maxRoundsMissedInARow":4,"numberOfApprovalsPerAccount":31,"numberOfTopWitnesses":5,"numberOfWitnessSlots":6,"witnessSignaturesRequired":16}'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      params = await fixture.database.findOne({
+          contract: 'witnesses',
+          table: 'params',
+          query: {}
+        });
+
+      const paramsString = '{"_id":1,"totalApprovalWeight":"0","numberOfApprovedWitnesses":0,"lastVerifiedBlockNumber":0,"round":0,"lastBlockRound":0,"currentWitness":null,"blockNumberWitnessChange":0,"lastWitnesses":[],"numberOfApprovalsPerAccount":31,"numberOfTopWitnesses":5,"numberOfWitnessSlots":6,"witnessSignaturesRequired":16,"maxRoundsMissedInARow":4,"maxRoundPropositionWaitingPeriod":21}';
+      assert.equal(JSON.stringify(params), paramsString);
+
+      // Verify 1 backup witness condition in setting
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'witnesses', 'updateParams', '{"totalApprovalWeight":"2","numberOfApprovedWitnesses":2,"lastVerifiedBlockNumber":2,"round":2,"lastBlockRound":2,"currentWitness":"ignore","blockNumberWitnessChange":2,"lastWitnesses":["ignore"],"maxRoundPropositionWaitingPeriod":22,"maxRoundsMissedInARow":5,"numberOfApprovalsPerAccount":32,"numberOfTopWitnesses":6,"numberOfWitnessSlots":6,"witnessSignaturesRequired":17}'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      let res = await fixture.database.getLatestBlockInfo();
+      let txs = res.transactions;
+      assertError(txs[0], 'only 1 backup allowed');
+
+      params = await fixture.database.findOne({
+          contract: 'witnesses',
+          table: 'params',
+          query: {}
+        });
+
+      // unchanged from above
+      assert.equal(JSON.stringify(params), paramsString);
 
       resolve();
     })

@@ -299,7 +299,7 @@ const manageRoundProposition = async () => {
     // check if this witness is part of the round
     const witnessFound = schedules.find(w => w.witness === WITNESS_ACCOUNT);
 
-    const witnessSignaturesRequired = params.witnessSignaturesRequired;
+    const { witnessSignaturesRequired } = params;
 
     if (witnessFound !== undefined
       && lastProposedRound === null

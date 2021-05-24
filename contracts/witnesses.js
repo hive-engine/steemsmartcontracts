@@ -88,7 +88,8 @@ actions.updateParams = async (payload) => {
   if (numberOfTopWitnesses && Number.isInteger(numberOfTopWitnesses)) {
     params.numberOfTopWitnesses = numberOfTopWitnesses;
   }
-  if (numberOfWitnessSlots && Number.isInteger(numberOfWitnessSlots) && params.numberOfWitnessSlots !== numberOfWitnessSlots) {
+  if (numberOfWitnessSlots && Number.isInteger(numberOfWitnessSlots)
+      && params.numberOfWitnessSlots !== numberOfWitnessSlots) {
     shouldResetSchedule = true;
     params.numberOfWitnessSlots = numberOfWitnessSlots;
   }
@@ -714,7 +715,7 @@ actions.proposeRound = async (payload) => {
   const schedules = await api.db.find('schedules', { round });
 
   const numberOfWitnessSlots = schedules.length;
-  const witnessSignaturesRequired = params.witnessSignaturesRequired;
+  const { witnessSignaturesRequired } = params;
 
   if (isSignedWithActiveKey === true
     && roundHash && typeof roundHash === 'string' && roundHash.length === 64

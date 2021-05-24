@@ -20,7 +20,7 @@ actions.createSSC = async () => {
 
     const params = {
       setupFee: '1000',
-      updateFee: '100',
+      updateFee: '20',
       maxPoolsPerPost: 20,
       maxTagsPerPool: 5,
       maintenanceTokensPerAction: 1,
@@ -148,7 +148,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion) {
     rewardPoolId,
   } = post;
   let offset = 0;
-  let votesToPayout = await api.db.find('votes', { authorperm, symbol, rewardPoolId }, 1000, offset, [{ index: 'byTimestamp', descending: false }, { index: '_id', descending: false }]);
+  let votesToPayout = await api.db.find('votes', { authorperm, symbol, rewardPoolId }, 1000, offset, [{ index: 'byTimestamp', descending: false }]);
   while (votesToPayout.length > 0) {
     for (let i = 0; i < votesToPayout.length; i += 1) {
       const vote = votesToPayout[i];
@@ -169,7 +169,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion) {
       break;
     }
     offset += 1000;
-    votesToPayout = await api.db.find('votes', { authorperm, symbol }, 1000, offset, [{ index: 'byTimestamp', descending: false }, { index: '_id', descending: false }]);
+    votesToPayout = await api.db.find('votes', { authorperm, symbol }, 1000, offset, [{ index: 'byTimestamp', descending: false }]);
   }
 }
 
@@ -257,7 +257,7 @@ async function computePostRewards(params, rewardPool, token) {
     },
     maxPostsProcessedPerRound,
     0,
-    [{ index: 'byCashoutTime', descending: false }, { index: '_id', descending: false }]);
+    [{ index: 'byCashoutTime', descending: false }]);
   if (postsToPayout) {
     newPendingClaims = api.BigNumber(newPendingClaims).plus(
       postsToPayout.reduce((x, y) => x.plus(calculateWeightRshares(rewardPool, y.voteRshareSum)),

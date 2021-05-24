@@ -174,6 +174,9 @@ class Block {
     if (this.refHiveBlockNumber >= 48664773) {
       virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
     }
+    if (this.refHiveBlockNumber >= 52494020) {
+      virtualTransactions.push(new Transaction(0, '', 'null', 'nftauction', 'updateAuctions', ''));
+    }
 
     if (this.refHiveBlockNumber >= 51022551) {
       virtualTransactions
@@ -223,6 +226,10 @@ class Block {
           // don't save logs
         } else if (transaction.contract === 'airdrops'
           && transaction.action === 'checkPendingAirdrops'
+          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+          // don't save logs
+        } else if (transaction.contract === 'nftauction'
+          && transaction.action === 'updateAuctions'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
         } else if (transaction.contract === 'tokenfunds'

@@ -6,6 +6,13 @@ const SMT_PRECISION = 10;
 const MAX_VOTING_POWER = 10000;
 const MAX_WEIGHT = 10000;
 
+function assertWithLogSuppression(condition) {
+  // Using this error message to suppress excessive transaction logging
+  // Note if there are other logs, e.g. from token maintenance, then
+  // the operation will be recorded.
+  return api.assert(condition, 'contract doesn\'t exist');
+}
+
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('rewardPools');
   if (tableExists === false) {
@@ -617,7 +624,6 @@ actions.comment = async (payload) => {
     permlink,
     rewardPools,
   } = payload;
-
   await tokenMaintenance();
   // Node enforces author / permlinks from Hive. Check that sender is null.
   if (!api.assert(api.sender === 'null', 'action must use comment operation')) return;
@@ -628,12 +634,13 @@ actions.comment = async (payload) => {
 
   // Validate that comment is not an edit (cannot add multiple pools)
   const existingPost = await api.db.findOne('posts', { authorperm });
-  if (existingPost) {
+  if (!assertWithLogSuppression(!existingPost)) {
     return;
   }
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
+  let isActive = false;
   for (let i = 0; i < rewardPoolIds.length; i += 1) {
     const rewardPoolId = rewardPoolIds[i];
     const rewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
@@ -652,8 +659,10 @@ actions.comment = async (payload) => {
       };
       await api.db.insert('posts', post);
       api.emit('newComment', { rewardPoolId, symbol: rewardPool.symbol });
+      isActive = true;
     }
   }
+  assertWithLogSuppression(isActive);
 };
 
 actions.commentOptions = async (payload) => {
@@ -669,7 +678,8 @@ actions.commentOptions = async (payload) => {
   const authorperm = `@${author}/${permlink}`;
 
   const existingPosts = await api.db.find('posts', { authorperm });
-  if (!existingPosts) {
+
+  if (!assertWithLogSuppression(existingPosts && existingPosts.length > 0)) {
     return;
   }
 
@@ -691,13 +701,13 @@ async function processVote(post, voter, weight, timestamp) {
   } = post;
 
   if (cashoutTime < timestamp) {
-    return;
+    return false;
   }
 
   // check voting power, stake, and current vote rshares.
   const rewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
   if (!rewardPool || !rewardPool.active) {
-    return;
+    return false;
   }
 
   let votingPower = await api.db.findOne('votingPower', { rewardPoolId, account: voter });
@@ -817,6 +827,7 @@ async function processVote(post, voter, weight, timestamp) {
     }
   }
   await api.db.update('posts', post);
+  return true;
 }
 
 actions.vote = async (payload) => {
@@ -839,9 +850,14 @@ actions.vote = async (payload) => {
   // Can only return params.maxPoolsPerPost (<1000) posts
   const posts = await api.db.find('posts', { authorperm });
 
-  if (!posts) return;
+  if (!assertWithLogSuppression(posts && posts.length > 0)) return;
+
+  let isActive = false;
   for (let i = 0; i < posts.length; i += 1) {
     const post = posts[i];
-    await processVote(post, voter, weight, timestamp);
+    if (await processVote(post, voter, weight, timestamp)) {
+        isActive = true;
+    }
   }
+  assertWithLogSuppression(isActive);
 };

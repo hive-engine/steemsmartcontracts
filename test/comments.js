@@ -585,6 +585,8 @@ describe('comments', function () {
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": false, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'commentOptions', '{ "author": "author1", "permlink": "test2", "maxAcceptedPayout": "0.000 HBD", "beneficiaries": [{"account": "bene1", "weight": 5000}, {"account": "bene2", "weight": 1}]}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -597,14 +599,15 @@ describe('comments', function () {
 
       await fixture.sendBlock(block);
       res = await fixture.database.getLatestBlockInfo();
-      await tableAsserts.assertNoErrorInLastBlock();
 
       // no issue event
-      assert.equal(res.transactions[0].logs, "{}");
+      assert.equal(res.transactions[0].logs, '{}');
       // no newComment event
-      assert.equal(res.transactions[1].logs, "{}");
+      assert.equal(res.transactions[1].logs, '{"errors":["contract doesn\'t exist"]}');
+      // no comment options event
+      assert.equal(res.transactions[2].logs, '{"errors":["contract doesn\'t exist"]}');
       // no newVote event
-      assert.equal(res.transactions[2].logs, "{}");
+      assert.equal(res.transactions[3].logs, '{"errors":["contract doesn\'t exist"]}');
 
       rewardPool = await fixture.database.findOne({ contract: 'comments', table: 'rewardPools', query: { _id: 1}});
       assert.equal(JSON.stringify(rewardPool), '{"_id":1,"symbol":"TKN","rewardPool":"0","lastRewardTimestamp":1527811200000,"lastPostRewardTimestamp":1527811200000,"lastClaimDecayTimestamp":1527811200000,"createdTimestamp":1527811200000,"config":{"postRewardCurve":"power","postRewardCurveParameter":"1","curationRewardCurve":"power","curationRewardCurveParameter":"0.5","curationRewardPercentage":50,"cashoutWindowDays":7,"rewardPerInterval":"1.5","rewardIntervalSeconds":3,"voteRegenerationDays":14,"downvoteRegenerationDays":14,"stakedRewardPercentage":50,"votePowerConsumption":200,"downvotePowerConsumption":2000,"tags":["scottest"]},"pendingClaims":"0","active":false}');
@@ -991,11 +994,10 @@ describe('comments', function () {
 
       await fixture.sendBlock(block);
       res = await fixture.database.getLatestBlockInfo();
-      await tableAsserts.assertNoErrorInLastBlock();
 
       assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'authorReward' && ev.data.authorperm === '@author1/test1')), '{"contract":"comments","event":"authorReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"author1","quantity":"0.00000000"}}');
       // no record for late vote
-      assert.equal(res.transactions[1].logs, "{}");
+      assert.equal(res.transactions[1].logs, "{\"errors\":[\"contract doesn't exist\"]}");
       let vp = await fixture.database.findOne({ contract: 'comments', table: 'votingPower', query: { account: 'voter1', rewardPoolId: 1}});
       assert(vp == null);
 
@@ -1472,8 +1474,10 @@ describe('comments', function () {
       };
 
       await fixture.sendBlock(block);
-      await tableAsserts.assertNoErrorInLastBlock();
+
       let res = await fixture.database.getLatestBlockInfo();
+
+      assert.equal(res.transactions[3].logs, '{"errors":["contract doesn\'t exist"]}');
 
       let vp = await fixture.database.findOne({ contract: 'comments', table: 'votingPower', query: { account: 'voter1', rewardPoolId: 1}});
       assert.equal(JSON.stringify(vp), '{"_id":{"rewardPoolId":1,"account":"voter1"},"rewardPoolId":1,"account":"voter1","lastVoteTimestamp":1527811200000,"votingPower":9700,"downvotingPower":10000}');

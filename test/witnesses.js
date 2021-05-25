@@ -35,6 +35,7 @@ const signPayload = (signingKey, payload, isPayloadSHA256 = false) => {
 const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
+const nftauctionContractPayload = setupContractPayload('nftauction', './contracts/nftauction.js');
 const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js',
     (contractCode) => contractCode.replace(/NB_TOP_WITNESSES = .*;/, 'NB_TOP_WITNESSES = 4;').replace(/MAX_ROUND_PROPOSITION_WAITING_PERIOD = .*;/, 'MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20;'));
 // Contract where top witnesses is 21 with 14 signatures required.
@@ -105,6 +106,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.255.123.254", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
@@ -202,6 +204,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(32713425, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899125, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(32713425, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899125, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(32713425, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.234.123.234", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
@@ -380,6 +383,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899121, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899121, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(37899121, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899121, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899121, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.234.123.233", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
@@ -567,6 +571,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899123, fixture.getNextTxId(), 'dan', 'witnesses', 'register', `{ "IP": "123.234.123.233", "RPCPort": 5000, "P2PPort": 6000, "signingKey": "STM7sw22HqsXbz7D2CmJfmMwt9rimtk518dRzsR1f8Cgw52dQR1pR", "enabled": true, "isSignedWithActiveKey": true }`));
@@ -1085,6 +1090,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899128, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899128, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(37899128, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899128, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       addGovernanceTokenTransactions(fixture, transactions, 37899128);
@@ -1135,23 +1141,23 @@ describe('witnesses', function () {
 
       let schedule = res;
 
-      assert.equal(schedule[0].witness, "witness33");
+      assert.equal(schedule[0].witness, "witness34");
       assert.equal(schedule[0].blockNumber, 2);
       assert.equal(schedule[0].round, 1);
 
-      assert.equal(schedule[1].witness, "witness31");
+      assert.equal(schedule[1].witness, "witness33");
       assert.equal(schedule[1].blockNumber, 3);
       assert.equal(schedule[1].round, 1);
 
-      assert.equal(schedule[2].witness, "witness32");
+      assert.equal(schedule[2].witness, "witness27");
       assert.equal(schedule[2].blockNumber, 4);
       assert.equal(schedule[2].round, 1);
 
-      assert.equal(schedule[3].witness, "witness34");
+      assert.equal(schedule[3].witness, "witness31");
       assert.equal(schedule[3].blockNumber, 5);
       assert.equal(schedule[3].round, 1);
 
-      assert.equal(schedule[4].witness, "witness27");
+      assert.equal(schedule[4].witness, "witness32");
       assert.equal(schedule[4].blockNumber, 6);
       assert.equal(schedule[4].round, 1);
 
@@ -1168,8 +1174,8 @@ describe('witnesses', function () {
       assert.equal(params.totalApprovalWeight, '3000.00000');
       assert.equal(params.numberOfApprovedWitnesses, 30);
       assert.equal(params.lastVerifiedBlockNumber, 1);
-      assert.equal(params.currentWitness, 'witness27');
-      assert.equal(params.lastWitnesses.includes('witness27'), true);
+      assert.equal(params.currentWitness, 'witness32');
+      assert.equal(params.lastWitnesses.includes('witness32'), true);
       assert.equal(params.round, 1);
       assert.equal(params.lastBlockRound, 6);
 
@@ -1189,6 +1195,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       addGovernanceTokenTransactions(fixture, transactions, 37899120);
@@ -1467,6 +1474,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       addGovernanceTokenTransactions(fixture, transactions, 37899120);
@@ -1596,23 +1604,23 @@ describe('witnesses', function () {
 
       let schedule = res;
 
-      assert.equal(schedule[0].witness, "witness33");
+      assert.equal(schedule[0].witness, "witness31");
       assert.equal(schedule[0].blockNumber, 7);
       assert.equal(schedule[0].round, 2);
 
-      assert.equal(schedule[1].witness, "witness14");
+      assert.equal(schedule[1].witness, "witness33");
       assert.equal(schedule[1].blockNumber, 8);
       assert.equal(schedule[1].round, 2);
 
-      assert.equal(schedule[2].witness, "witness34");
+      assert.equal(schedule[2].witness, "witness25");
       assert.equal(schedule[2].blockNumber, 9);
       assert.equal(schedule[2].round, 2);
 
-      assert.equal(schedule[3].witness, "witness31");
+      assert.equal(schedule[3].witness, "witness32");
       assert.equal(schedule[3].blockNumber, 10);
       assert.equal(schedule[3].round, 2);
 
-      assert.equal(schedule[4].witness, "witness32");
+      assert.equal(schedule[4].witness, "witness34");
       assert.equal(schedule[4].blockNumber, 11);
       assert.equal(schedule[4].round, 2);
 
@@ -1629,8 +1637,8 @@ describe('witnesses', function () {
       assert.equal(params.totalApprovalWeight, '3000.00000');
       assert.equal(params.numberOfApprovedWitnesses, 30);
       assert.equal(params.lastVerifiedBlockNumber, 6);
-      assert.equal(params.currentWitness, 'witness32');
-      assert.equal(params.lastWitnesses.includes('witness32'), true);
+      assert.equal(params.currentWitness, 'witness34');
+      assert.equal(params.lastWitnesses.includes('witness34'), true);
       assert.equal(params.round, 2);
       assert.equal(params.lastBlockRound, 11);
       
@@ -1650,6 +1658,7 @@ describe('witnesses', function () {
       transactions.push(new Transaction(99999999, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
       transactions.push(new Transaction(99999999, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
       transactions.push(new Transaction(99999999, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(witnessesContractPayload)));
       transactions.push(new Transaction(99999999, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessesContractPayload)));
       addGovernanceTokenTransactions(fixture, transactions, 37899120);
@@ -1700,8 +1709,8 @@ describe('witnesses', function () {
       assert.equal(params.totalApprovalWeight, '3000.00000');
       assert.equal(params.numberOfApprovedWitnesses, 30);
       assert.equal(params.lastVerifiedBlockNumber, 1);
-      assert.equal(params.currentWitness, 'witness34');
-      assert.equal(params.lastWitnesses.includes('witness34'), true);
+      assert.equal(params.currentWitness, 'witness33');
+      assert.equal(params.lastWitnesses.includes('witness33'), true);
       assert.equal(params.round, 1);
       assert.equal(params.lastBlockRound, 6);
 
@@ -1734,8 +1743,8 @@ describe('witnesses', function () {
       assert.equal(params.totalApprovalWeight, '3000.00000');
       assert.equal(params.numberOfApprovedWitnesses, 30);
       assert.equal(params.lastVerifiedBlockNumber, 1);
-      assert.equal(params.currentWitness, 'witness26');
-      assert.equal(params.lastWitnesses.includes('witness26'), true);
+      assert.equal(params.currentWitness, 'witness27');
+      assert.equal(params.lastWitnesses.includes('witness27'), true);
       assert.equal(params.round, 1);
       assert.equal(params.lastBlockRound, 6);
 

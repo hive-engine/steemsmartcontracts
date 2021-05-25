@@ -856,7 +856,7 @@ actions.vote = async (payload) => {
   for (let i = 0; i < posts.length; i += 1) {
     const post = posts[i];
     if (await processVote(post, voter, weight, timestamp)) {
-        isActive = true;
+      isActive = true;
     }
   }
   assertWithLogSuppression(isActive);

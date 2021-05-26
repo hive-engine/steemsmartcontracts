@@ -293,7 +293,7 @@ async function tokenMaintenance() {
   if (lastMaintenanceBlock >= api.blockNumber) {
     return;
   }
-  params.lastMaintenanceBlock = lastMaintenanceBlock;
+  params.lastMaintenanceBlock = api.blockNumber;
 
   const rewardPools = await api.db.find('rewardPools', { active: true, lastClaimDecayTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerBlock, 0, [{ index: 'lastClaimDecayTimestamp', descending: false }]);
   if (rewardPools) {

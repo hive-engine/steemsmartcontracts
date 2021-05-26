@@ -1745,7 +1745,7 @@ describe('comments', function () {
       });
   });
 
-  it('processes maintenanceTokensPerAction per action', (done) => {
+  it('processes maintenanceTokensPerBlock per block', (done) => {
     new Promise(async (resolve) => {
       await fixture.setUp();
       let transactions = [];
@@ -1760,7 +1760,7 @@ describe('comments', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'createRewardPool', '{ "symbol": "ABC", "config": { "postRewardCurve": "power", "postRewardCurveParameter": "2", "curationRewardCurve": "power", "curationRewardCurveParameter": "1", "curationRewardPercentage": 75, "cashoutWindowDays": 6, "rewardPerInterval": "0.5", "rewardIntervalSeconds": 3, "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 300, "downvotePowerConsumption": 1000, "tags":["scottest"] }, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'issue', '{ "symbol": "ABC", "quantity": "1000", "to": "harpagon", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'tokens', 'stake', '{ "symbol": "ABC", "quantity": "50", "to": "voter1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'comments', 'updateParams', '{ "maintenanceTokensPerAction": 1 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'comments', 'updateParams', '{ "maintenanceTokensPerBlock": 1 }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1774,7 +1774,7 @@ describe('comments', function () {
       await tableAsserts.assertNoErrorInLastBlock();
 
       let params = await fixture.database.findOne({ contract: 'comments', table: 'params', query: {}});
-      assert.equal(params.maintenanceTokensPerAction, 1);
+      assert.equal(params.maintenanceTokensPerBlock, 1);
 
       await setUpRewardPool({ postRewardCurveParameter: "1.03", curationRewardCurveParameter: "0.5"});
 

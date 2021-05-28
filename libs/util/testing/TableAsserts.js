@@ -8,7 +8,7 @@ class TableAsserts {
   }
 
   async assertUserBalances({
-    account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn,
+    account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn, pendingUndelegations,
   }) {
     const res = await this.fixture.database.findOne({
       contract: 'tokens',
@@ -45,6 +45,10 @@ class TableAsserts {
     }
     if (delegationsOut && res.delegationsOut !== delegationsOut) {
       console.error(`${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
+      pass = false;
+    }
+    if (pendingUndelegations && res.pendingUndelegations !== pendingUndelegations) {
+      console.error(`${account} has ${symbol} pendingUndelegations ${res.pendingUndelegations}, expected ${pendingUndelegations}`);
       pass = false;
     }
     if (!pass) {

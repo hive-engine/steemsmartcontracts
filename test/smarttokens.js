@@ -99,7 +99,7 @@ const oldContractPayload = setupContractPayload('tokens', './contracts/testing/t
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
 
-async function assertUserBalances({ account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn }) {
+async function assertUserBalances({ account, symbol, balance, stake, pendingUnstake, delegationsOut, delegationsIn, pendingUndelegations }) {
   let res = await database1.findOne({
       contract: 'tokens',
       table: 'balances',
@@ -119,6 +119,8 @@ async function assertUserBalances({ account, symbol, balance, stake, pendingUnst
     assert.equal(res.delegationsIn, delegationsIn, `${account} has ${symbol} delegationsIn ${res.delegationsIn}, expected ${delegationsIn}`);
   if (delegationsOut)
     assert.equal(res.delegationsOut, delegationsOut, `${account} has ${symbol} delegationsOut ${res.delegationsOut}, expected ${delegationsOut}`);
+  if (pendingUndelegations)
+    assert.equal(res.pendingUndelegations, pendingUndelegations, `${account} has ${symbol} pendingUndelegations ${res.pendingUndelegations}, expected ${pendingUndelegations}`);
 }
 
 async function assertTotalStaked(amount, symbol='TKN') {
@@ -543,7 +545,7 @@ describe('smart tokens', function () {
       });
   });
 
-  it('should undelegate tokens', (done) => {
+  it.only('should undelegate tokens', (done) => {
     new Promise(async (resolve) => {
 
       await loadPlugin(blockchain);
@@ -643,38 +645,20 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      res = await database1.find({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: {
-              $in: ['satoshi', 'vitalik', 'ned']
-            },
-            symbol: 'TKN'
-          }
-        });
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "99.99999997",
+          stake: "0.00000000",
+          delegationsOut: "0.00000002",
+          pendingUndelegations: '0.00000001'});
 
-      balances = res;
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].balance, "99.99999997");
-      assert.equal(balances[0].stake, "0.00000000");
-      assert.equal(balances[0].delegationsOut, "0.00000002");
-      assert.equal(balances[0].pendingUndelegations, '0.00000001');
-
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].balance, "0");
-      assert.equal(balances[1].stake, "0");
-      assert.equal(balances[1].delegationsIn, "0.00000001");
-
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].balance, "0");
-      assert.equal(balances[1].stake, "0");
-      assert.equal(balances[1].delegationsIn, "0.00000001");
+      await assertUserBalances({
+          account: 'vitalik',
+          balance: '0',
+          stake: '0',
+          delegationsIn: '0.00000001',
+          pendingUndelegations: '0'});
 
       await assertTotalStaked('0.00000003');
 
@@ -710,6 +694,7 @@ describe('smart tokens', function () {
 
       let pendingUndelegations = res;
 
+      assert.equal(pendingUndelegations.length, 1);
       assert.equal(pendingUndelegations[0].symbol, 'TKN');
       assert.equal(pendingUndelegations[0].account, 'satoshi');
       assert.equal(pendingUndelegations[0].quantity, '0.00000001');
@@ -717,6 +702,80 @@ describe('smart tokens', function () {
       assert.equal(pendingUndelegations[0].completeTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
       assert.ok(pendingUndelegations[0].txID);
 
+      transactions = [];
+      transactions.push(new Transaction(12345678903, getNextTxId(), 'satoshi', 'tokens', 'undelegate', '{ "symbol": "TKN", "quantity": "0.00000001", "from": "ned", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: 12345678903,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-02T00:00:01',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await assertNoErrorInLastBlock();
+
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: "99.99999997",
+          stake: "0.00000000",
+          delegationsOut: "0.00000001",
+          pendingUndelegations: '0.00000002'});
+
+      await assertUserBalances({
+          account: 'ned',
+          balance: '0',
+          stake: '0',
+          delegationsIn: '0.00000000',
+          pendingUndelegations: '0'});
+
+      await assertTotalStaked('0.00000003');
+
+      res = await database1.find({
+          contract: 'tokens',
+          table: 'delegations',
+          query: {
+            from: 'satoshi',
+            symbol: 'TKN'
+          }
+        });
+
+      delegations = res;
+
+      assert.equal(delegations.length, 1);
+
+      assert.equal(delegations[0].symbol, 'TKN');
+      assert.equal(delegations[0].from, 'satoshi');
+      assert.equal(delegations[0].to, 'vitalik');
+      assert.equal(delegations[0].quantity, '0.00000001');
+
+      res = await database1.find({
+          contract: 'tokens',
+          table: 'pendingUndelegations',
+          query: {
+            account: 'satoshi',
+            symbol: 'TKN'
+          }
+        });
+
+      pendingUndelegations = res;
+
+      assert.equal(pendingUndelegations.length, 2);
+      assert.equal(pendingUndelegations[0].symbol, 'TKN');
+      assert.equal(pendingUndelegations[0].account, 'satoshi');
+      assert.equal(pendingUndelegations[0].quantity, '0.00000001');
+      blockDate = new Date('2018-06-01T00:00:01.000Z')
+      assert.equal(pendingUndelegations[0].completeTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
+      assert.ok(pendingUndelegations[0].txID);
+
+      assert.equal(pendingUndelegations[1].symbol, 'TKN');
+      assert.equal(pendingUndelegations[1].account, 'satoshi');
+      assert.equal(pendingUndelegations[1].quantity, '0.00000001');
+      blockDate = new Date('2018-06-02T00:00:01.000Z')
+      assert.equal(pendingUndelegations[1].completeTimestamp, blockDate.setUTCDate(blockDate.getUTCDate() + 7));
+      assert.ok(pendingUndelegations[1].txID);
 
       resolve();
     })
@@ -792,7 +851,7 @@ describe('smart tokens', function () {
       });
   });
 
-  it('should process the pending undelegations', (done) => {
+  it.only('should process the pending undelegations', (done) => {
     new Promise(async (resolve) => {
 
       await loadPlugin(blockchain);
@@ -846,24 +905,22 @@ describe('smart tokens', function () {
 
       await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
 
-      res = await database1.findOne({
-          contract: 'tokens',
-          table: 'balances',
-          query: {
-            account: 'satoshi',
-            symbol: 'TKN'
-          }
-        });
-
-      balance = res;
-
-      assert.equal(balance.symbol, 'TKN');
-      assert.equal(balance.account, 'satoshi');
-      assert.equal(balance.balance, '99.99999997');
-      assert.equal(balance.stake, '0.00000001');
-      assert.equal(balance.delegationsIn, '0');
-      assert.equal(balance.delegationsOut, '0.00000002');
-      assert.equal(balance.pendingUndelegations, '0.00000000');
+      await assertUserBalances({
+          account: 'satoshi',
+          symbol: 'TKN',
+          balance: '99.99999997',
+          stake: '0.00000001',
+          delegationsIn: '0',
+          delegationsOut: '0.00000002',
+          pendingUndelegations: '0.00000000'});
+      await assertUserBalances({
+          account: 'vitalik',
+          symbol: 'TKN',
+          balance: '0',
+          stake: '0',
+          delegationsIn: '0.00000001',
+          delegationsOut: '0',
+          pendingUndelegations: '0'});
 
       res = await database1.findOne({
           contract: 'tokens',

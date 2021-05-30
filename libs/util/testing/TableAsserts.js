@@ -31,7 +31,7 @@ class TableAsserts {
       console.error(`${account} has ${symbol} balance ${res.balance}, expected ${balance}`);
       pass = false;
     }
-    if (res.stake !== stake) {
+    if (stake && res.stake !== stake) {
       console.error(`${account} has ${symbol} stake ${res.stake}, expected ${stake}`);
       pass = false;
     }

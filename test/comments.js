@@ -1,9 +1,7 @@
 /* eslint-disable */
-const { fork } = require('child_process');
 const assert = require('assert').strict;
 const { MongoClient } = require('mongodb');
 const dhive = require('@hiveio/dhive');
-const SHA256 = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
 
 const { CONSTANTS } = require('../libs/Constants');

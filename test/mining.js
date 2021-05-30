@@ -1,8 +1,6 @@
 /* eslint-disable */
-const { fork } = require('child_process');
 const assert = require('assert');
 const { MongoClient } = require('mongodb');
-const { Base64 } = require('js-base64');
 
 const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
@@ -183,7 +181,6 @@ describe('mining', function () {
   beforeEach((done) => {
     new Promise(async (resolve) => {
       db = await client.db(conf.databaseName);
-      fixture.resetRefBlockNumber();
       resolve();
     })
       .then(() => {

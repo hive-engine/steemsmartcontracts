@@ -1,5 +1,4 @@
 /* eslint-disable */
-const { fork } = require('child_process');
 const assert = require('assert');
 const { MongoClient } = require('mongodb');
 
@@ -8,93 +7,15 @@ const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
 const { setupContractPayload } = require('../libs/util/contractUtil');
-
-const conf = {
-  chainId: "test-chain-id",
-  genesisSteemBlock: 2000000,
-  dataDirectory: "./test/data/",
-  databaseFileName: "database.db",
-  autosaveInterval: 0,
-  javascriptVMTimeout: 10000,
-  databaseURL: "mongodb://localhost:27017",
-  databaseName: "testssc",
-  streamNodes: ["https://api.steemit.com"],
-};
-
-let plugins = {};
-let jobs = new Map();
-let currentJobId = 0;
-let database1 = null;
-
-function send(pluginName, from, message) {
-  const plugin = plugins[pluginName];
-  const newMessage = {
-    ...message,
-    to: plugin.name,
-    from,
-    type: 'request',
-  };
-  currentJobId += 1;
-  newMessage.jobId = currentJobId;
-  plugin.cp.send(newMessage);
-  return new Promise((resolve) => {
-    jobs.set(currentJobId, {
-      message: newMessage,
-      resolve,
-    });
-  });
-}
-
-
-// function to route the IPC requests
-const route = (message) => {
-  const { to, type, jobId } = message;
-  if (to) {
-    if (to === 'MASTER') {
-      if (type && type === 'request') {
-        // do something
-      } else if (type && type === 'response' && jobId) {
-        const job = jobs.get(jobId);
-        if (job && job.resolve) {
-          const { resolve } = job;
-          jobs.delete(jobId);
-          resolve(message);
-        }
-      }
-    } else if (type && type === 'broadcast') {
-      plugins.forEach((plugin) => {
-        plugin.cp.send(message);
-      });
-    } else if (plugins[to]) {
-      plugins[to].cp.send(message);
-    } else {
-      console.error('ROUTING ERROR: ', message);
-    }
-  }
-};
-
-const loadPlugin = (newPlugin) => {
-  const plugin = {};
-  plugin.name = newPlugin.PLUGIN_NAME;
-  plugin.cp = fork(newPlugin.PLUGIN_PATH, [], { silent: true });
-  plugin.cp.on('message', msg => route(msg));
-  plugin.cp.stdout.on('data', data => console.log(`[${newPlugin.PLUGIN_NAME}]`, data.toString()));
-  plugin.cp.stderr.on('data', data => console.error(`[${newPlugin.PLUGIN_NAME}]`, data.toString()));
-
-  plugins[newPlugin.PLUGIN_NAME] = plugin;
-
-  return send(newPlugin.PLUGIN_NAME, 'MASTER', { action: 'init', payload: conf });
-};
-
-const unloadPlugin = (plugin) => {
-  plugins[plugin.PLUGIN_NAME].cp.kill('SIGINT');
-  plugins[plugin.PLUGIN_NAME] = null;
-  jobs = new Map();
-  currentJobId = 0;
-}
+const { Fixture, conf } = require('../libs/util/testing/Fixture');
+const { TableAsserts } = require('../libs/util/testing/TableAsserts');
+const { assertError } = require('../libs/util/testing/Asserts');
 
 const tknContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const pegContractPayload = setupContractPayload('hivepegged', './contracts/hivepegged.js');
+
+const fixture = new Fixture();
+const tableAsserts = new TableAsserts(fixture);
 
 describe('Hive Pegged', function () {
   this.timeout(10000);
@@ -145,27 +66,26 @@ describe('Hive Pegged', function () {
   it(`buys ${CONSTANTS.HIVE_PEGGED_SYMBOL}`, (done) => {
     new Promise(async (resolve) => {
       
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1236', 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.002 HIVE", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(4000000, 'TXID1237', 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.002 HIVE", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      let res = await database1.find({
+      let res = await fixture.database.find({
           contract: 'tokens',
           table: 'balances',
           query: {
@@ -188,8 +108,7 @@ describe('Hive Pegged', function () {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -197,29 +116,28 @@ describe('Hive Pegged', function () {
   it('withdraws HIVE', (done) => {
     new Promise(async (resolve) => {
       
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1236', 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.003 HIVE", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(4000000, 'TXID1237', 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(4000000, 'TXID1238', 'harpagon', 'hivepegged', 'withdraw', '{ "quantity": "0.002", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(4000000, 'TXID1239', 'satoshi', 'hivepegged', 'withdraw', '{ "quantity": "0.3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.003 HIVE", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'hivepegged', 'withdraw', '{ "quantity": "0.002", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'hivepegged', 'withdraw', '{ "quantity": "0.3", "isSignedWithActiveKey": true }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      let res = await database1.find({
+      let res = await fixture.database.find({
           contract: 'tokens',
           table: 'balances',
           query: {
@@ -240,7 +158,7 @@ describe('Hive Pegged', function () {
       assert.equal(balances[1].account, 'satoshi');
       assert.equal(balances[1].symbol, CONSTANTS.HIVE_PEGGED_SYMBOL);
 
-      res = await database1.find({
+      res = await fixture.database.find({
           contract: 'hivepegged',
           table: 'withdrawals',
           query: {
@@ -249,47 +167,46 @@ describe('Hive Pegged', function () {
 
       let withdrawals = res;
 
-      assert.equal(withdrawals[0].id, 'TXID1236-fee');
+      assert.equal(withdrawals[0].id, 'TXID00000004-fee');
       assert.equal(withdrawals[0].type, 'HIVE');
       assert.equal(withdrawals[0].recipient, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-      assert.equal(withdrawals[0].memo, 'fee tx TXID1236');
+      assert.equal(withdrawals[0].memo, 'fee tx TXID00000004');
       assert.equal(withdrawals[0].quantity, 0.001);
 
-      assert.equal(withdrawals[1].id, 'TXID1237-fee');
+      assert.equal(withdrawals[1].id, 'TXID00000005-fee');
       assert.equal(withdrawals[1].type, 'HIVE');
       assert.equal(withdrawals[1].recipient, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-      assert.equal(withdrawals[1].memo, 'fee tx TXID1237');
+      assert.equal(withdrawals[1].memo, 'fee tx TXID00000005');
       assert.equal(withdrawals[1].quantity, 0.009);
 
-      assert.equal(withdrawals[2].id, 'TXID1238');
+      assert.equal(withdrawals[2].id, 'TXID00000006');
       assert.equal(withdrawals[2].type, 'HIVE');
       assert.equal(withdrawals[2].recipient, 'harpagon');
-      assert.equal(withdrawals[2].memo, 'withdrawal tx TXID1238');
+      assert.equal(withdrawals[2].memo, 'withdrawal tx TXID00000006');
       assert.equal(withdrawals[2].quantity, 0.001);
 
-      assert.equal(withdrawals[3].id, 'TXID1238-fee');
+      assert.equal(withdrawals[3].id, 'TXID00000006-fee');
       assert.equal(withdrawals[3].type, 'HIVE');
       assert.equal(withdrawals[3].recipient, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-      assert.equal(withdrawals[3].memo, 'fee tx TXID1238');
+      assert.equal(withdrawals[3].memo, 'fee tx TXID00000006');
       assert.equal(withdrawals[3].quantity, 0.001);
 
-      assert.equal(withdrawals[4].id, 'TXID1239');
+      assert.equal(withdrawals[4].id, 'TXID00000007');
       assert.equal(withdrawals[4].type, 'HIVE');
       assert.equal(withdrawals[4].recipient, 'satoshi');
-      assert.equal(withdrawals[4].memo, 'withdrawal tx TXID1239');
+      assert.equal(withdrawals[4].memo, 'withdrawal tx TXID00000007');
       assert.equal(withdrawals[4].quantity, 0.297);
 
-      assert.equal(withdrawals[5].id, 'TXID1239-fee');
+      assert.equal(withdrawals[5].id, 'TXID00000007-fee');
       assert.equal(withdrawals[5].type, 'HIVE');
       assert.equal(withdrawals[5].recipient, CONSTANTS.HIVE_ENGINE_ACCOUNT);
-      assert.equal(withdrawals[5].memo, 'fee tx TXID1239');
+      assert.equal(withdrawals[5].memo, 'fee tx TXID00000007');
       assert.equal(withdrawals[5].quantity, 0.003);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -297,29 +214,28 @@ describe('Hive Pegged', function () {
   it('does not withdraw HIVE', (done) => {
     new Promise(async (resolve) => {
       
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(4000000, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1233', CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
-      transactions.push(new Transaction(4000000, 'TXID1236', 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.003 HIVE", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(4000000, 'TXID1237', 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(4000000, 'TXID1239', 'satoshi', 'hivepegged', 'withdraw', '{ "quantity": "0.001", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(4000000, 'TXID1240', 'satoshi', 'hivepegged', 'withdraw', '{ "quantity": "0.0021", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_PEGGED_ACCOUNT, 'contract', 'update', JSON.stringify(pegContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.003 HIVE", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'hivepegged', 'buy', `{ "recipient": "${CONSTANTS.HIVE_PEGGED_ACCOUNT}", "amountHIVEHBD": "0.879 HIVE", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'hivepegged', 'withdraw', '{ "quantity": "0.001", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'hivepegged', 'withdraw', '{ "quantity": "0.0021", "isSignedWithActiveKey": true }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      let res = await database1.findOne({
+      let res = await fixture.database.findOne({
           contract: 'tokens',
           table: 'balances',
           query: {
@@ -334,7 +250,7 @@ describe('Hive Pegged', function () {
       assert.equal(balance.account, 'satoshi');
       assert.equal(balance.symbol, CONSTANTS.HIVE_PEGGED_SYMBOL);
 
-      res = await database1.find({
+      res = await fixture.database.find({
           contract: 'hivepegged',
           table: 'withdrawals',
           query: {
@@ -348,8 +264,7 @@ describe('Hive Pegged', function () {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });

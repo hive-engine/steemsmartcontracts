@@ -78,7 +78,6 @@ describe('witnesses', function () {
   beforeEach((done) => {
     new Promise(async (resolve) => {
       db = await client.db(conf.databaseName);
-      fixture.resetRefBlockNumber();
       resolve();
     })
       .then(() => {

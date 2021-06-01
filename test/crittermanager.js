@@ -1,5 +1,4 @@
 /* eslint-disable */
-const { fork } = require('child_process');
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
 const { Base64 } = require('js-base64');
@@ -10,94 +9,16 @@ const { Database } = require('../libs/Database');
 const blockchain = require('../plugins/Blockchain');
 const { Transaction } = require('../libs/Transaction');
 const { setupContractPayload } = require('../libs/util/contractUtil');
-
-const conf = {
-  chainId: "test-chain-id",
-  genesisSteemBlock: 2000000,
-  dataDirectory: "./test/data/",
-  databaseFileName: "database.db",
-  autosaveInterval: 0,
-  javascriptVMTimeout: 10000,
-  databaseURL: "mongodb://localhost:27017",
-  databaseName: "testssc",
-  streamNodes: ["https://api.steemit.com"],
-};
-
-let plugins = {};
-let jobs = new Map();
-let currentJobId = 0;
-let database1 = null;
-
-function send(pluginName, from, message) {
-  const plugin = plugins[pluginName];
-  const newMessage = {
-    ...message,
-    to: plugin.name,
-    from,
-    type: 'request',
-  };
-  currentJobId += 1;
-  newMessage.jobId = currentJobId;
-  plugin.cp.send(newMessage);
-  return new Promise((resolve) => {
-    jobs.set(currentJobId, {
-      message: newMessage,
-      resolve,
-    });
-  });
-}
-
-
-// function to route the IPC requests
-const route = (message) => {
-  const { to, type, jobId } = message;
-  if (to) {
-    if (to === 'MASTER') {
-      if (type && type === 'request') {
-        // do something
-      } else if (type && type === 'response' && jobId) {
-        const job = jobs.get(jobId);
-        if (job && job.resolve) {
-          const { resolve } = job;
-          jobs.delete(jobId);
-          resolve(message);
-        }
-      }
-    } else if (type && type === 'broadcast') {
-      plugins.forEach((plugin) => {
-        plugin.cp.send(message);
-      });
-    } else if (plugins[to]) {
-      plugins[to].cp.send(message);
-    } else {
-      console.error('ROUTING ERROR: ', message);
-    }
-  }
-};
-
-const loadPlugin = (newPlugin) => {
-  const plugin = {};
-  plugin.name = newPlugin.PLUGIN_NAME;
-  plugin.cp = fork(newPlugin.PLUGIN_PATH, [], { silent: true });
-  plugin.cp.on('message', msg => route(msg));
-  plugin.cp.stdout.on('data', data => console.log(`[${newPlugin.PLUGIN_NAME}]`, data.toString()));
-  plugin.cp.stderr.on('data', data => console.error(`[${newPlugin.PLUGIN_NAME}]`, data.toString()));
-
-  plugins[newPlugin.PLUGIN_NAME] = plugin;
-
-  return send(newPlugin.PLUGIN_NAME, 'MASTER', { action: 'init', payload: conf });
-};
-
-const unloadPlugin = (plugin) => {
-  plugins[plugin.PLUGIN_NAME].cp.kill('SIGINT');
-  plugins[plugin.PLUGIN_NAME] = null;
-  jobs = new Map();
-  currentJobId = 0;
-}
+const { Fixture, conf } = require('../libs/util/testing/Fixture');
+const { TableAsserts } = require('../libs/util/testing/TableAsserts');
+const { assertError } = require('../libs/util/testing/Asserts');
 
 const tknContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const nftContractPayload = setupContractPayload('nft', './contracts/nft.js');
 const critterContractPayload = setupContractPayload('crittermanager', './contracts/crittermanager.js');
+
+const fixture = new Fixture();
+const tableAsserts = new TableAsserts(fixture);
 
 // crittermanager
 describe('crittermanager', function() {
@@ -149,26 +70,25 @@ describe('crittermanager', function() {
   it('updates parameters', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', 'cryptomancer', 'crittermanager', 'updateParams', `{ "editionMapping": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":1,"ALPHA":2,"BETA":3,"UNTAMED":4} }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'updateParams', `{ "editionMapping": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":1,"ALPHA":2,"BETA":3,"UNTAMED":4} }`));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       // check if the params updated OK
-      const params = await database1.findOne({
+      const params = await fixture.database.findOne({
         contract: 'crittermanager',
         table: 'params',
         query: {}
@@ -181,8 +101,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -190,28 +109,27 @@ describe('crittermanager', function() {
   it('rejects invalid parameters', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', 'aggroed', 'crittermanager', 'updateParams', `{ "editionMapping": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":1,"ALPHA":2,"BETA":3,"UNTAMED":4} }`));
-      transactions.push(new Transaction(38145386, 'TXID1232', 'cryptomancer', 'crittermanager', 'updateParams', `{ "wrongKey": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":1,"ALPHA":2,"BETA":3,"UNTAMED":4} }`));
-      transactions.push(new Transaction(38145386, 'TXID1233', 'cryptomancer', 'crittermanager', 'updateParams', `{ "editionMapping": 666 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'updateParams', `{ "editionMapping": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":1,"ALPHA":2,"BETA":3,"UNTAMED":4} }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'updateParams', `{ "wrongKey": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":1,"ALPHA":2,"BETA":3,"UNTAMED":4} }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'updateParams', `{ "editionMapping": 666 }`));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       // params should not have changed from their initial values
-      const params = await database1.findOne({
+      const params = await fixture.database.findOne({
         contract: 'crittermanager',
         table: 'params',
         query: {}
@@ -224,8 +142,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -233,30 +150,29 @@ describe('crittermanager', function() {
   it('sets up the NFT', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "5", "dataPropertyCreationFee": "5" }'));
-      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1235', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "5", "dataPropertyCreationFee": "5" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       // check if the NFT was created OK
-      const token = await database1.findOne({
+      const token = await fixture.database.findOne({
         contract: 'nft',
         table: 'nfts',
         query: { symbol: 'CRITTER' }
@@ -294,8 +210,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -303,31 +218,30 @@ describe('crittermanager', function() {
   it('does not set up the NFT', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "5", "dataPropertyCreationFee": "5" }'));
-      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1235', 'aggroed', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1236', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', '{ "nftCreationFee": "5", "dataPropertyCreationFee": "5" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": false }'));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       // verify NFT was not created
-      const token = await database1.findOne({
+      const token = await fixture.database.findOne({
         contract: 'nft',
         table: 'nfts',
         query: { symbol: 'CRITTER' }
@@ -336,28 +250,29 @@ describe('crittermanager', function() {
       
       assert.equal(token, null);
 
-      const block1 = await database1.getBlockInfo(1);
+      const block1 = await fixture.database.getBlockInfo(1);
       const transactionsBlock1 = block1.transactions;
       
 
       assert.equal(JSON.parse(transactionsBlock1[6].logs).errors[0], 'you must use a custom_json signed with your active key');
 
       // test that you can't create CRITTER twice
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(38145387, 'TXID1237', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145387, 'TXID1238', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
 
       block = {
-        refHiveBlockNumber: 38145387,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const block2 = await database1.getBlockInfo(2);
+      const block2 = await fixture.database.getBlockInfo(2);
       const transactionsBlock2 = block2.transactions;
       
 
@@ -366,8 +281,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -375,33 +289,32 @@ describe('crittermanager', function() {
   it('hatches critters', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
-      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1238', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       // check if the expected amount of critters were issued
-      const token = await database1.findOne({
+      const token = await fixture.database.findOne({
         contract: 'nft',
         table: 'nfts',
         query: { symbol: 'CRITTER' }
@@ -413,7 +326,7 @@ describe('crittermanager', function() {
       assert.equal(token.circulatingSupply, 50);
 
       // check if the critters were issued OK
-      const instances = await database1.find({
+      const instances = await fixture.database.find({
         contract: 'nft',
         table: 'CRITTERinstances',
         query: {},
@@ -427,7 +340,7 @@ describe('crittermanager', function() {
       assert.equal(instances[0].properties.edition, 1);
 
       // ensure packs were subtracted from purchasing account
-      let balance = await database1.findOne({
+      let balance = await fixture.database.findOne({
         contract: 'tokens',
         table: 'balances',
         query: { account: 'aggroed' }
@@ -439,7 +352,7 @@ describe('crittermanager', function() {
       assert.equal(balance.balance, '990.00000000');
 
       // ensure issuance fees were paid by the contract, not the calling user
-      balance = await database1.findOne({
+      balance = await fixture.database.findOne({
         contract: 'tokens',
         table: 'contractsBalances',
         query: { account: 'crittermanager' }
@@ -453,8 +366,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -462,41 +374,40 @@ describe('crittermanager', function() {
   it('does not hatch critters', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
-      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"9", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"39.999", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1238', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": false, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
-      transactions.push(new Transaction(38145386, 'TXID1239', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "GAMMA", "packs": 10 }`));
-      transactions.push(new Transaction(38145386, 'TXID1240', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 0 }`));
-      transactions.push(new Transaction(38145386, 'TXID1241', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 11 }`));
-      transactions.push(new Transaction(38145386, 'TXID1242', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 3.14159 }`));
-      transactions.push(new Transaction(38145386, 'TXID1243', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": "notanumber" }`));
-      transactions.push(new Transaction(38145386, 'TXID1244', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
-      transactions.push(new Transaction(38145386, 'TXID1245', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1246', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"9", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"39.999", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": false, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "GAMMA", "packs": 10 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 0 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 11 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 3.14159 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": "notanumber" }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 10 }`));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       // make sure no critters were issued
-      const token = await database1.findOne({
+      const token = await fixture.database.findOne({
         contract: 'nft',
         table: 'nfts',
         query: { symbol: 'CRITTER' }
@@ -505,7 +416,7 @@ describe('crittermanager', function() {
       assert.equal(token.supply, 0);
       assert.equal(token.circulatingSupply, 0);
 
-      const block1 = await database1.getBlockInfo(1);
+      const block1 = await fixture.database.getBlockInfo(1);
       const transactionsBlock1 = block1.transactions;
       
       
@@ -528,8 +439,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -537,34 +447,33 @@ describe('crittermanager', function() {
   it('names critters', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
-      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1238', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 1 }`));
-      transactions.push(new Transaction(38145386, 'TXID1239', 'aggroed', 'crittermanager', 'updateName', '{ "id": "2", "name": "Toothless" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 1 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'updateName', '{ "id": "2", "name": "Toothless" }'));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       // check if the expected amount of critters were issued
-      const token = await database1.findOne({
+      const token = await fixture.database.findOne({
         contract: 'nft',
         table: 'nfts',
         query: { symbol: 'CRITTER' }
@@ -574,7 +483,7 @@ describe('crittermanager', function() {
       assert.equal(token.circulatingSupply, 5);
 
       // check if the critter was renamed OK
-      const instance = await database1.findOne({
+      const instance = await fixture.database.findOne({
         contract: 'nft',
         table: 'CRITTERinstances',
         query: { _id: 2 },
@@ -589,8 +498,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -598,38 +506,37 @@ describe('crittermanager', function() {
   it('does not name critters', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database1 = new Database();
-      await database1.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(38145386, 'TXID1230', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1231', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1232', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
-      transactions.push(new Transaction(38145386, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
-      transactions.push(new Transaction(38145386, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"1000", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, 'TXID1237', 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(38145386, 'TXID1238', 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 1 }`));
-      transactions.push(new Transaction(38145386, 'TXID1239', 'aggroed', 'crittermanager', 'updateName', '{ "name": "Toothless" }'));
-      transactions.push(new Transaction(38145386, 'TXID1240', 'aggroed', 'crittermanager', 'updateName', '{ "id": "notanumber", "name": "Toothless" }'));
-      transactions.push(new Transaction(38145386, 'TXID1241', 'aggroed', 'crittermanager', 'updateName', '{ "id": "2" }'));
-      transactions.push(new Transaction(38145386, 'TXID1242', 'aggroed', 'crittermanager', 'updateName', '{ "id": "2", "name": "tooooooooooooolllllllooooooooooooonnnnnnnnnnnnnggggggggggggggggg" }'));
-      transactions.push(new Transaction(38145386, 'TXID1243', 'aggroed', 'crittermanager', 'updateName', '{ "id": "222", "name": "Mega Drive" }')); // id doesn't exist
-      transactions.push(new Transaction(38145386, 'TXID1244', 'cryptomancer', 'crittermanager', 'updateName', '{ "id": "2", "name": "Mega Drive" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(critterContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "dataPropertyCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"aggroed", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transferToContract', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"crittermanager", "quantity":"1000", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'createNft', '{ "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'hatch', `{ "isSignedWithActiveKey": true, "packSymbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "packs": 1 }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'updateName', '{ "name": "Toothless" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'updateName', '{ "id": "notanumber", "name": "Toothless" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'updateName', '{ "id": "2" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'updateName', '{ "id": "2", "name": "tooooooooooooolllllllooooooooooooonnnnnnnnnnnnnggggggggggggggggg" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'aggroed', 'crittermanager', 'updateName', '{ "id": "222", "name": "Mega Drive" }')); // id doesn't exist
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'crittermanager', 'updateName', '{ "id": "2", "name": "Mega Drive" }'));
 
       let block = {
-        refHiveBlockNumber: 38145386,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const block1 = await database1.getBlockInfo(1);
+      const block1 = await fixture.database.getBlockInfo(1);
       const transactionsBlock1 = block1.transactions;
       
       
@@ -645,7 +552,7 @@ describe('crittermanager', function() {
       assert.equal(JSON.parse(transactionsBlock1[14].logs).errors[0], 'must be the token holder');
 
       // check if the expected amount of critters were issued
-      const token = await database1.findOne({
+      const token = await fixture.database.findOne({
         contract: 'nft',
         table: 'nfts',
         query: { symbol: 'CRITTER' }
@@ -655,7 +562,7 @@ describe('crittermanager', function() {
       assert.equal(token.circulatingSupply, 5);
 
       // make sure the critter was not renamed
-      const instance = await database1.findOne({
+      const instance = await fixture.database.findOne({
         contract: 'nft',
         table: 'CRITTERinstances',
         query: { _id: 2 },
@@ -670,8 +577,7 @@ describe('crittermanager', function() {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database1.close();
+        fixture.tearDown();
         done();
       });
   });

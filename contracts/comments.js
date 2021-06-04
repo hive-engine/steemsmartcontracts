@@ -10,7 +10,7 @@ actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('rewardPools');
   if (tableExists === false) {
     await api.db.createTable('params');
-    await api.db.createTable('rewardPools', ['config.tags']);
+    await api.db.createTable('rewardPools', ['config.tags', 'lastClaimDecayTimestamp']);
     await api.db.createTable('posts', [
       'authorperm',
       { name: 'byCashoutTime', index: { rewardPoolId: 1, cashoutTime: 1 } },
@@ -23,9 +23,9 @@ actions.createSSC = async () => {
       updateFee: '20',
       maxPoolsPerPost: 20,
       maxTagsPerPool: 5,
-      maintenanceTokensPerAction: 1,
-      maintenanceTokenOffset: 0,
-      maxPostsProcessedPerRound: 1000,
+      maintenanceTokensPerBlock: 2,
+      lastMaintenanceBlock: api.blockNumber,
+      maxPostsProcessedPerRound: 20,
       voteQueryLimit: 1000,
     };
     await api.db.insert('params', params);
@@ -38,7 +38,7 @@ actions.updateParams = async (payload) => {
   const {
     setupFee,
     updateFee,
-    maintenanceTokensPerAction,
+    maintenanceTokensPerBlock,
     maxPostsProcessedPerRound,
     voteQueryLimit,
   } = payload;
@@ -53,9 +53,9 @@ actions.updateParams = async (payload) => {
     if (!api.assert(typeof updateFee === 'string' && !api.BigNumber(updateFee).isNaN() && api.BigNumber(updateFee).gte(0), 'invalid updateFee')) return;
     params.updateFee = updateFee;
   }
-  if (maintenanceTokensPerAction) {
-    if (!api.assert(Number.isInteger(maintenanceTokensPerAction) && maintenanceTokensPerAction >= 1, 'invalid maintenanceTokensPerAction')) return;
-    params.maintenanceTokensPerAction = maintenanceTokensPerAction;
+  if (maintenanceTokensPerBlock) {
+    if (!api.assert(Number.isInteger(maintenanceTokensPerBlock) && maintenanceTokensPerBlock >= 1, 'invalid maintenanceTokensPerBlock')) return;
+    params.maintenanceTokensPerBlock = maintenanceTokensPerBlock;
   }
   if (maxPostsProcessedPerRound) {
     if (!api.assert(Number.isInteger(maxPostsProcessedPerRound) && maxPostsProcessedPerRound >= 1, 'invalid maxPostsProcessedPerRound')) return;
@@ -294,8 +294,13 @@ async function tokenMaintenance() {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
   const params = await api.db.findOne('params', {});
-  const { maintenanceTokensPerAction, maintenanceTokenOffset } = params;
-  const rewardPools = await api.db.find('rewardPools', { active: true, lastClaimDecayTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerAction, maintenanceTokenOffset);
+  const { lastMaintenanceBlock, maintenanceTokensPerBlock } = params;
+  if (lastMaintenanceBlock >= api.blockNumber) {
+    return;
+  }
+  params.lastMaintenanceBlock = api.blockNumber;
+
+  const rewardPools = await api.db.find('rewardPools', { active: true, lastClaimDecayTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerBlock, 0, [{ index: 'lastClaimDecayTimestamp', descending: false }]);
   if (rewardPools) {
     for (let i = 0; i < rewardPools.length; i += 1) {
       const rewardPool = rewardPools[i];
@@ -320,12 +325,8 @@ async function tokenMaintenance() {
       await computePostRewards(params, rewardPool, token);
       await api.db.update('rewardPools', rewardPool);
     }
-    if (rewardPools.length < maintenanceTokensPerAction) {
-      params.maintenanceTokenOffset = 0;
-    } else {
-      params.maintenanceTokenOffset += maintenanceTokensPerAction;
-    }
   }
+  await api.db.update('params', params);
 }
 
 actions.createRewardPool = async (payload) => {

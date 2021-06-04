@@ -23,10 +23,10 @@ actions.createSSC = async () => {
       updateFee: '20',
       maxPoolsPerPost: 20,
       maxTagsPerPool: 5,
-      voteQueryLimit: 1000,
-      maintenanceTokensPerBlock: 1,
+      maintenanceTokensPerBlock: 2,
       lastMaintenanceBlock: api.blockNumber,
-      maxPostsProcessedPerRound: 30,
+      maxPostsProcessedPerRound: 20,
+      voteQueryLimit: 1000,
     };
     await api.db.insert('params', params);
   }
@@ -298,7 +298,7 @@ async function tokenMaintenance() {
   if (lastMaintenanceBlock >= api.blockNumber) {
     return;
   }
-  params.lastMaintenanceBlock = lastMaintenanceBlock;
+  params.lastMaintenanceBlock = api.blockNumber;
 
   const rewardPools = await api.db.find('rewardPools', { active: true, lastClaimDecayTimestamp: { $lte: timestamp - 3000 } }, maintenanceTokensPerBlock, 0, [{ index: 'lastClaimDecayTimestamp', descending: false }]);
   if (rewardPools) {

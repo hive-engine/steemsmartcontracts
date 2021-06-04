@@ -1384,7 +1384,7 @@ actions.undelegate = async (payload) => {
               && api.assert(api.BigNumber(delegation.quantity).gte(quantity), 'overdrawn delegation')) {
               // update balanceTo
               balanceTo.pendingUndelegations = calculateBalance(
-                balanceFrom.pendingUndelegations, quantity, token.precision, true,
+                balanceTo.pendingUndelegations, quantity, token.precision, true,
               );
               balanceTo.delegationsOut = calculateBalance(
                 balanceTo.delegationsOut, quantity, token.precision, false,

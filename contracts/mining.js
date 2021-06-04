@@ -2,6 +2,7 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_id"] }] */
 /* global actions, api */
 
+const MAX_DIGITS = 20;
 const PROPERTY_OPS = {
   ADD: {
     add: (x, y) => api.BigNumber(x).plus(y),
@@ -9,8 +10,8 @@ const PROPERTY_OPS = {
     defaultValue: 0,
   },
   MULTIPLY: {
-    add: (x, y) => api.BigNumber(x).multipliedBy(y),
-    remove: (x, y) => api.BigNumber(x).dividedBy(y),
+    add: (x, y) => api.BigNumber(x).multipliedBy(y).dp(MAX_DIGITS),
+    remove: (x, y) => api.BigNumber(x).dividedBy(y).dp(MAX_DIGITS),
     defaultValue: 1,
   },
 };
@@ -240,7 +241,7 @@ function computeMiningPower(miningPower, tokenMiners, nftTokenMiner) {
     let nftPower = api.BigNumber(1);
     // Note nftBalances is object type.
     for (let i = 0; i < nftTokenMiner.properties.length; i += 1) {
-      nftPower = nftPower.multipliedBy(miningPower.nftBalances[i]);
+      nftPower = nftPower.multipliedBy(miningPower.nftBalances[i]).dp(MAX_DIGITS);
     }
     power = power.plus(nftPower);
   }

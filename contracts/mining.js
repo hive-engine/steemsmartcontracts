@@ -295,7 +295,6 @@ async function updateMiningPower(
     miningPower.updatePoolTimestamp = updatePoolTimestamp;
   }
   await api.db.update('miningPower', miningPower);
-  api.debug(miningPower);
   return newMiningPower.minus(oldMiningPower);
 }
 

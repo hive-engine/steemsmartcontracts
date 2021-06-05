@@ -2,6 +2,7 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_id"] }] */
 /* global actions, api */
 
+const MAX_DIGITS = 20;
 const PROPERTY_OPS = {
   ADD: {
     add: (x, y) => api.BigNumber(x).plus(y),
@@ -9,8 +10,8 @@ const PROPERTY_OPS = {
     defaultValue: 0,
   },
   MULTIPLY: {
-    add: (x, y) => api.BigNumber(x).multipliedBy(y),
-    remove: (x, y) => api.BigNumber(x).dividedBy(y),
+    add: (x, y) => api.BigNumber(x).multipliedBy(y).dp(MAX_DIGITS),
+    remove: (x, y) => api.BigNumber(x).dividedBy(y).dp(MAX_DIGITS),
     defaultValue: 1,
   },
 };
@@ -240,7 +241,7 @@ function computeMiningPower(miningPower, tokenMiners, nftTokenMiner) {
     let nftPower = api.BigNumber(1);
     // Note nftBalances is object type.
     for (let i = 0; i < nftTokenMiner.properties.length; i += 1) {
-      nftPower = nftPower.multipliedBy(miningPower.nftBalances[i]);
+      nftPower = nftPower.multipliedBy(miningPower.nftBalances[i]).dp(MAX_DIGITS);
     }
     power = power.plus(nftPower);
   }
@@ -250,7 +251,9 @@ function computeMiningPower(miningPower, tokenMiners, nftTokenMiner) {
   return api.BigNumber(0);
 }
 
-async function updateMiningPower(pool, token, account, stakedQuantity, delegatedQuantity, reset) {
+async function updateMiningPower(
+  pool, token, account, stakedQuantity, delegatedQuantity, updatePoolTimestamp,
+) {
   let miningPower = await api.db.findOne('miningPower', { id: pool.id, account });
   let stake = api.BigNumber(stakedQuantity);
   let oldMiningPower = api.BigNumber(0);
@@ -267,14 +270,31 @@ async function updateMiningPower(pool, token, account, stakedQuantity, delegated
     };
     miningPower = await api.db.insert('miningPower', miningPower);
   } else {
-    if (!miningPower.balances[tokenIndex] || reset) {
+    if (updatePoolTimestamp && miningPower.updatePoolTimestamp !== updatePoolTimestamp) {
+      // reset all balances
+      for (let i = 0; i < pool.tokenMiners.length; i += 1) {
+        miningPower.balances[i] = '0';
+      }
+      if (miningPower.nftBalances) {
+        miningPower.nftBalances = {};
+        const { nftBalances } = miningPower;
+        for (let j = 0; j < pool.nftTokenMiner.properties.length; j += 1) {
+          const property = pool.nftTokenMiner.properties[j];
+          const opInfo = PROPERTY_OPS[property.op];
+          nftBalances[j] = opInfo.defaultValue;
+        }
+      }
+    } else if (!miningPower.balances[tokenIndex]) {
       miningPower.balances[tokenIndex] = '0';
     }
+    oldMiningPower = computeMiningPower(miningPower, pool.tokenMiners, pool.nftTokenMiner);
     miningPower.balances[tokenIndex] = stake.plus(miningPower.balances[tokenIndex]);
-    oldMiningPower = miningPower.power.$numberDecimal;
   }
   const newMiningPower = computeMiningPower(miningPower, pool.tokenMiners, pool.nftTokenMiner);
   miningPower.power = { $numberDecimal: newMiningPower };
+  if (updatePoolTimestamp) {
+    miningPower.updatePoolTimestamp = updatePoolTimestamp;
+  }
   await api.db.update('miningPower', miningPower);
   return newMiningPower.minus(oldMiningPower);
 }
@@ -325,13 +345,17 @@ async function updateNftMiningPower(pool, nft, typeProperties, add, updatePoolTi
       if (!nftBalances[i] || miningPower.updatePoolTimestamp !== updatePoolTimestamp) {
         nftBalances[i] = opInfo.defaultValue;
       }
+    }
+    oldMiningPower = computeMiningPower(miningPower, pool.tokenMiners, pool.nftTokenMiner);
+    for (let i = 0; i < pool.nftTokenMiner.properties.length; i += 1) {
+      const property = pool.nftTokenMiner.properties[i];
+      const opInfo = PROPERTY_OPS[property.op];
       if (add) {
         nftBalances[i] = opInfo.add(nftBalances[i], typeProperties[i]);
       } else {
         nftBalances[i] = opInfo.remove(nftBalances[i], typeProperties[i]);
       }
     }
-    oldMiningPower = miningPower.power.$numberDecimal;
   }
   const newMiningPower = computeMiningPower(miningPower, pool.tokenMiners, pool.nftTokenMiner);
   miningPower.power = { $numberDecimal: newMiningPower };
@@ -341,7 +365,7 @@ async function updateNftMiningPower(pool, nft, typeProperties, add, updatePoolTi
   return newMiningPower.minus(oldMiningPower);
 }
 
-async function initMiningPower(pool, params, token, lastId) {
+async function initMiningPower(pool, updatePoolTimestamp, params, token, lastId) {
   let adjustedPower = api.BigNumber(0);
   let offset = 0;
   let lastIdProcessed = lastId;
@@ -353,7 +377,7 @@ async function initMiningPower(pool, params, token, lastId) {
       const balance = balances[i];
       if (api.BigNumber(balance.stake).gt(0) || api.BigNumber(balance.delegationsIn).gt(0)) {
         const adjusted = await updateMiningPower(
-          pool, token, balance.account, balance.stake, balance.delegationsIn, /* reset */ true,
+          pool, token, balance.account, balance.stake, balance.delegationsIn, updatePoolTimestamp,
         );
         adjustedPower = adjustedPower.plus(adjusted);
       }
@@ -409,7 +433,7 @@ async function resumePowerUpdate(pool, params) {
   if (tokenIndex < pool.tokenMiners.length) {
     const tokenConfig = pool.tokenMiners[tokenIndex];
     const { adjustedPower, nextId, complete } = await initMiningPower(
-      pool, params, tokenConfig.symbol, lastId,
+      pool, updatePoolTimestamp, params, tokenConfig.symbol, lastId,
     );
     // eslint-disable-next-line no-param-reassign
     pool.totalPower = api.BigNumber(pool.totalPower)
@@ -525,6 +549,7 @@ actions.updatePool = async (payload) => {
                 pool.updating.tokenIndex = 0;
                 pool.updating.nftTokenIndex = 0;
                 pool.updating.lastId = 0;
+                pool.totalPower = '0';
               }
 
               pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
@@ -597,6 +622,7 @@ actions.changeNftProperty = async (payload) => {
   pool.updating.tokenIndex = 0;
   pool.updating.nftTokenIndex = 0;
   pool.updating.lastId = 0;
+  pool.totalPower = '0';
 
   await api.db.update('pools', pool);
 

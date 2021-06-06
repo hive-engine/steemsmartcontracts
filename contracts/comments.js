@@ -156,7 +156,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
   const {
     voteQueryLimit,
   } = params;
-  let votesToPayout = await api.db.find('votes', { authorperm, symbol, rewardPoolId }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
+  let votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
   while (votesToPayout.length > 0) {
     for (let i = 0; i < votesToPayout.length; i += 1) {
       const vote = votesToPayout[i];
@@ -177,7 +177,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
     if (votesToPayout.length < voteQueryLimit) {
       break;
     }
-    votesToPayout = await api.db.find('votes', { authorperm, symbol }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
+    votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
   }
 }
 

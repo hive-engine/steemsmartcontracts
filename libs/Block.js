@@ -8,8 +8,10 @@ const { setupContractPayload } = require('../libs/util/contractUtil');
 
 const commentsContractPayload = setupContractPayload('comments', './contracts/comments.js');
 const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
+const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
 const nftContractPayload = setupContractPayload('nft', './contracts/nft.js');
 const packmanagerContractPayload = setupContractPayload('packmanager', './contracts/packmanager.js');
+const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 
 class Block {
   constructor(timestamp, refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, previousBlockNumber, previousHash = '', previousDatabaseHash = '') {
@@ -106,39 +108,20 @@ class Block {
     await this.blockAdjustments(database);
 
     // DO NOT KEEP THIS IN PRIMARY NODE. TEST NETWORK ONLY
-    if (this.refHiveBlockNumber === 52584399) {
+    if (this.refHiveBlockNumber === 54107974) {
       // Append and enable relevant contracts for P2P
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_1', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(commentsContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "minnoswupport", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardPerBlock": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000};
+      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_2', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "minnowsupport", "quantity": "1000", "isSignedWithActiveKey": true }`));
+      const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardIntervalSeconds": 3, "rewardPerInterval": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000, "tags": ["palnet"]};
       this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_3', 'minnowsupport', 'comments', 'createRewardPool', `{ "symbol": "PAL", "config": ${JSON.stringify(config)}, "isSignedWithActiveKey": true }`));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_4', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_5', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(nftContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_6', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(packmanagerContractPayload)));
-    } else if (this.refHiveBlockNumber === 52926998) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_7', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(commentsContractPayload)));
-    } else if (this.refHiveBlockNumber === 52996757) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_8', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(commentsContractPayload)));
-    } else if (this.refHiveBlockNumber === 52997501) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_9', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(commentsContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_10', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "minnoswupport", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardPerBlock": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000, "tags": ["palnet"]};
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_11', 'minnowsupport', 'comments', 'updateRewardPool', `{ "symbol": "PAL", "config": ${JSON.stringify(config)}, "isSignedWithActiveKey": true }`));
-    } else if (this.refHiveBlockNumber === 52997656) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_12', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(commentsContractPayload)));
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_13', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "minnoswupport", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardPerBlock": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000, "tags": ["palnet"]};
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_14', 'minnowsupport', 'comments', 'updateRewardPool', `{ "symbol": "PAL", "config": ${JSON.stringify(config)}, "isSignedWithActiveKey": true }`));
-    } else if (this.refHiveBlockNumber === 52998621) {
-      this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_15', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(commentsContractPayload)));
-    }
+   }
 
     const nbTransactions = this.transactions.length;
 
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;
-    const allowCommentContract = this.refHiveBlockNumber > 54560500;
+    const allowCommentContract = this.refHiveBlockNumber > 0; // TODO: adjust me
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
@@ -298,7 +281,6 @@ class Block {
       results = { logs: { errors: ['the parameters sender, contract and action are required'] } };
     }
 
-    await database.flushCache();
     await database.flushContractCache();
 
     // get the database hash

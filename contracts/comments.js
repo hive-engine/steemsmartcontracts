@@ -718,11 +718,11 @@ async function processVote(post, voter, weight, timestamp) {
     votingPower = await api.db.insert('votingPower', votingPower);
   } else {
     // regenerate voting power
-    votingPower.votingPower += (timestamp - votingPower.lastVoteTimestamp)
+    votingPower.votingPower += (timestamp - votingPower.lastVoteTimestamp) * MAX_VOTING_POWER
           / (rewardPool.config.voteRegenerationDays * 24 * 3600 * 1000);
     votingPower.votingPower = Math.floor(votingPower.votingPower);
     votingPower.votingPower = Math.min(votingPower.votingPower, MAX_VOTING_POWER);
-    votingPower.downvotingPower += (timestamp - votingPower.lastVoteTimestamp)
+    votingPower.downvotingPower += (timestamp - votingPower.lastVoteTimestamp) * MAX_VOTING_POWER
           / (rewardPool.config.downvoteRegenerationDays * 24 * 3600 * 1000);
     votingPower.downvotingPower = Math.floor(votingPower.downvotingPower);
     votingPower.downvotingPower = Math.min(votingPower.downvotingPower, MAX_VOTING_POWER);

@@ -823,10 +823,10 @@ describe('marketpools tests', function () {
       await tableAsserts.assertNoErrorInLastBlock();
 
       // verify swap execution
-      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: '999.99800109'});
-      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '1000.00019'});
-      await assertContractBalance('marketpools', 'SLV', 10000.00199891);
-      await assertContractBalance('marketpools', 'GLD', 999.99981);
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: '999.99800108'});
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '1000.00018'});
+      await assertContractBalance('marketpools', 'SLV', 10000.00199892);
+      await assertContractBalance('marketpools', 'GLD', 999.99982);
 
       // verify pool stats execution
       await assertPoolStats('GLD:SLV', {
@@ -1205,6 +1205,7 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "10000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "20000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "buyer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "0.001", "to": "buyer", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "1016.418", "isSignedWithActiveKey": true }'));
 
@@ -1222,6 +1223,7 @@ describe('marketpools tests', function () {
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "0.000499", "tradeType": "exactInput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "0.00129999", "tradeType": "exactOutput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1237,7 +1239,7 @@ describe('marketpools tests', function () {
 
       // verify swap execution
       await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '1000'});
-      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: null});
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: '0.001'});
       await assertContractBalance('marketpools', 'GLD', 1000);
       await assertContractBalance('marketpools', 'SLV', 1016.418);
 

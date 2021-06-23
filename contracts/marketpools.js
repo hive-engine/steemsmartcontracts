@@ -466,7 +466,7 @@ actions.swapTokens = async (payload) => {
     if (!api.assert(api.BigNumber(tokenQuantity.out).dp() <= tokenOut.precision, 'symbolOut precision mismatch')) return;
   }
 
-  tokenQuantity.in = api.BigNumber(tokenQuantity.in).dp(tokenIn.precision, api.BigNumber.ROUND_HALF_UP);
+  tokenQuantity.in = api.BigNumber(tokenQuantity.in).dp(tokenIn.precision, api.BigNumber.ROUND_CEIL);
   tokenQuantity.out = api.BigNumber(tokenQuantity.out).dp(tokenOut.precision, api.BigNumber.ROUND_DOWN);
   if (!api.assert(tokenQuantity.in.gt(0), 'symbolIn precision mismatch')
     || !api.assert(tokenQuantity.out.gt(0), 'symbolOut precision mismatch')) return;

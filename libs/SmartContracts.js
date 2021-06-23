@@ -140,6 +140,10 @@ class SmartContracts {
         // init bignumber decimal places
         BigNumber.set({ DECIMAL_PLACES: 20 });
 
+        if (refHiveBlockNumber >= 55039841) {
+          BigNumber.set({ RANGE: 500 });
+        }
+
         const contractVersion = existingContract && existingContract.version
           ? existingContract.version
           : 1;
@@ -323,6 +327,10 @@ class SmartContracts {
         BigNumber.set({ DECIMAL_PLACES: 20 });
       } else {
         BigNumber.set({ DECIMAL_PLACES: 3 });
+      }
+
+      if (refHiveBlockNumber >= 55039841) {
+        BigNumber.set({ RANGE: 500 });
       }
 
       // initialize the state that will be available in the VM

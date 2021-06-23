@@ -1,8 +1,6 @@
 /* eslint-disable */
-const { fork } = require('child_process');
 const assert = require('assert');
 const { MongoClient } = require('mongodb');
-const { Base64 } = require('js-base64');
 
 const { CONSTANTS } = require('../libs/Constants');
 const { Database } = require('../libs/Database');
@@ -74,14 +72,22 @@ async function assertPool(pool, updating) {
 
   assert.ok(res, `Pool ${id} not found.`);
 
+  let error = false;
   Object.keys(pool).forEach(k => {
-    assert.equal(res[k], pool[k], `Pool ${id} has ${k} ${res[k]}, expected ${pool[k]}`);
+    if (res[k] !== pool[k]) {
+        error = true;
+        console.log(`Pool ${id} has ${k} ${res[k]}, expected ${pool[k]}`);
+    }
   });
   if (updating) {
     Object.keys(updating).forEach(k => {
-      assert.equal(res.updating[k], updating[k], `Pool ${id} has updating.${k} ${res.updating[k]}, expected ${updating[k]}`);
+      if (res.updating[k] !== updating[k]) {
+          error = true;
+          console.log(`Pool ${id} has updating.${k} ${res.updating[k]}, expected ${updating[k]}`);
+      }
     });
   }
+  assert(!error, 'Mismatch fields in pool');
 }
 
 async function assertTokenPool(symbol, poolId) {
@@ -131,7 +137,7 @@ async function assertParams(key, value) {
     assert.equal(res[key], value, `Params for ${key} is ${res[key]}, expected ${value}`);
 }
 
-async function finishPowerUpdate(blockNumber, poolId) {
+async function finishPowerUpdate(poolId) {
   const poolQuery = {
       contract: 'mining',
       table: 'pools',
@@ -140,19 +146,19 @@ async function finishPowerUpdate(blockNumber, poolId) {
       }
   };
   let res = await fixture.database.findOne(poolQuery);
+  let refBlockNumber;
   while (res.updating.inProgress) {
+    refBlockNumber = fixture.getNextRefBlockNumber();
     const block = {
-      refHiveBlockNumber: blockNumber,
+      refHiveBlockNumber: refBlockNumber,
       refHiveBlockId: 'ABCD1',
       prevRefHiveBlockId: 'ABCD2',
       timestamp: '2018-06-01T00:00:00',
-      transactions: [new Transaction(blockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', '')],
+      transactions: [new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', '')],
     };
     await fixture.sendBlock(block);
     res = await fixture.database.findOne(poolQuery);
-    blockNumber += 1;
   }
-  return blockNumber;
 }
 
 describe('mining', function () {
@@ -160,7 +166,7 @@ describe('mining', function () {
 
   before((done) => {
     new Promise(async (resolve) => {
-      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true });
+      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
       db = await client.db(conf.databaseName);
       await db.dropDatabase();
       resolve();
@@ -183,7 +189,6 @@ describe('mining', function () {
   beforeEach((done) => {
     new Promise(async (resolve) => {
       db = await client.db(conf.databaseName);
-      fixture.resetRefBlockNumber();
       resolve();
     })
       .then(() => {
@@ -409,18 +414,7 @@ describe('mining', function () {
       await assertPool({id: 'TKN:MTKN,TKN', totalPower: '50'});
 
       // allow mining power update to resume
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-      await fixture.sendBlock(block);
+      await finishPowerUpdate('TKN:MTKN,TKN');
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '50');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '100');
@@ -807,18 +801,7 @@ describe('mining', function () {
       await assertPool({id: 'TKN:MTKN,TKN', totalPower: '50'}, { inProgress: true, lastId: 0, tokenIndex: 1 });
 
       // allow mining power update to resume
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-      await fixture.sendBlock(block);
+      await finishPowerUpdate('TKN:MTKN,TKN');
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '50');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '64');
@@ -832,13 +815,14 @@ describe('mining', function () {
         refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
+        timestamp: '2018-06-02T00:00:00',
         transactions,
       };
 
       await fixture.sendBlock(block);
-
       await tableAsserts.assertNoErrorInLastBlock();
+
+      await finishPowerUpdate('TKN:MTKN,TKN');
 
       await assertTokenPool('TKN', 'TKN:MTKN,TKN');
       await assertTokenPool('MTKN', 'TKN:MTKN,TKN');
@@ -850,7 +834,7 @@ describe('mining', function () {
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '75');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '73');
-      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '148', lotteryWinners: 2, lotteryIntervalHours: 3, lotteryAmount: "15.7", nextLotteryTimestamp: new Date('2018-06-01T03:00:00.000Z').getTime() });
+      await assertPool({id: 'TKN:MTKN,TKN', totalPower: '148', lotteryWinners: 2, lotteryIntervalHours: 3, lotteryAmount: "15.7", nextLotteryTimestamp: new Date('2018-06-02T03:00:00.000Z').getTime() });
 
       resolve();
     })
@@ -1175,18 +1159,7 @@ describe('mining', function () {
       await assertPool({id: 'TKN:MTKN,TKN', totalPower: '50'}, { inProgress: true, lastId: 0, tokenIndex: 1 });
 
       // allow mining power update to resume
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-      await fixture.sendBlock(block);
+      await finishPowerUpdate('TKN:MTKN,TKN');
 
       await assertMiningPower('satoshi', 'TKN:MTKN,TKN', '50');
       await assertMiningPower('satoshi2', 'TKN:MTKN,TKN', '100');
@@ -1883,19 +1856,7 @@ describe('mining', function () {
       await assertPool({id: 'TEST-TKN:TEST-TKN:TSTNFT', totalPower: '50'}, { inProgress: true, lastId: 0, tokenIndex: 1, nftTokenIndex: 0 });
 
       // allow mining power update to resume
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-      await fixture.sendBlock(block);
-
+      await finishPowerUpdate('TEST-TKN:TEST-TKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TEST-TKN::TSTNFT', '0.75', {0: '1', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TEST-TKN::TSTNFT', undefined);
@@ -1926,23 +1887,12 @@ describe('mining', function () {
       await assertMiningPower('satoshi2', 'TEST-TKN::TSTNFT', undefined);
       await assertPool({id: 'TEST-TKN::TSTNFT', totalPower: '52.5'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
       
-      await assertMiningPower('satoshi', 'TEST-TKN:TEST-TKN:TSTNFT', '50.75');
+      await assertMiningPower('satoshi', 'TEST-TKN:TEST-TKN:TSTNFT', '50');
       await assertMiningPower('satoshi2', 'TEST-TKN:TEST-TKN:TSTNFT', undefined);
-      await assertPool({id: 'TEST-TKN:TEST-TKN:TSTNFT', totalPower: '50.75'}, { inProgress: true, lastId: 0, tokenIndex: 1, nftTokenIndex: 0 });
+      await assertPool({id: 'TEST-TKN:TEST-TKN:TSTNFT', totalPower: '50'}, { inProgress: true, lastId: 0, tokenIndex: 1, nftTokenIndex: 0 });
 
       // allow mining power update to resume
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await fixture.sendBlock(block);
+      await finishPowerUpdate('TEST-TKN:TEST-TKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TEST-TKN::TSTNFT', '52.5', {0: '350', 1: '0.15'});
       await assertMiningPower('satoshi2', 'TEST-TKN::TSTNFT', undefined);
@@ -2167,13 +2117,13 @@ describe('mining', function () {
       await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TEST.TKN', balance: '50.00000000', stake: '50.00000000' });
 
       // allow to finish update
-      refBlockNumber = await finishPowerUpdate(refBlockNumber + 1, 'TEST-TKN:TEST-TKN:TSTNFT');
+      await finishPowerUpdate('TEST-TKN:TEST-TKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TEST-TKN:TEST-TKN:TSTNFT', '50.75', {0: '1', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TEST-TKN:TEST-TKN:TSTNFT', undefined);
       await assertPool({id: 'TEST-TKN:TEST-TKN:TSTNFT', totalPower: '50.75'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
 
-      refBlockNumber += 1;
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": 0, "type": "bear", "propertyName": "power", "changeAmount": "10", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": "TEST-TKN:TEST-TKN:TSTNFT", "type": 0, "propertyName": "power", "changeAmount": "10", "isSignedWithActiveKey": true }'));
@@ -2274,13 +2224,13 @@ describe('mining', function () {
       await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TESTTKN', balance: '50.00000000', stake: '50.00000000' });
 
       // allow to finish update
-      refBlockNumber = await finishPowerUpdate(refBlockNumber + 1, 'TESTTKN:TESTTKN:TSTNFT');
+      await finishPowerUpdate('TESTTKN:TESTTKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TESTTKN:TESTTKN:TSTNFT', '50.75', {0: '1', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TESTTKN:TEST-TKN:TSTNFT', undefined);
       await assertPool({id: 'TESTTKN:TESTTKN:TSTNFT', totalPower: '50.75'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
 
-      refBlockNumber += 1;
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": "TESTTKN:TESTTKN:TSTNFT", "type": "bear", "propertyName": "power", "changeAmount": "10", "isSignedWithActiveKey": true }'));
 
@@ -2299,13 +2249,13 @@ describe('mining', function () {
       await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TESTTKN', balance: '49.00000000', stake: '50.00000000' });
   
       // allow to finish update
-      refBlockNumber = await finishPowerUpdate(refBlockNumber + 1, 'TESTTKN:TESTTKN:TSTNFT');
+      await finishPowerUpdate('TESTTKN:TESTTKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TESTTKN:TESTTKN:TSTNFT', '58.25', {0: '11', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TESTTKN:TESTTKN:TSTNFT', undefined);
       await assertPool({id: 'TESTTKN:TESTTKN:TSTNFT', totalPower: '58.25'}, { inProgress: false, lastId: 0, tokenIndex: 0, nftTokenIndex: 0 });
 
-      refBlockNumber += 1;
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'mining', 'changeNftProperty', '{ "id": "TESTTKN:TESTTKN:TSTNFT", "type": "bear", "propertyName": "power", "changeAmount": "-5", "isSignedWithActiveKey": true }'));
 
@@ -2324,7 +2274,7 @@ describe('mining', function () {
       await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TESTTKN', balance: '48.50000000', stake: '50.00000000' });
 
       // allow to finish update
-      refBlockNumber = await finishPowerUpdate(refBlockNumber + 1, 'TESTTKN:TESTTKN:TSTNFT');
+      await finishPowerUpdate('TESTTKN:TESTTKN:TSTNFT');
 
       await assertMiningPower('satoshi', 'TESTTKN:TESTTKN:TSTNFT', '54.5', {0: '6', 1: '0.75'});
       await assertMiningPower('satoshi2', 'TESTTKN:TESTTKN:TSTNFT', undefined);

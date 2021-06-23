@@ -241,6 +241,13 @@ actions.createSSC = async () => {
     await api.db.createTable('sellBook', ['symbol', 'account', 'priceDec', 'expiration', 'txId']);
     await api.db.createTable('tradesHistory', ['symbol']);
     await api.db.createTable('metrics', ['symbol']);
+  } else {
+    // remove stuck SWAP.DOGE order
+    const order = await api.db.findOne('buyBook', { txId: 'a5ed770e5efdb7d504ad49e81b1193e6363f1c48' });
+    if (order) {
+      await api.db.remove('buyBook', order);
+      await updateBidMetric(order.symbol);
+    }
   }
 };
 

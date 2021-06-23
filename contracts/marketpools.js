@@ -466,13 +466,18 @@ actions.swapTokens = async (payload) => {
     if (!api.assert(api.BigNumber(tokenQuantity.out).dp() <= tokenOut.precision, 'symbolOut precision mismatch')) return;
   }
 
+  tokenQuantity.in = api.BigNumber(tokenQuantity.in).dp(tokenIn.precision, api.BigNumber.ROUND_HALF_UP);
+  tokenQuantity.out = api.BigNumber(tokenQuantity.out).dp(tokenOut.precision, api.BigNumber.ROUND_DOWN);
+  if (!api.assert(tokenQuantity.in.gt(0), 'symbolIn precision mismatch')
+    || !api.assert(tokenQuantity.out.gt(0), 'symbolOut precision mismatch')) return;
+
   if (!api.assert(senderBaseFunded, 'insufficient input balance')
     || !validateSwap(pool, tokenPairDelta[0], tokenPairDelta[1], api.BigNumber(maxSlippage).dividedBy(100))) return;
 
-  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision, api.BigNumber.ROUND_HALF_UP), to: 'marketpools' });
+  const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol: symbolIn, quantity: tokenQuantity.in.toFixed(), to: 'marketpools' });
   if (res.errors === undefined
-    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === api.BigNumber(tokenQuantity.in).toFixed(tokenIn.precision, api.BigNumber.ROUND_HALF_UP)) !== undefined) {
-    await api.transferTokens(api.sender, symbolOut, api.BigNumber(tokenQuantity.out).toFixed(tokenOut.precision, api.BigNumber.ROUND_HALF_UP), 'user');
+    && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === tokenQuantity.in.toFixed()) !== undefined) {
+    await api.transferTokens(api.sender, symbolOut, tokenQuantity.out.toFixed(), 'user');
     await updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1], false, true);
     api.emit('swapTokens', { symbolIn, symbolOut });
   }

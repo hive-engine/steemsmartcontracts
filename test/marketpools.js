@@ -823,10 +823,10 @@ describe('marketpools tests', function () {
       await tableAsserts.assertNoErrorInLastBlock();
 
       // verify swap execution
-      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: '999.99800110'});
-      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '1000.00020'});
-      await assertContractBalance('marketpools', 'SLV', 10000.00199890);
-      await assertContractBalance('marketpools', 'GLD', 999.99980);
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: '999.99800109'});
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '1000.00019'});
+      await assertContractBalance('marketpools', 'SLV', 10000.00199891);
+      await assertContractBalance('marketpools', 'GLD', 999.99981);
 
       // verify pool stats execution
       await assertPoolStats('GLD:SLV', {
@@ -1190,5 +1190,74 @@ describe('marketpools tests', function () {
       });
 
   });    
+
+  it('handles differing token precision', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "GLD", "precision": 8, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "SLV", "precision": 3, "maxSupply": "100000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "10000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "20000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "GLD", "quantity": "1000", "to": "buyer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "GLD:SLV", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "1016.418", "isSignedWithActiveKey": true }'));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      await tableAsserts.assertNoErrorInLastBlock();
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "0.000499", "tradeType": "exactInput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T01:00:00',
+        transactions,
+      };
+      await fixture.sendBlock(block);
+
+      let res = await fixture.database.getLatestBlockInfo();
+      // console.log(res);
+
+      // verify swap execution
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '1000'});
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: null});
+      await assertContractBalance('marketpools', 'GLD', 1000);
+      await assertContractBalance('marketpools', 'SLV', 1016.418);
+
+      // verify pool stats execution
+      await assertPoolStats('GLD:SLV', {
+        baseQuantity: 1000,
+        quoteQuantity: 1016.418,
+        baseVolume: 0,
+        quoteVolume: 0,
+        basePrice: 1.01641800,
+        quotePrice: 0.98384719,        
+      });
+      await assertShareConsistency("GLD:SLV");
+     
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
   // END TESTS
 });

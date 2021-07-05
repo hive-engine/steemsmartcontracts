@@ -37,13 +37,6 @@ async function indexInformation(tableData) {
   }
 }
 
-function objectCacheKey(contract, table, object) {
-  if (contract === 'mining' && table === 'miningPower') {
-    return `${contract}_${table}_${object.id}_${object.account}`;
-  }
-  return null;
-}
-
 function adjustQueryForPrimaryKey(query, customPrimaryKey) {
   const primaryKeyQuery = {};
   let usePrimaryKey = true;
@@ -68,13 +61,11 @@ class Database {
     this.client = null;
     this.session = null;
     this.contractCache = {};
-    this.objectCache = {};
   }
 
   startSession() {
     this.session = this.client.startSession();
     this.contractCache = {};
-    this.objectCache = {};
     return this.session;
   }
 
@@ -544,7 +535,6 @@ class Database {
         indexes,
       } = payload;
 
-      await this.flushCache();
 
       const lim = limit || 1000;
       const off = offset || 0;
@@ -661,17 +651,6 @@ class Database {
             adjustQueryForPrimaryKey(query, customPrimaryKey);
           }
 
-          if (this.session) {
-            const cacheKey = objectCacheKey(contract, table, query);
-            if (cacheKey) {
-              if (this.objectCache[cacheKey]) {
-                return this.objectCache[cacheKey];
-              }
-            } else {
-              await this.flushCache();
-            }
-          }
-
           result = await tableData.findOne(EJSON.deserialize(query), { session: this.session });
           if (result) {
             result = EJSON.serialize(result);
@@ -736,11 +715,6 @@ class Database {
       if (tableInDb) {
         await this.updateTableHash(contract, finalTableName);
         await tableInDb.deleteOne({ _id: record._id }, { session: this.session }); // eslint-disable-line no-underscore-dangle
-
-        const cacheKey = objectCacheKey(contract, table, record);
-        if (cacheKey && this.objectCache[cacheKey]) {
-          delete this.objectCache[cacheKey];
-        }
       }
     }
   }
@@ -763,22 +737,6 @@ class Database {
     if (contractInDb && contractInDb.tables[finalTableName] !== undefined) {
       const tableInDb = this.database.collection(finalTableName);
       if (tableInDb) {
-        if (unsets && !cache) {
-          await this.flushCache();
-        } else if (cache) {
-          const cacheKey = objectCacheKey(contract, table, record);
-          if (cacheKey) {
-            this.objectCache[cacheKey] = record;
-            await this.updateTableHash(contract, finalTableName);
-            return;
-          }
-        }
-
-        if (cache) {
-          // Do not re-update table hash when flushing cache.
-          await this.updateTableHash(contract, finalTableName);
-        }
-
         if (unsets) {
           await tableInDb.updateOne({ _id: record._id }, { $set: EJSON.deserialize(record), $unset: EJSON.deserialize(unsets) }, { upsert: true, session: this.session }); // eslint-disable-line
         } else {
@@ -786,24 +744,6 @@ class Database {
         }
       }
     }
-  }
-
-  async flushCache() {
-    if (!this.session) {
-      return;
-    }
-    const keys = Object.keys(this.objectCache);
-    for (let i = 0; i < keys.length; i += 1) {
-      const k = keys[i];
-      const keyParts = k.split('_');
-      const payload = {
-        contract: keyParts[0],
-        table: keyParts[1],
-        record: this.objectCache[k],
-      };
-      await this.update(payload, false);
-    }
-    this.objectCache = {};
   }
 
   async flushContractCache() {
@@ -880,7 +820,6 @@ class Database {
       offset,
       indexes,
     } = payload;
-    await this.flushCache();
 
     const lim = limit || 1000;
     const off = offset || 0;
@@ -919,7 +858,6 @@ class Database {
    */
   async dfindOne(payload) {
     const { table, query } = payload;
-    await this.flushCache();
 
     const tableInDb = await this.getCollection(table);
     let record = null;

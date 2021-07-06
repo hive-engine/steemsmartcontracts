@@ -24,7 +24,8 @@
     "test14": "./node_modules/mocha/bin/mocha ./test/marketpools.js",
     "test15": "./node_modules/mocha/bin/mocha ./test/tokenfunds.js",
     "test16": "./node_modules/mocha/bin/mocha ./test/nftauction.js",
-    "test17": "./node_modules/mocha/bin/mocha ./test/comments.js"
+    "test17": "./node_modules/mocha/bin/mocha ./test/comments.js",
+    "test18": "./node_modules/mocha/bin/mocha ./test/ticks.js"
   },
   "engines": {
     "node": ">=13.7.0",

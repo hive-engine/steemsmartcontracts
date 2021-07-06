@@ -127,31 +127,14 @@ class Block {
     // handle virtual transactions
     const virtualTransactions = [];
 
-    virtualTransactions.push(new Transaction(0, '', 'null', 'tokens', 'checkPendingUnstakes', ''));
-    virtualTransactions.push(new Transaction(0, '', 'null', 'tokens', 'checkPendingUndelegations', ''));
-    virtualTransactions.push(new Transaction(0, '', 'null', 'nft', 'checkPendingUndelegations', ''));
+    // use contracts_config contractTicks to trigger ticking contract actions.
+    const contractsConfig = await database.getContractsConfig();
 
-    if (this.refHiveBlockNumber >= 45251626) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'botcontroller', 'tick', ''));
-    }
-    if (this.refHiveBlockNumber >= 47746850) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'mining', 'checkPendingLotteries', ''));
-    }
-    if (this.refHiveBlockNumber >= 48664773) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
-    }
-    if (this.refHiveBlockNumber >= 54560500) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'nftauction', 'updateAuctions', ''));
-    }
-
-    if (this.refHiveBlockNumber >= 51022551) {
-      virtualTransactions
-        .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
-    }
-
-    if (this.refHiveBlockNumber >= 53610300) {
-      virtualTransactions
-        .push(new Transaction(0, '', 'null', 'tokenfunds', 'checkPendingDtfs', ''));
+    for (let i = 0; i < contractsConfig.contractTicks.length; i += 1) {
+      const contractTick = contractsConfig.contractTicks[i];
+      if (this.refHiveBlockNumber >= contractTick.startRefBlock) {
+        virtualTransactions.push(new Transaction(0, '', 'null', contractTick.contract, contractTick.action, ''));
+      }
     }
 
     if (this.refHiveBlockNumber % 1200 === 0) {
@@ -253,6 +236,14 @@ class Block {
           );
         } else {
           results = { logs: { errors: ['the contract deployment is currently unavailable'] } };
+        }
+      } else if (contract === 'contract' && action === 'registerTick' && payload) {
+        const authorizedAccountTickRegister = [
+          CONSTANTS.HIVE_ENGINE_ACCOUNT, CONSTANTS.HIVE_PEGGED_ACCOUNT];
+        if (authorizedAccountTickRegister.includes(sender)) {
+          results = await SmartContracts.registerTick(database, transaction);
+        } else {
+          results = { logs: { errors: ['registerTick unauthorized'] } };
         }
       } else {
         results = await SmartContracts.executeSmartContract(// eslint-disable-line

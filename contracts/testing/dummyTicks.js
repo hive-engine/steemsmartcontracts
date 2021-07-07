@@ -1,27 +1,32 @@
-actions.createSSC = function (payload) {
+/* eslint-disable no-await-in-loop */
+/* eslint-disable quote-props */
+/* eslint-disable max-len */
+/* global actions, api */
+
+actions.createSSC = () => {
   // Initialize the smart contract via the create action
-}
+};
 actions.checkPendingUnstakes = () => {
-    api.emit('checkPendingUnstakes', {});
-}
+  api.emit('checkPendingUnstakes', {});
+};
 actions.checkPendingUndelegations = () => {
-    api.emit('checkPendingUndelegations', {});
-}
+  api.emit('checkPendingUndelegations', {});
+};
 actions.tick = () => {
-    api.emit('tick', {});
-}
+  api.emit('tick', {});
+};
 actions.checkPendingLotteries = () => {
-    api.emit('checkPendingLotteries', {});
-}
+  api.emit('checkPendingLotteries', {});
+};
 actions.checkPendingAirdrops = () => {
-    api.emit('checkPendingAirdrops', {});
-}
+  api.emit('checkPendingAirdrops', {});
+};
 actions.updateAuctions = () => {
-    api.emit('updateAuctions', {});
-}
+  api.emit('updateAuctions', {});
+};
 actions.scheduleWitnesses = () => {
-    api.emit('scheduleWitnesses', {});
-}
+  api.emit('scheduleWitnesses', {});
+};
 actions.checkPendingDtfs = () => {
-    api.emit('checkPendingDtfs', {});
-}
+  api.emit('checkPendingDtfs', {});
+};

@@ -153,37 +153,22 @@ class Block {
       // the "unknown error" errors are removed as they are related to a non existing action
       if (transaction.logs !== '{}'
         && transaction.logs !== '{"errors":["unknown error"]}') {
-        if (transaction.contract === 'witnesses'
-          && transaction.action === 'scheduleWitnesses'
+        let tickingAction = false;
+        for (let j = 0; j < contractsConfig.contractTicks.length; j += 1) {
+          const contractTick = contractsConfig.contractTicks[j];
+          if (transaction.contract === contractTick.contract
+            && transaction.action === contractTick.action
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'inflation'
+            tickingAction = true;
+          }
+        }
+
+
+        if (transaction.contract === 'inflation'
           && transaction.action === 'issueNewTokens'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
-        } else if (transaction.contract === 'nft'
-          && transaction.action === 'checkPendingUndelegations'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'botcontroller'
-          && transaction.action === 'tick'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'mining'
-          && transaction.action === 'checkPendingLotteries'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'airdrops'
-          && transaction.action === 'checkPendingAirdrops'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'nftauction'
-          && transaction.action === 'updateAuctions'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'tokenfunds'
-          && transaction.action === 'checkPendingDtfs'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+        } else if (tickingAction) {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);

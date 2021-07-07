@@ -264,13 +264,25 @@ class SmartContracts {
       if (contractTicks.find(t => t.contract === contractName && t.action === tickAction)) {
         return { logs: { errors: ['contract tick already registered'] } };
       }
-      contractTicks.push({
+      const newContractTick = {
         contract: contractName,
         action: tickAction,
         startRefBlock: refHiveBlockNumber + 1,
-      });
+      };
+      contractTicks.push(newContractTick);
       await database.updateContractsConfig(contractsConfig);
-      return { logs: { errors: [], events: [] } };
+      return {
+        logs: {
+          errors: [],
+          events: [
+            {
+              contract: 'contract',
+              event: 'registerTick',
+              data: newContractTick,
+            },
+          ],
+        },
+      };
     } catch (e) {
       return { logs: { errors: [`${e.name}: ${e.message}`] } };
     }

@@ -166,6 +166,10 @@ describe('ticks', function () {
       await fixture.sendBlock(block);
       await tableAsserts.assertNoErrorInLastBlock();
 
+      let res = await fixture.database.getLatestBlockInfo();
+      let txs = res.transactions;
+      assert.equal(txs[1].logs, `{"events":[{"contract":"contract","event":"registerTick","data":{"contract":"testtick","action":"tick","startRefBlock":${refBlockNumber + 1}}}]}`);
+
       refBlockNumber = fixture.getNextRefBlockNumber();
       const tickedActions = await getTickingActionsAtRefblock(refBlockNumber);
       assert.equal(JSON.stringify(tickedActions), '["testtick.tick"]');

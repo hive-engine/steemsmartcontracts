@@ -349,6 +349,7 @@ async function runDistribution(dist, params, flush = false) {
             .dividedBy(100)
             .dividedBy(dist.numTicksLeft)
             .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+          if (api.BigNumber(payoutShare).lte(0)) return;
           if (await payRecipient(tr.account, payTokens[i].symbol, payoutShare, tr.type)) {
             const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
             upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
@@ -375,6 +376,7 @@ async function runDistribution(dist, params, flush = false) {
           .multipliedBy(payoutShare)
           .dividedBy(dist.numTicksLeft)
           .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+        if (api.BigNumber(payoutQty).lte(0)) return;
         if (await payRecipient(tr.account, payTokens[i].symbol, payoutQty)) {
           const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
           upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)

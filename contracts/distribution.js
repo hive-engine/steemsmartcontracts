@@ -18,6 +18,7 @@ actions.createSSC = async () => {
   } else {
     const params = await api.db.findOne('params', {});
     if (!params.updateIndex) {
+      await api.db.addIndexes('batches', [{ name: 'lastTickTime', index: { lastTickTime: 1 } }]);
       params.distTickHours = '24';
       params.maxDistributionsLimit = 1;
       params.processQueryLimit = 1000;

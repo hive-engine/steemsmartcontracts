@@ -35,7 +35,7 @@ async function assertContractBalance(account, symbol, balance) {
   assert.equal(res.balance, balance, `${account} has ${symbol} balance ${res.balance}, expected ${balance}`);  
 }
 
-async function assertTokenBalance(id, symbol, balance) {
+async function assertDistTokenBalance(id, symbol, balance) {
   let hasBalance = false;
   let dist = await fixture.database.findOne({
     contract: 'distribution',
@@ -73,6 +73,41 @@ async function getLastDistributionId() {
   let eventLog = JSON.parse(blk.transactions[4].logs);
   let createEvent = eventLog.events.find(x => x.event === 'create');
   return createEvent.data.id;
+}
+
+async function setUpEnv(configOverride = {}) {
+  let transactions = [];
+  let refBlockNumber = fixture.getNextRefBlockNumber();
+  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(marketpoolsPayload)));
+  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+  
+  let block = {
+    refHiveBlockNumber: refBlockNumber,
+    refHiveBlockId: 'ABCD1',
+    prevRefHiveBlockId: 'ABCD2',
+    timestamp: '2018-05-31T00:00:00',
+    transactions,
+  };
+
+  await fixture.sendBlock(block);
+  await tableAsserts.assertNoErrorInLastBlock();
+
+  transactions = [];
+  refBlockNumber = fixture.getNextRefBlockNumber();
+  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
+
+  block = {
+    refHiveBlockNumber: refBlockNumber,
+    refHiveBlockId: 'ABCD1',
+    prevRefHiveBlockId: 'ABCD2',
+    timestamp: '2018-05-31T01:00:00',
+    transactions,
+  };
+
+  await fixture.sendBlock(block);
+  await tableAsserts.assertNoErrorInLastBlock();
 }
 
 // distribution test suite
@@ -136,20 +171,21 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": 1, "tokenRecipients": 1, "isSignedWithActiveKey": false }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": 1, "tokenRecipients": 1, "isSignedWithActiveKey": true }'));      
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": 1, "tokenRecipients": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [], "tokenRecipients": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [], "tokenRecipients": [], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "XXX"}], "tokenRecipients": [], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "XXX", "quantity": 1}], "tokenRecipients": [], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "XXX"}], "tokenRecipients": [{"account": "donchate"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 1}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 1},{"account": "harpagon", "pct": 1}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": "x"}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": "x"},{"account": "harpagon", "pct": "x"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 60},{"account": "harpagon", "pct": 60}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 60},{"account": "donchate", "type": "user", "pct": 40}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1},{"symbol": "TKN", "quantity": 2}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 60},{"account": "donchate", "type": "user", "pct": 40}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "marketpool", "tokenPair": "SWAP.HIVE:BEE", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "tokenPair": "SWAP.HIVE:BEE", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": 1, "tokenRecipients": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [], "tokenRecipients": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [], "tokenRecipients": [], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "XXX"}], "tokenRecipients": [], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "XXX", "quantity": 1}], "tokenRecipients": [], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "XXX"}], "tokenRecipients": [{"account": "donchate"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 1}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 1},{"account": "harpagon", "pct": 1}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": "x"}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": "x"},{"account": "harpagon", "pct": "x"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 60},{"account": "harpagon", "pct": 60}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 60},{"account": "donchate", "type": "user", "pct": 40}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 1},{"symbol": "TKN", "quantity": 2}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 60},{"account": "donchate", "type": "user", "pct": 40}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "marketpool", "numTicks": "30", "tokenPair": "SWAP.HIVE:BEE", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "numTicks": "30", "tokenPair": "SWAP.HIVE:BEE", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "numTicks": "30", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -166,21 +202,22 @@ describe('distribution', function () {
 
       assertError(txs[4], 'you must use a transaction signed with your active key');
       assertError(txs[5], 'invalid strategy');
-      assertError(txs[6], 'tokenMinPayout must be an array');
-      assertError(txs[7], 'specify at least one minimum payout configuration');
+      assertError(txs[6], 'numTicks must be a number between 1 and 5555');
+      assertError(txs[7], 'tokenMinPayout must be an array');
       assertError(txs[8], 'specify at least one minimum payout configuration');
-      assertError(txs[9], 'invalid quantity');
-      assertError(txs[10], '1-50 tokenRecipients are supported');
-      assertError(txs[11], 'invalid quantity');
-      assertError(txs[12], 'tokenRecipients pct must total 100');
-      assertError(txs[13], 'tokenRecipients type must be user or contract');
-      assertError(txs[14], 'invalid quantity');
-      assertError(txs[15], 'tokenRecipients type must be user or contract');
-      assertError(txs[16], 'tokenRecipients cannot have duplicate accounts');
-      assertError(txs[17], 'tokenMinPayout cannot have duplicate symbols');
-      assertError(txs[18], 'invalid strategy');
-      assertError(txs[19], 'invalid tokenPair');
+      assertError(txs[9], 'specify at least one minimum payout configuration');
+      assertError(txs[10], 'invalid quantity');
+      assertError(txs[11], '1-50 tokenRecipients are supported');
+      assertError(txs[12], 'invalid quantity');
+      assertError(txs[13], 'tokenRecipients pct must total 100');
+      assertError(txs[14], 'tokenRecipients type must be user or contract');
+      assertError(txs[15], 'invalid quantity');
+      assertError(txs[16], 'tokenRecipients type must be user or contract');
+      assertError(txs[17], 'tokenRecipients cannot have duplicate accounts');
+      assertError(txs[18], 'tokenMinPayout cannot have duplicate symbols');
+      assertError(txs[19], 'invalid strategy');
       assertError(txs[20], 'invalid tokenPair');
+      assertError(txs[21], 'invalid tokenPair');
       
       res = await fixture.database.find({
         contract: 'distribution',
@@ -197,7 +234,7 @@ describe('distribution', function () {
 
   });
 
-  it('should create valid fixed distribution', (done) => {
+  it('should create valid distribution', (done) => {
     new Promise(async (resolve) => {
 
       await fixture.setUp();
@@ -209,9 +246,9 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(marketpoolsPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "SWAP.HIVE:BEE", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "tokenPair": "SWAP.HIVE:BEE", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "numTicks": "30", "tokenPair": "SWAP.HIVE:BEE", "numTicks": "30", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -223,7 +260,6 @@ describe('distribution', function () {
 
       await fixture.sendBlock(block);
       
-      // console.log(blk);
       await tableAsserts.assertNoErrorInLastBlock();
       let res = await fixture.database.find({
         contract: 'distribution',
@@ -252,7 +288,7 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -266,7 +302,7 @@ describe('distribution', function () {
 
       await tableAsserts.assertNoErrorInLastBlock();
 
-      const id = await getLastDistributionId();
+      const id = 1;
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": false }`));
@@ -310,9 +346,9 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(marketpoolsPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "SWAP.HIVE:BEE", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "tokenPair": "SWAP.HIVE:BEE", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));            
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "numTicks": "30", "tokenPair": "SWAP.HIVE:BEE", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));            
       
       
       
@@ -397,9 +433,9 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(marketpoolsPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "5000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 100}], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "SWAP.HIVE:BEE", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "tokenPair": "SWAP.HIVE:BEE", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "numTicks": "30", "tokenPair": "SWAP.HIVE:BEE", "numTicks": "30", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));      
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -459,7 +495,7 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -474,10 +510,10 @@ describe('distribution', function () {
 
       await tableAsserts.assertNoErrorInLastBlock();
 
-      const id = await getLastDistributionId();
+      const id = 1;
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": 100, "isSignedWithActiveKey": true}`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true}`));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -500,7 +536,7 @@ describe('distribution', function () {
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": 100, "isSignedWithActiveKey": false}`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": false}`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100x", "isSignedWithActiveKey": true}`));
 
       block = {
@@ -529,64 +565,6 @@ describe('distribution', function () {
         done();
       });
   });
-
-  it('should distribute payments on deposit exceeding tokenMinPayout', (done) => {
-    new Promise(async (resolve) => {
-      await fixture.setUp();
-
-      let refBlockNumber = fixture.getNextRefBlockNumber();
-      let transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
-
-      let block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-
-      await fixture.sendBlock(block);
-
-      await tableAsserts.assertNoErrorInLastBlock();
-
-      const id = await getLastDistributionId();
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', `{ "id": ${id}, "symbol": "TKN", "quantity": "100", "isSignedWithActiveKey": true }`));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T01:00:00',
-        transactions,
-      };
-      await fixture.sendBlock(block);
-
-      // should be no errors
-      await tableAsserts.assertNoErrorInLastBlock();
-
-      // should be redistributed
-      await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKN', balance: '450.00000000'});
-      await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKN', balance: '50.000'});
-
-      // contract should be flushed
-      await assertTokenBalance(id, 'TKN', 0);
-      
-      resolve();
-    })
-      .then(() => {
-        fixture.tearDown();
-        done();
-      });
-  });
   
   it('should hold payments on deposit not exceeding tokenMinPayout', (done) => {
     new Promise(async (resolve) => {
@@ -598,7 +576,7 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));      
 
       let block = {
@@ -613,7 +591,7 @@ describe('distribution', function () {
 
       await tableAsserts.assertNoErrorInLastBlock();
 
-      const id = await getLastDistributionId();
+      const id = 1;
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
@@ -636,7 +614,7 @@ describe('distribution', function () {
       await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKN'});
 
       // should have tokenBalance
-      await assertTokenBalance(id, 'TKN', 5);
+      await assertDistTokenBalance(id, 'TKN', 5);
       
       resolve();
     })
@@ -649,14 +627,12 @@ describe('distribution', function () {
   it('should distribute payments on flush', (done) => {
     new Promise(async (resolve) => {
       await fixture.setUp();
+      await setUpEnv();
 
       let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "30", "tokenMinPayout": [{"symbol": "TKN", "quantity": 10}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 50}], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -671,7 +647,7 @@ describe('distribution', function () {
 
       await tableAsserts.assertNoErrorInLastBlock();
 
-      const id = await getLastDistributionId();
+      const id = 1;
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
@@ -692,10 +668,10 @@ describe('distribution', function () {
 
       // should be redistributed
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKN', balance: '497.50000000'});
-      await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKN', balance: '2.500'});
+      await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKN', balance: '2.50000000'});
 
       // contract should be flushed
-      await assertTokenBalance(id, 'TKN', 0);
+      await assertDistTokenBalance(id, 'TKN', 0);
       
       resolve();
     })
@@ -708,14 +684,12 @@ describe('distribution', function () {
   it('should distribute payments to both users and contracts for multiple tokens', (done) => {
     new Promise(async (resolve) => {
       await fixture.setUp();
+      await setUpEnv();
 
       let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "1000", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "tokenMinPayout": [{"symbol": "TKN", "quantity": 10},{"symbol": "TKNA", "quantity": 5}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 25},{"account": "airdrops", "type": "contract", "pct": 25}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "fixed", "numTicks": "1", "tokenMinPayout": [{"symbol": "TKN", "quantity": "10"},{"symbol": "TKNA", "quantity": "5"}], "tokenRecipients": [{"account": "donchate", "type": "user", "pct": 50},{"account": "dantheman", "type": "user", "pct": 25},{"account": "airdrops", "type": "contract", "pct": 25}], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKN", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKNA", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "500", "to": "donchate", "isSignedWithActiveKey": true }'));
@@ -732,7 +706,7 @@ describe('distribution', function () {
 
       await tableAsserts.assertNoErrorInLastBlock();
 
-      const id = await getLastDistributionId();
+      const id = 1;
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', `{ "id": ${id}, "active": true, "isSignedWithActiveKey": true }`));
@@ -748,19 +722,31 @@ describe('distribution', function () {
       };
       await fixture.sendBlock(block);
 
-      // should be no errors
-      await tableAsserts.assertNoErrorInLastBlock();
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'empty', 'empty', `{ }`));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-02T01:00:00',
+        transactions,
+      };
+      await fixture.sendBlock(block);
+      // res = await fixture.database.getLatestBlockInfo();
+      // console.log(res);
 
       // should be redistributed
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKN', balance: '450.00000000'});
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKNA', balance: '450.00000000'});
-      await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKN', balance: '25.000'});
-      await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKNA', balance: '25.000'});
+      await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKN', balance: '25.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'dantheman', symbol: 'TKNA', balance: '25.00000000'});
       await assertContractBalance('airdrops', 'TKN', 25);
       await assertContractBalance('airdrops', 'TKNA', 25);
 
       // contract should be flushed
-      await assertTokenBalance(id, 'TKN', 0);
+      await assertDistTokenBalance(id, 'TKN', 0);
       
       resolve();
     })
@@ -768,5 +754,108 @@ describe('distribution', function () {
         fixture.tearDown();
         done();
       });
-  });  
+  });
+
+  it('should tick distributions and exclude accounts', (done) => {
+    new Promise(async (resolve) => {
+
+      await fixture.setUp();
+      await setUpEnv();
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKNA", "precision": 8, "maxSupply": "10000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "TKNB", "precision": 8, "maxSupply": "10000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "2000", "to": "donchate", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNB", "quantity": "2000", "to": "donchate", "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "2000", "to": "investor", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNB", "quantity": "2000", "to": "investor", "isSignedWithActiveKey": true }'));      
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "3000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNB", "quantity": "3000", "to": "whale", "isSignedWithActiveKey": true }'));            
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "TKNA:TKNB", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "TKNA:TKNB", "baseQuantity": "1", "quoteQuantity": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "TKNA:TKNB", "baseQuantity": "10", "quoteQuantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "tokenPair": "TKNA:TKNB", "numTicks": "30", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', '{ "id": 1, "active": "true", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', '{ "id": 1, "symbol": "BEE", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', '{ "id": 1, "symbol": "TKNA", "quantity": "100", "isSignedWithActiveKey": true }'));
+      
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'addLiquidity', '{ "tokenPair": "TKNA:TKNB", "baseQuantity": "1", "quoteQuantity": "10", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-02T00:00:00',
+        transactions,
+      };
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+      res = await fixture.database.getLatestBlockInfo();
+      // console.log(res);
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+
+      // should be redistributed
+      await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'BEE', balance: '0.30303030'});
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '3.03030303'});
+      await assertDistTokenBalance(1, 'BEE', '96.66666667');
+
+      await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKNA', balance: '1899.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'TKNA', balance: '1999.30303030'});
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2993.03030303'});
+      await assertDistTokenBalance(1, 'TKNA', '96.66666667');
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'addLiquidity', '{ "tokenPair": "TKNA:TKNB", "baseQuantity": "1", "quoteQuantity": "10", "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-03T00:00:00',
+        transactions,
+      };
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+      res = await fixture.database.getLatestBlockInfo();
+      // console.log(res);
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+
+      // should be redistributed
+      await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'BEE', balance: '0.60606060'});
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '6.06060606'});
+      await assertDistTokenBalance(1, 'BEE', '93.33333334');
+
+      await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKNA', balance: '1898.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'TKNA', balance: '1999.60606060'});
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2996.06060606'});
+      await assertDistTokenBalance(1, 'TKNA', '93.33333334');
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+
+  });
+
+  /// END TESTS
 });

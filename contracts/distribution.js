@@ -142,7 +142,10 @@ actions.create = async (payload) => {
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
     && api.assert(typeof strategy === 'string' && DistStrategy.indexOf(strategy) !== -1, 'invalid strategy')
-    && api.assert(typeof numTicks === 'string' && api.BigNumber(numTicks).gt(0) && api.BigNumber(numTicks).lte(5555), 'numTicks must be a number between 1 and 5555')) {
+    && api.assert(typeof numTicks === 'string'
+      && api.BigNumber(numTicks).isInteger()
+      && api.BigNumber(numTicks).gt(0)
+      && api.BigNumber(numTicks).lte(5555), 'numTicks must be a number between 1 and 5555')) {
     const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
     const newDist = {
       strategy,
@@ -199,8 +202,12 @@ actions.update = async (payload) => {
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     const exDist = await api.db.findOne('batches', { _id: id });
     if (api.assert(exDist, 'distribution not found')) {
-      if (numTicks && api.assert(typeof numTicks === 'string' && api.BigNumber(numTicks).gt(0) && api.BigNumber(numTicks).lte(5555), 'numTicks must be a number between 1 and 5555')) {
+      if (numTicks && api.assert(typeof numTicks === 'string'
+        && api.BigNumber(numTicks).isInteger()
+        && api.BigNumber(numTicks).gt(0)
+        && api.BigNumber(numTicks).lte(5555), 'numTicks must be a number between 1 and 5555')) {
         exDist.numTicks = numTicks;
+        exDist.numTicksLeft = api.BigNumber(numTicks).toNumber();
       }
       if (exDist.strategy === 'fixed') {
         if (!await validateMinPayout(tokenMinPayout)

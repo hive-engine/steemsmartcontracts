@@ -5,6 +5,7 @@ const enchex = require('crypto-js/enc-hex');
 const validator = require('validator');
 const { MongoClient } = require('mongodb');
 const { EJSON } = require('bson');
+const { CONSTANTS } = require('../libs/Constants');
 
 // Change this to turn on hash logging.
 const enableHashLogging = false;
@@ -148,6 +149,16 @@ class Database {
       await this.database.createCollection('contracts', { session: this.session });
     } else {
       this.chain = coll;
+    }
+
+    const contractsConfigColl = await this.getCollection('contracts_config');
+    if (contractsConfigColl === null) {
+      const newContractsConfigColl = await this.database.createCollection('contracts_config', { session: this.session });
+      // WARNING: Do not add any more entries to this initial configuration.
+      // Future contracts must use the contract action 'registerTick'.
+      await newContractsConfigColl.insertOne({
+        contractTicks: CONSTANTS.INITIAL_CONTRACT_TICKS,
+      }, { session: this.session });
     }
   }
 
@@ -406,6 +417,23 @@ class Database {
         await contracts.updateOne({ _id }, { $set: payload }, { session: this.session });
       }
     }
+  }
+
+  /**
+   * Get contracts configuration data.
+   */
+  async getContractsConfig() {
+    const contractsConfig = await this.getCollection('contracts_config');
+    return contractsConfig.findOne({}, { session: this.session });
+  }
+
+  /**
+   * Update contracts configuration data.
+   * @param {Object} config data.
+   */
+  async updateContractsConfig(config) {
+    const contractsConfig = await this.getCollection('contracts_config');
+    await contractsConfig.updateOne({}, { $set: config }, { session: this.session });
   }
 
   /**

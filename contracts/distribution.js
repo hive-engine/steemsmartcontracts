@@ -309,6 +309,8 @@ actions.deposit = async (payload) => {
 };
 
 async function getPoolRecipients(dist, params) {
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  const minHoldTime = api.BigNumber(blockDate.getTime()).minus(params.distTickHours * 3600 * 1000).toNumber();
   const result = [];
   let offset = 0;
   let processQuery = [];
@@ -322,6 +324,7 @@ async function getPoolRecipients(dist, params) {
       {
         tokenPair: dist.tokenPair,
         account: { $nin: dist.excludeAccount },
+        timeFactor: { $lte: minHoldTime },
       },
       params.processQueryLimit,
       offset,

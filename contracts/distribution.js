@@ -18,7 +18,7 @@ actions.createSSC = async () => {
     const params = await api.db.findOne('params', {});
     if (!params.updateIndex) {
       await api.db.addIndexes('batches', [{ name: 'lastTickTime', index: { lastTickTime: 1 } }]);
-      await api.db.createTable('pendingPayments', ['account', 'dueTime']);
+      await api.db.createTable('pendingPayments', ['dueTime']);
       params.distTickHours = '24';
       params.maxDistributionsLimit = 1;
       params.maxTransferLimit = 50;
@@ -385,6 +385,7 @@ async function runDistribution(dist, params, flush = false) {
     if (!api.assert(shareTotal.gt(0), 'no liquidity shares for this tokenPair')) return;
 
     let payTxCount = 0;
+    const storePending = [];
     while (tokenRecipients.length > 0) {
       const tr = tokenRecipients.shift();
       const payoutShare = api.BigNumber(tr.shares).dividedBy(shareTotal);
@@ -396,18 +397,16 @@ async function runDistribution(dist, params, flush = false) {
           .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
         if (api.BigNumber(payoutQty).lte(0)) return;
 
-        let payResult = false;
+        let payResult = true;
         if (payTxCount < params.maxTransferLimit) {
           payResult = await payRecipient(tr.account, payTokens[i].symbol, payoutQty);
         } else {
-          const storePending = {
+          storePending.push({
             distId: dist._id,
             account: tr.account,
             symbol: payTokens[i].symbol,
             quantity: payoutQty,
-            dueTime: blockDate.getTime(),
-          };
-          payResult = await api.db.insert('pendingPayments', storePending);
+          });
         }
         if (payResult) {
           const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
@@ -421,6 +420,7 @@ async function runDistribution(dist, params, flush = false) {
         payTxCount += 1;
       }
     }
+    if (storePending.length > 0) await api.db.insert('pendingPayments', { dueTime: blockDate.getTime(), accounts: storePending });
   }
 
   upDist.numTicksLeft -= 1;
@@ -444,6 +444,22 @@ actions.flush = async (payload) => {
     api.emit('flush', { distId: dist._id });
   }
 };
+
+async function runPendingPay(pendingPay, params) {
+  const payLimit = Math.min(params.maxTransferLimit, pendingPay.accounts.length);
+  for (let i = payLimit - 1; i >= 0; i -= 1) {
+    const p = pendingPay.accounts[i];
+    if (await payRecipient(p.account, p.symbol, p.quantity)) {
+      pendingPay.accounts.splice(i, 1);
+      api.emit('payment', { p, pending: true });
+    }
+  }
+  if (pendingPay.accounts.length === 0) {
+    api.db.remove('pendingPayments', pendingPay);
+  } else {
+    api.db.update('pendingPayments', pendingPay);
+  }
+}
 
 actions.checkPendingDistributions = async () => {
   if (api.assert(api.sender === 'null', 'not authorized')) {
@@ -476,15 +492,13 @@ actions.checkPendingDistributions = async () => {
             $lte: tickTime,
           },
         },
-        params.maxTransferLimit,
+        params.maxDistributionsLimit,
         0,
         [{ index: 'dueTime', descending: false }, { index: '_id', descending: false }]);
 
-      for (let i = 0; i < pendingPay.length; i += 1) {
-        const p = pendingPay[i];
-        if (await payRecipient(p.account, p.symbol, p.quantity)) {
-          await api.db.remove('pendingPayments', p);
-          api.emit('payment', { p, pending: true });
+      if (pendingPay.length > 0) {
+        for (let i = 0; i < pendingPay.length; i += 1) {
+          await runPendingPay(pendingPay[i], params);
         }
       }
     }

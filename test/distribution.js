@@ -977,7 +977,8 @@ describe('distribution', function () {
         table: 'pendingPayments',
         query: {},
       });
-      assert.ok(pendingRecs.length === 5, 'Expected to find pending payments');
+      // console.log(pendingRecs);
+      assert.ok(pendingRecs[0].accounts.length === 5, 'Expected to find pending payments');
 
       // should pay the first LP record only (transfer limit is 1)
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});
@@ -1013,7 +1014,8 @@ describe('distribution', function () {
         table: 'pendingPayments',
         query: {},
       });
-      assert.ok(pendingRecs.length === 4, 'Expected to find pending payments');
+      // console.log(pendingRecs);
+      assert.ok(pendingRecs[0].accounts.length === 4, 'Expected to find pending payments');
 
       // should pay the second LP from pending table (transfer limit is 1)
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});

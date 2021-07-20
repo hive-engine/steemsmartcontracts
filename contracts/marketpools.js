@@ -369,7 +369,9 @@ actions.addLiquidity = async (payload) => {
       const timeOffset = api.BigNumber(finalShares).minus(existingShares).abs().dividedBy(existingShares);
       lp.shares = finalShares;
       lp.timeFactor = api.BigNumber.min(
-        api.BigNumber(lp.timeFactor).times(api.BigNumber('1').plus(timeOffset)),
+        api.BigNumber(lp.timeFactor)
+          .times(api.BigNumber('1').plus(timeOffset))
+          .dp(0, api.BigNumber.ROUND_HALF_UP),
         blockDate.getTime(),
       ).toNumber();
       await api.db.update('liquidityPositions', lp);

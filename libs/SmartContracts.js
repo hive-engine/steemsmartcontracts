@@ -248,6 +248,46 @@ class SmartContracts {
     }
   }
 
+  // register tick action
+  static async registerTick(database, transaction) {
+    try {
+      const { refHiveBlockNumber } = transaction;
+      const payload = JSON.parse(transaction.payload);
+      const { contractName, tickAction } = payload;
+
+      const existingContract = await database.findContract({ name: contractName });
+      if (!existingContract) {
+        return { logs: { errors: ['contract does not exist'] } };
+      }
+      const contractsConfig = await database.getContractsConfig();
+      const { contractTicks } = contractsConfig;
+      if (contractTicks.find(t => t.contract === contractName && t.action === tickAction)) {
+        return { logs: { errors: ['contract tick already registered'] } };
+      }
+      const newContractTick = {
+        contract: contractName,
+        action: tickAction,
+        startRefBlock: refHiveBlockNumber + 1,
+      };
+      contractTicks.push(newContractTick);
+      await database.updateContractsConfig(contractsConfig);
+      return {
+        logs: {
+          errors: [],
+          events: [
+            {
+              contract: 'contract',
+              event: 'registerTick',
+              data: newContractTick,
+            },
+          ],
+        },
+      };
+    } catch (e) {
+      return { logs: { errors: [`${e.name}: ${e.message}`] } };
+    }
+  }
+
   // execute the smart contract and perform actions on the database if needed
   static async executeSmartContract(
     database, transaction, blockNumber, timestamp, refHiveBlockId, prevRefHiveBlockId, jsVMTimeout,

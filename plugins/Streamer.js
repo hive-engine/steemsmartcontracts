@@ -114,21 +114,23 @@ const parseTransactions = (refBlockNumber, block) => {
                 sscTransactions = Array.isArray(commentBody.json)
                   ? commentBody.json : [commentBody.json];
               } catch (e) {
-                // If this fails to parse, treat as a comment op
-                id = `ssc-${chainIdentifier}`;
-                permlink = operation[1].permlink; // eslint-disable-line prefer-destructuring
-                sscTransactions = [
-                  {
-                    contractName: 'comments',
-                    contractAction: 'comment',
-                    contractPayload: {
-                      author: operation[1].author,
-                      jsonMetadata: commentMeta,
-                      parentAuthor: operation[1].parent_author,
-                      parentPermlink: operation[1].parent_permlink,
+                // If this fails to parse, treat as a comment op, only after specified block
+                if (refBlockNumber >= 54106800) {
+                  id = `ssc-${chainIdentifier}`;
+                  permlink = operation[1].permlink; // eslint-disable-line prefer-destructuring
+                  sscTransactions = [
+                    {
+                      contractName: 'comments',
+                      contractAction: 'comment',
+                      contractPayload: {
+                        author: operation[1].author,
+                        jsonMetadata: commentMeta,
+                        parentAuthor: operation[1].parent_author,
+                        parentPermlink: operation[1].parent_permlink,
+                      },
                     },
-                  },
-                ];
+                  ];
+                }
               }
             }
           } else if (operation[0] === 'comment_options') {

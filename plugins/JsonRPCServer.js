@@ -9,6 +9,7 @@ const { Database } = require('../libs/Database');
 const STREAMER_PLUGIN_NAME = require('./Streamer.constants').PLUGIN_NAME;
 const STREAMER_PLUGIN_ACTION = require('./Streamer.constants').PLUGIN_ACTIONS;
 const packagejson = require('../package.json');
+const config = require('../config.json');
 
 const PLUGIN_NAME = 'JsonRPCServer';
 const PLUGIN_PATH = require.resolve(__filename);
@@ -76,6 +77,9 @@ function blockchainRPC() {
 
         // get the version of the SSC node
         result.SSCnodeVersion = packagejson.version;
+
+        // get the ssc chain id from config
+        result.chainId = config.chainId;
 
         callback(null, result);
       } catch (error) {

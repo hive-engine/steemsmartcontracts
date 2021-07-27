@@ -947,6 +947,7 @@ actions.setProperties = async (payload) => {
           // eslint-disable-next-line no-restricted-syntax
           for (const [name, data] of Object.entries(properties)) {
             const propertySchema = nft.properties[name];
+            let oldProperty = null;
             if (propertySchema.isReadOnly) {
               // read-only properties can only be set once
               if (api.assert(!(name in nftInstance.properties), 'cannot edit read-only properties')) {
@@ -954,8 +955,12 @@ actions.setProperties = async (payload) => {
                 shouldUpdate = true;
               }
             } else {
+              oldProperty = nftInstance.properties[name];
               nftInstance.properties[name] = data;
               shouldUpdate = true;
+            }
+            if (shouldUpdate) {
+              await api.executeSmartContract('mining', 'handleNftSetProperty', { symbol, nft: nftInstance, propertyName: name, oldValue: oldProperty });
             }
           }
           if (shouldUpdate) {

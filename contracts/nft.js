@@ -960,7 +960,9 @@ actions.setProperties = async (payload) => {
               shouldUpdate = true;
             }
             if (shouldUpdate) {
-              await api.executeSmartContract('mining', 'handleNftSetProperty', { symbol, nft: nftInstance, propertyName: name, oldValue: oldProperty });
+              await api.executeSmartContract('mining', 'handleNftSetProperty', {
+                symbol, nft: nftInstance, propertyName: name, oldValue: oldProperty,
+              });
             }
           }
           if (shouldUpdate) {

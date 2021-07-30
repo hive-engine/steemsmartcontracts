@@ -3,6 +3,18 @@
 /* global actions, api */
 
 const DistStrategy = ['fixed', 'pool'];
+const NftOps = {
+  ADD: {
+    add: (x, y) => api.BigNumber(x).plus(y),
+    remove: (x, y) => api.BigNumber(x).minus(y),
+    defaultValue: 0,
+  },
+  MULTIPLY: {
+    add: (x, y) => api.BigNumber(x).multipliedBy(y).dp(api.BigNumber.config.DECIMAL_PLACES),
+    remove: (x, y) => api.BigNumber(x).dividedBy(y).dp(api.BigNumber.config.DECIMAL_PLACES),
+    defaultValue: 1,
+  },
+};
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('batches');
@@ -123,6 +135,54 @@ function validateIncomingToken(dist, symbol) {
   return false;
 }
 
+function validateBonusCurve(obj) {
+  if (!api.assert(typeof obj === 'object'
+  && typeof obj.periodBonusPct === 'string'
+    && api.BigNumber(obj.periodBonusPct).isInteger()
+    && api.BigNumber(obj.periodBonusPct).gt(0) && api.BigNumber(obj.periodBonusPct).lt(100)
+  && typeof obj.numPeriods === 'string'
+    && api.BigNumber(obj.numPeriods).isInteger()
+    && api.BigNumber(obj.numPeriods).gt(0) && api.BigNumber(obj.numPeriods).lt(5555), 'invalid bonusSettings')) return false;
+  return true;
+}
+
+function validateBonusNft(obj) {
+  if (!api.assert(obj.properties && Array.isArray(obj.properties), 'invalid bonusNft properties')) return false;
+  if (!api.assert(obj.properties.length > 0 && obj.properties.length <= 4, 'bonusNft properties size must be between 1 and 4')) return false;
+
+  for (let i = 0; i < obj.properties.length; i += 1) {
+    const prop = obj.properties[i];
+    const propKeys = Object.keys(prop);
+    for (let j = 0; j < propKeys.length; j += 1) {
+      const propKey = propKeys[j];
+      if (propKey === 'op') {
+        if (!api.assert(typeof prop.op === 'string' && NftOps[prop.op], 'bonusNft properties op should be ADD or MULTIPLY')) return false;
+      } else if (propKey === 'name') {
+        if (!api.assert(typeof prop.name === 'string' && prop.name.length <= 16, 'bonusNft properties name should be a string of length <= 16')) return false;
+      } else {
+        api.assert(false, 'bonusNft properties field invalid');
+        return false;
+      }
+    }
+  }
+  if (!api.assert(typeMap && typeof typeMap === 'object', 'invalid bonusNft typeMap')) return false;
+  const types = Object.keys(typeMap);
+  for (let j = 0; j < types.length; j += 1) {
+    const type = types[j];
+    const typeConfig = typeMap[type];
+    if (!api.assert(Array.isArray(typeConfig) && typeConfig.length === obj.properties.length, 'bonusNft typeConfig length mismatch')) return false;
+    for (let k = 0; k < typeConfig.length; k += 1) {
+      const typeProperty = api.BigNumber(typeConfig[k]);
+      if (!api.assert(!typeProperty.isNaN() && typeProperty.isFinite(), 'bonusNft typeConfig invalid')) return false;
+      if (obj.properties[k].op === 'MULTIPLY') {
+        if (!api.assert(typeProperty.gte(0.01) && typeProperty.lte(100),
+          'bonusNft typeConfig MULTIPLY property should be between 0.01 and 100')) return false;
+      }
+    }
+  }  
+  return true;
+}
+
 async function validatePool(tokenPair) {
   return await api.db.findOneInTable('marketpools', 'pools', { tokenPair }) !== null;
 }
@@ -130,7 +190,7 @@ async function validatePool(tokenPair) {
 actions.create = async (payload) => {
   const {
     strategy, numTicks,
-    excludeAccount, tokenPair,
+    excludeAccount, tokenPair, bonusCurve, bonusNft,
     tokenMinPayout, tokenRecipients,
     isSignedWithActiveKey,
   } = payload;
@@ -165,10 +225,14 @@ actions.create = async (payload) => {
       newDist.tokenMinPayout = tokenMinPayout;
       newDist.tokenRecipients = tokenRecipients;
     } else if (strategy === 'pool') {
-      if (excludeAccount !== undefined && !api.assert(Array.isArray(excludeAccount), 'excludeAccount must be an array')) return;
       if (!api.assert(await validatePool(tokenPair), 'invalid tokenPair')) return;
+      if (excludeAccount !== undefined && !api.assert(Array.isArray(excludeAccount), 'excludeAccount must be an array')) return;
+      if ((bonusCurve !== undefined && !validateBonusCurve(bonusCurve))
+        || (bonusNft !== undefined && !validateBonusNft(bonusNft))) return;
       newDist.tokenPair = tokenPair;
       newDist.excludeAccount = excludeAccount || [];
+      newDist.bonusCurve = bonusCurve || {};
+      newDist.bonusNft = bonusNft || {};
     } else {
       return;
     }
@@ -308,7 +372,36 @@ actions.deposit = async (payload) => {
   }
 };
 
-async function getPoolRecipients(dist, params) {
+async function getEffectiveShares(params, dist, lp) {
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  const timeDiff = api.BigNumber(blockDate.getTime()).minus(lp.timeFactor);
+  if (timeDiff.lt(params.distTickHours * 3600 * 1000)) return lp.shares;
+
+  let multiplier = api.BigNumber('1');
+  if (dist.bonusCurve.numPeriods !== undefined) {
+    if (timeDiff.lt(params.distTickHours * dist.bonusCurve.numPeriods * 3600 * 1000)) {
+      multiplier = timeDiff.dividedBy(params.distTickHours * 3600 * 1000)
+        .dp(0, api.BigNumber.ROUND_DOWN)
+        .dividedBy(100)
+        .plus(multiplier);
+    } else {
+      multiplier = api.BigNumber('2');
+    }
+  }
+  
+  const nfts = await api.db.findInTable('nft', `${nftTokenMiner.symbol}instances`,
+    {
+      _id: { $gt: lastId },
+      delegatedTo: { $ne: null },
+      'delegatedTo.undelegateAt': { $eq: null },
+    },
+    params.processQueryLimit,
+    0,
+    [{ index: '_id', descending: false }]);
+  return api.BigNumber(lp.shares).times(multiplier).toFixed();
+}
+
+async function getPoolRecipients(params, dist) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const minHoldTime = api.BigNumber(blockDate.getTime()).minus(params.distTickHours * 3600 * 1000).toNumber();
   const result = [];
@@ -329,7 +422,7 @@ async function getPoolRecipients(dist, params) {
       params.processQueryLimit,
       offset,
       [{ index: '_id', descending: false }]);
-    result.push(...processQuery);
+    result.push(...processQuery.map(async lp => ({ ...lp, effShares: await getEffectiveShares(params, dist, lp) })));
     offset += params.processQueryLimit;
   }
   return result;
@@ -380,15 +473,15 @@ async function runDistribution(dist, params, flush = false) {
       }
     }
   } else if (dist.strategy === 'pool') {
-    const tokenRecipients = await getPoolRecipients(dist, params);
-    const shareTotal = tokenRecipients.reduce((acc, cur) => acc.plus(cur.shares), api.BigNumber(0));
+    const tokenRecipients = await getPoolRecipients(params, dist);
+    const shareTotal = tokenRecipients.reduce((acc, cur) => acc.plus(cur.effShares), api.BigNumber(0));
     if (!api.assert(shareTotal.gt(0), 'no liquidity shares for this tokenPair')) return;
 
     let payTxCount = 0;
     const storePending = [];
     while (tokenRecipients.length > 0) {
       const tr = tokenRecipients.shift();
-      const payoutShare = api.BigNumber(tr.shares).dividedBy(shareTotal);
+      const payoutShare = api.BigNumber(tr.effShares).dividedBy(shareTotal);
       for (let i = 0; i < payTokens.length; i += 1) {
         const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
         const payoutQty = api.BigNumber(payTokens[i].quantity)

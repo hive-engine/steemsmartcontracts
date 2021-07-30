@@ -29,29 +29,37 @@ function blockchainRPC() {
       }
     },
     getBlockInfo: async (args, callback) => {
-      const { blockNumber } = args;
+      try {
+        const { blockNumber } = args;
 
-      if (Number.isInteger(blockNumber)) {
-        const block = await database.getBlockInfo(blockNumber);
-        callback(null, block);
-      } else {
-        callback({
-          code: 400,
-          message: 'missing or wrong parameters: blockNumber is required',
-        }, null);
+        if (Number.isInteger(blockNumber)) {
+          const block = await database.getBlockInfo(blockNumber);
+          callback(null, block);
+        } else {
+          callback({
+            code: 400,
+            message: 'missing or wrong parameters: blockNumber is required',
+          }, null);
+        }
+      } catch (error) {
+        callback(error, null);
       }
     },
     getTransactionInfo: async (args, callback) => {
-      const { txid } = args;
+      try {
+        const { txid } = args;
 
-      if (txid && typeof txid === 'string') {
-        const transaction = await database.getTransactionInfo(txid);
-        callback(null, transaction);
-      } else {
-        callback({
-          code: 400,
-          message: 'missing or wrong parameters: txid is required',
-        }, null);
+        if (txid && typeof txid === 'string') {
+          const transaction = await database.getTransactionInfo(txid);
+          callback(null, transaction);
+        } else {
+          callback({
+            code: 400,
+            message: 'missing or wrong parameters: txid is required',
+          }, null);
+        }
+      } catch (error) {
+        callback(error, null);
       }
     },
     getStatus: async (args, callback) => {
@@ -88,72 +96,84 @@ function blockchainRPC() {
 function contractsRPC() {
   return {
     getContract: async (args, callback) => {
-      const { name } = args;
+      try {
+        const { name } = args;
 
-      if (name && typeof name === 'string') {
-        const contract = await database.findContract({ name });
-        callback(null, contract);
-      } else {
-        callback({
-          code: 400,
-          message: 'missing or wrong parameters: contract is required',
-        }, null);
+        if (name && typeof name === 'string') {
+          const contract = await database.findContract({ name });
+          callback(null, contract);
+        } else {
+          callback({
+            code: 400,
+            message: 'missing or wrong parameters: contract is required',
+          }, null);
+        }
+      } catch (error) {
+        callback(error, null);
       }
     },
 
     findOne: async (args, callback) => {
-      const { contract, table, query } = args;
+      try {
+        const { contract, table, query } = args;
 
-      if (contract && typeof contract === 'string'
-        && table && typeof table === 'string'
-        && query && typeof query === 'object') {
-        const result = await database.findOne({
-          contract,
-          table,
-          query,
-        });
+        if (contract && typeof contract === 'string'
+          && table && typeof table === 'string'
+          && query && typeof query === 'object') {
+          const result = await database.findOne({
+            contract,
+            table,
+            query,
+          });
 
-        callback(null, result);
-      } else {
-        callback({
-          code: 400,
-          message: 'missing or wrong parameters: contract and tableName are required',
-        }, null);
+          callback(null, result);
+        } else {
+          callback({
+            code: 400,
+            message: 'missing or wrong parameters: contract and tableName are required',
+          }, null);
+        }
+      } catch (error) {
+        callback(error, null);
       }
     },
 
     find: async (args, callback) => {
-      const {
-        contract,
-        table,
-        query,
-        limit,
-        offset,
-        indexes,
-      } = args;
-
-      if (contract && typeof contract === 'string'
-        && table && typeof table === 'string'
-        && query && typeof query === 'object') {
-        const lim = limit || 1000;
-        const off = offset || 0;
-        const ind = indexes || [];
-
-        const result = await database.find({
+      try {
+        const {
           contract,
           table,
           query,
-          limit: lim,
-          offset: off,
-          indexes: ind,
-        });
+          limit,
+          offset,
+          indexes,
+        } = args;
 
-        callback(null, result);
-      } else {
-        callback({
-          code: 400,
-          message: 'missing or wrong parameters: contract and tableName are required',
-        }, null);
+        if (contract && typeof contract === 'string'
+          && table && typeof table === 'string'
+          && query && typeof query === 'object') {
+          const lim = limit || 1000;
+          const off = offset || 0;
+          const ind = indexes || [];
+
+          const result = await database.find({
+            contract,
+            table,
+            query,
+            limit: lim,
+            offset: off,
+            indexes: ind,
+          });
+
+          callback(null, result);
+        } else {
+          callback({
+            code: 400,
+            message: 'missing or wrong parameters: contract and tableName are required',
+          }, null);
+        }
+      } catch (error) {
+        callback(error, null);
       }
     },
   };

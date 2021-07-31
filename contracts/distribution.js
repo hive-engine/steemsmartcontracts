@@ -345,7 +345,7 @@ async function getEffectiveShares(params, dist, lp) {
         .plus(multiplier);
     }
   }
-  return api.BigNumber(lp.shares).times(multiplier).toFixed();
+  return api.BigNumber(lp.shares).times(multiplier);
 }
 
 async function getPoolRecipients(params, dist) {

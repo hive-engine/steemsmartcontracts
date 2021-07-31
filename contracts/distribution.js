@@ -124,13 +124,15 @@ function validateIncomingToken(dist, symbol) {
 }
 
 function validateBonusCurve(obj) {
-  if (!api.assert(typeof obj === 'object'
-  && typeof obj.periodBonusPct === 'string'
-    && api.BigNumber(obj.periodBonusPct).isInteger()
-    && api.BigNumber(obj.periodBonusPct).gt(0) && api.BigNumber(obj.periodBonusPct).lt(100)
-  && typeof obj.numPeriods === 'string'
-    && api.BigNumber(obj.numPeriods).isInteger()
-    && api.BigNumber(obj.numPeriods).gt(0) && api.BigNumber(obj.numPeriods).lt(5555), 'invalid bonusSettings')) return false;
+  if (!api.assert(typeof obj === 'object' && obj.constructor.name === 'Object', 'invalid bonusCurve settings')) return false;
+  if ('periodBonusPct' in obj || 'numPeriods' in obj) {
+    if (!api.assert(typeof obj.periodBonusPct === 'string'
+      && api.BigNumber(obj.periodBonusPct).isInteger()
+      && api.BigNumber(obj.periodBonusPct).gt(0) && api.BigNumber(obj.periodBonusPct).lt(100)
+      && typeof obj.numPeriods === 'string'
+      && api.BigNumber(obj.numPeriods).isInteger()
+      && api.BigNumber(obj.numPeriods).gt(0) && api.BigNumber(obj.numPeriods).lt(5555), 'invalid bonusCurve settings')) return false;
+  } else if (!api.assert(Object.keys(obj).length === 0, 'invalid bonusCurve settings')) return false;
   return true;
 }
 
@@ -178,7 +180,7 @@ actions.create = async (payload) => {
     } else if (strategy === 'pool') {
       if (!api.assert(await validatePool(tokenPair), 'invalid tokenPair')) return;
       if (excludeAccount !== undefined && !api.assert(Array.isArray(excludeAccount), 'excludeAccount must be an array')) return;
-      if ((bonusCurve !== undefined && !validateBonusCurve(bonusCurve))) return;
+      if (bonusCurve !== undefined && !validateBonusCurve(bonusCurve)) return;
       newDist.tokenPair = tokenPair;
       newDist.excludeAccount = excludeAccount || [];
       newDist.bonusCurve = bonusCurve || {};
@@ -201,7 +203,7 @@ actions.create = async (payload) => {
 actions.update = async (payload) => {
   const {
     id, numTicks,
-    excludeAccount, tokenPair,
+    excludeAccount, tokenPair, bonusCurve,
     tokenMinPayout, tokenRecipients,
     isSignedWithActiveKey,
   } = payload;
@@ -239,6 +241,9 @@ actions.update = async (payload) => {
         }
         if (tokenPair !== undefined && api.assert(await validatePool(tokenPair), 'invalid tokenPair')) {
           exDist.tokenPair = tokenPair;
+        }
+        if (bonusCurve !== undefined && validateBonusCurve(bonusCurve)) {
+          exDist.bonusCurve = bonusCurve;
         }
       } else {
         return;
@@ -324,18 +329,20 @@ actions.deposit = async (payload) => {
 async function getEffectiveShares(params, dist, lp) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timeDiff = api.BigNumber(blockDate.getTime()).minus(lp.timeFactor);
-  if (timeDiff.lt(params.distTickHours * 3600 * 1000)) return lp.shares;
+  if (timeDiff.lte(params.distTickHours * 3600 * 1000)) return lp.shares;
 
   let multiplier = api.BigNumber('1');
   if (typeof dist.bonusCurve.numPeriods === 'string') {
     if (timeDiff.lt(params.distTickHours * dist.bonusCurve.numPeriods * 3600 * 1000)) {
-      multiplier = timeDiff.dividedBy(params.distTickHours * 3600 * 1000)
-        .dp(0, api.BigNumber.ROUND_DOWN)
-        .times(dist.bonusCurve.periodBonusPct)
-        .dividedBy(dist.bonusCurve.numPeriods)
+      multiplier = api.BigNumber(dist.bonusCurve.periodBonusPct)
+        .dividedBy('100')
+        .times(timeDiff.dividedBy(params.distTickHours * 3600 * 1000).dp(0, api.BigNumber.ROUND_DOWN))
         .plus(multiplier);
     } else {
-      multiplier = api.BigNumber('2');
+      multiplier = api.BigNumber(dist.bonusCurve.periodBonusPct)
+        .dividedBy('100')
+        .times(dist.bonusCurve.numPeriods)
+        .plus(multiplier);
     }
   }
   return api.BigNumber(lp.shares).times(multiplier).toFixed();

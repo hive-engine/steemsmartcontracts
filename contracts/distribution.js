@@ -281,6 +281,25 @@ actions.setActive = async (payload) => {
   }
 };
 
+async function updateTokenBalances(dist, token, quantity) {
+  const upDist = dist;
+  if (upDist.tokenBalances) {
+    const tIndex = upDist.tokenBalances.findIndex(t => t.symbol === token.symbol);
+    if (tIndex === -1) {
+      upDist.tokenBalances.push({ symbol: token.symbol, quantity });
+    } else {
+      upDist.tokenBalances[tIndex].quantity = api.BigNumber(upDist.tokenBalances[tIndex].quantity)
+        .plus(quantity)
+        .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+    }
+  } else {
+    upDist.tokenBalances = [
+      { symbol: token.symbol, quantity },
+    ];
+  }
+  await api.db.update('batches', upDist);
+}
+
 actions.deposit = async (payload) => {
   const {
     id, symbol, quantity, isSignedWithActiveKey,
@@ -301,28 +320,35 @@ actions.deposit = async (payload) => {
     const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: 'distribution' });
     if (res.errors === undefined
       && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'distribution' && el.data.quantity === quantity) !== undefined) {
-      // update token balances
-      if (dist.tokenBalances) {
-        const tIndex = dist.tokenBalances.findIndex(t => t.symbol === symbol);
-        if (tIndex === -1) {
-          dist.tokenBalances.push({ symbol, quantity });
-        } else {
-          dist.tokenBalances[tIndex].quantity = api.BigNumber(dist.tokenBalances[tIndex].quantity)
-            .plus(quantity)
-            .toFixed(depToken.precision, api.BigNumber.ROUND_DOWN);
-        }
-      } else {
-        dist.tokenBalances = [
-          { symbol, quantity },
-        ];
-      }
-
       const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
       dist.numTicksLeft = api.BigNumber(dist.numTicks).toNumber();
       dist.lastTickTime = blockDate.getTime();
-      await api.db.update('batches', dist);
+
+      await updateTokenBalances(dist, depToken, quantity);
       api.emit('deposit', { distId: id, symbol, quantity });
     }
+  }
+};
+
+actions.receiveDtfTokens = async (payload) => {
+  const {
+    data, symbol, quantity,
+    callingContractInfo,
+  } = payload;
+
+  if (!api.assert(callingContractInfo && callingContractInfo.name === 'tokenfunds', 'not authorized')) return;
+  if (!api.assert(typeof data === 'object'
+    && data.constructor.name === 'Object'
+    && 'distId' in data
+    && typeof data.distId === 'string'
+    && api.BigNumber(data.distId).isInteger(), 'invalid DTF payload')) return;
+
+  const dist = await api.db.findOne('batches', { _id: api.BigNumber(data.distId).toNumber() });
+  if (api.assert(dist, 'distribution id not found') && api.assert(dist.active, 'distribution must be active to deposit')) {
+    if (dist.strategy === 'fixed' && !api.assert(validateIncomingToken(dist, symbol), `${symbol} is not accepted by this distribution`)) return;
+    const depToken = await api.db.findOneInTable('tokens', 'tokens', { symbol });
+    await updateTokenBalances(dist, depToken, quantity);
+    api.emit('receiveDtfTokens', { distId: data.distId, symbol, quantity });
   }
 };
 

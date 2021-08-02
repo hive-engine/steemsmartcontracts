@@ -299,6 +299,7 @@ actions.addLiquidity = async (payload) => {
     baseQuantity,
     quoteQuantity,
     maxSlippage,
+    maxDeviation,
     isSignedWithActiveKey,
   } = payload;
 
@@ -314,6 +315,14 @@ actions.addLiquidity = async (payload) => {
     addSlippage = api.BigNumber(maxSlippage).dividedBy(100);
   }
 
+  let addDeviation = api.BigNumber('0.01');
+  if (maxDeviation) {
+    if (!api.assert(typeof maxDeviation === 'string'
+      && api.BigNumber(maxDeviation).isInteger()
+      && api.BigNumber(maxDeviation).gte(0), 'maxDeviation must be an integer greater than or equal to 0')) return;
+    addDeviation = api.BigNumber(maxDeviation).dividedBy(100);
+  }
+
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
   const baseToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol });
   const quoteToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol });
@@ -323,7 +332,8 @@ actions.addLiquidity = async (payload) => {
   const pool = await api.db.findOne('pools', { tokenPair });
   if (api.assert(pool, 'no existing pool for tokenPair')) {
     if (api.BigNumber(pool.baseQuantity).eq(0) && api.BigNumber(pool.quoteQuantity).eq(0)
-      && await validateOracle(pool, api.BigNumber(quoteQuantity).dividedBy(baseQuantity)) === false) return;
+      && addDeviation.gt(0)
+      && await validateOracle(pool, api.BigNumber(quoteQuantity).dividedBy(baseQuantity), addDeviation) === false) return;
 
     let amountAdjusted;
     const baseMin = api.BigNumber(baseQuantity).times(api.BigNumber('1').minus(addSlippage));

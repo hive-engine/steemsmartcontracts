@@ -444,7 +444,13 @@ const proposeRoundHandler = async (args, callback) => {
 
 function p2p() {
   return {
-    proposeRoundHash: (args, callback) => proposeRoundHandler(args, callback),
+    proposeRoundHash: (args, callback) => {
+      try {
+        proposeRoundHandler(args, callback);
+      } catch (error) {
+        callback(error, null);
+      }
+    },
   };
 }
 

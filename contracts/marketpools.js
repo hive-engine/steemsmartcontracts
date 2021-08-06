@@ -13,6 +13,32 @@ actions.createSSC = async () => {
     const params = {};
     params.poolCreationFee = '1000';
     await api.db.insert('params', params);
+  } else {
+    const params = await api.db.findOne('params', {});
+    if (!params.updateIndex) {
+      const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+      let lpUpdate = await api.db.find('liquidityPositions', {
+        timeFactor: {
+          $exists: false,
+        },
+      });
+      while (lpUpdate.length > 0) {
+        for (let i = 0; i < lpUpdate.length; i += 1) {
+          const lp = lpUpdate[i];
+          lp.timeFactor = blockDate.getTime();
+          // eslint-disable-next-line no-await-in-loop
+          await api.db.update('liquidityPositions', lp);
+        }
+        // eslint-disable-next-line no-await-in-loop
+        lpUpdate = await api.db.find('liquidityPositions', {
+          timeFactor: {
+            $exists: false,
+          },
+        });
+      }
+      params.updateIndex = 1;
+      await api.db.update('params', params);
+    }
   }
 };
 
@@ -273,6 +299,7 @@ actions.addLiquidity = async (payload) => {
     baseQuantity,
     quoteQuantity,
     maxSlippage,
+    maxDeviation,
     isSignedWithActiveKey,
   } = payload;
 
@@ -288,6 +315,14 @@ actions.addLiquidity = async (payload) => {
     addSlippage = api.BigNumber(maxSlippage).dividedBy(100);
   }
 
+  let addDeviation = api.BigNumber('0.01');
+  if (maxDeviation) {
+    if (!api.assert(typeof maxDeviation === 'string'
+      && api.BigNumber(maxDeviation).isInteger()
+      && api.BigNumber(maxDeviation).gte(0), 'maxDeviation must be an integer greater than or equal to 0')) return;
+    addDeviation = api.BigNumber(maxDeviation).dividedBy(100);
+  }
+
   const [baseSymbol, quoteSymbol] = tokenPair.split(':');
   const baseToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: baseSymbol });
   const quoteToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: quoteSymbol });
@@ -297,7 +332,8 @@ actions.addLiquidity = async (payload) => {
   const pool = await api.db.findOne('pools', { tokenPair });
   if (api.assert(pool, 'no existing pool for tokenPair')) {
     if (api.BigNumber(pool.baseQuantity).eq(0) && api.BigNumber(pool.quoteQuantity).eq(0)
-      && await validateOracle(pool, api.BigNumber(quoteQuantity).dividedBy(baseQuantity)) === false) return;
+      && addDeviation.gt(0)
+      && await validateOracle(pool, api.BigNumber(quoteQuantity).dividedBy(baseQuantity), addDeviation) === false) return;
 
     let amountAdjusted;
     const baseMin = api.BigNumber(baseQuantity).times(api.BigNumber('1').minus(addSlippage));
@@ -335,15 +371,26 @@ actions.addLiquidity = async (payload) => {
     if (!api.assert(api.BigNumber(newShares).gt(0), 'insufficient liquidity created')) return;
 
     // update liquidity position
+    const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
     const lp = await api.db.findOne('liquidityPositions', { account: api.sender, tokenPair });
     if (lp) {
-      lp.shares = api.BigNumber(lp.shares).plus(newShares);
+      const existingShares = lp.shares;
+      const finalShares = api.BigNumber(lp.shares).plus(newShares);
+      const timeOffset = api.BigNumber(finalShares).minus(existingShares).abs().dividedBy(existingShares);
+      lp.shares = finalShares;
+      lp.timeFactor = api.BigNumber.min(
+        api.BigNumber(lp.timeFactor)
+          .times(api.BigNumber('1').plus(timeOffset))
+          .dp(0, api.BigNumber.ROUND_HALF_UP),
+        blockDate.getTime(),
+      ).toNumber();
       await api.db.update('liquidityPositions', lp);
     } else {
       const newlp = {
         account: api.sender,
         tokenPair,
         shares: newShares,
+        timeFactor: blockDate.getTime(),
       };
       await api.db.insert('liquidityPositions', newlp);
     }

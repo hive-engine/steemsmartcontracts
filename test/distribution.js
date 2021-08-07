@@ -884,11 +884,13 @@ describe('distribution', function () {
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'BEE', balance: '0.30303030'});
       await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '3.03030302'});
+      await tableAsserts.assertUserBalances({ account: 'minnow', symbol: 'BEE', balance: null});
       await assertDistTokenBalance(1, 'BEE', '96.66666668');
 
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKNA', balance: '1899.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'TKNA', balance: '1999.30303030'});
       await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2993.03030302'});
+      await tableAsserts.assertUserBalances({ account: 'minnow', symbol: 'TKNA', balance: '2999.99999999'});
       await assertDistTokenBalance(1, 'TKNA', '96.66666668');
 
       refBlockNumber = fixture.getNextRefBlockNumber();
@@ -912,11 +914,13 @@ describe('distribution', function () {
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'BEE', balance: '0.60606060'});
       await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '6.06060604'});
+      await tableAsserts.assertUserBalances({ account: 'minnow', symbol: 'BEE', balance: null});
       await assertDistTokenBalance(1, 'BEE', '93.33333336');
 
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKNA', balance: '1898.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'TKNA', balance: '1999.60606060'});
       await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2996.06060604'});
+      await tableAsserts.assertUserBalances({ account: 'minnow', symbol: 'TKNA', balance: '2999.99999999'});
       await assertDistTokenBalance(1, 'TKNA', '93.33333336');
 
       resolve();

@@ -409,7 +409,7 @@ async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, account
     if (!miningPower.equippedNfts) {
       miningPower.equippedNfts = {};
     }
-    let oldExtraNftMiningPower = 0;
+    const oldExtraNftMiningPower = 0;
     let equippedNft = miningPower.equippedNfts[nft._id];
     if (!equippedNft) {
       // If using equip field, verify already tracked in equippedNfts
@@ -481,19 +481,16 @@ async function updateNftMiningPowerFromPropertyUpdate(pool, nft, accountOverride
   let oldMiningPower = api.BigNumber(0);
   let extraNftMiningPower = api.BigNumber(0);
   const {
-    typeMap,
-    properties,
     typeField,
     equipField,
     miningPowerField,
   } = pool.nftTokenMiner;
 
   const nftType = nft.properties[typeField];
-  const typeProperties = typeMap[nftType];
   if (miningPowerField) {
     extraNftMiningPower = sanitizeNftMiningPower(nft.properties[miningPowerField]);
   } else {
-    return;
+    return api.BigNumber(0);
   }
   if (!miningPower) {
     const nftBalances = {};

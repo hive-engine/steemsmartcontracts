@@ -1033,12 +1033,12 @@ actions.handleNftSetProperty = async (payload) => {
   const {
     symbol, nft, propertyName, oldValue, callingContractInfo,
   } = payload;
-  const newValue = nft.properties[propertyName];
-  if (oldValue === newValue) {
-    return;
-  }
   if (api.assert(callingContractInfo && callingContractInfo.name === 'nft',
     'must be called from nft contract')) {
+    const newValue = nft.properties[propertyName];
+    if (oldValue === newValue) {
+      return;
+    }
     await findAndProcessAll('mining', 'nftTokenPools', { symbol }, async (tokenPool) => {
       const pool = await api.db.findOne('pools', { id: tokenPool.id });
       if (pool.updating.inProgress

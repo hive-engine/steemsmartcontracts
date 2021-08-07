@@ -349,9 +349,8 @@ function sanitizeNftMiningPower(nftMiningPower) {
  *   - add: whether to add or remove the nft
  *   - updatePoolTimestamp: controls whether to reset the mining power (during a new update request)
  *   - accountOverride: optional override, used for equipField pools
- *   - update: whether this is an update to mining power. Used for miningPowerField updates
  */
-async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, accountOverride, update) {
+async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, accountOverride) {
   const account = accountOverride || getNftAccount(nft);
 
   if (!account) return api.BigNumber(0);
@@ -415,14 +414,12 @@ async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, account
     if (!equippedNft) {
       // If using equip field, verify already tracked in equippedNfts
       // This condition can happen if an NFT is issued with equip field populated up front.
-      if (equipField && (!add || update)) {
+      if (equipField && !add) {
         return api.BigNumber(0);
       }
 
       equippedNft = { type: nftType };
       miningPower.equippedNfts[nft._id] = equippedNft;
-    } else if (update) {
-      oldExtraNftMiningPower = equippedNft.extraMiningPower;
     }
     const { nftBalances } = miningPower;
     if (typeProperties) {
@@ -438,7 +435,7 @@ async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, account
       nftBalances[MINING_POWER_FIELD_INDEX] = api.BigNumber(0);
     }
     oldMiningPower = computeMiningPower(miningPower, pool.tokenMiners, pool.nftTokenMiner);
-    if (typeProperties && !update) {
+    if (typeProperties) {
       for (let i = 0; i < properties.length; i += 1) {
         const property = properties[i];
         const opInfo = PROPERTY_OPS[property.op];
@@ -470,6 +467,84 @@ async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, account
   if (!add) {
     delete miningPower.equippedNfts[nft._id];
   }
+  await api.db.update('miningPower', miningPower);
+
+  return newMiningPower.minus(oldMiningPower);
+}
+
+async function updateNftMiningPowerFromPropertyUpdate(pool, nft, accountOverride) {
+  const account = accountOverride || getNftAccount(nft);
+
+  if (!account) return api.BigNumber(0);
+
+  let miningPower = await api.db.findOne('miningPower', { id: pool.id, account });
+  let oldMiningPower = api.BigNumber(0);
+  let extraNftMiningPower = api.BigNumber(0);
+  const {
+    typeMap,
+    properties,
+    typeField,
+    equipField,
+    miningPowerField,
+  } = pool.nftTokenMiner;
+
+  const nftType = nft.properties[typeField];
+  const typeProperties = typeMap[nftType];
+  if (miningPowerField) {
+    extraNftMiningPower = sanitizeNftMiningPower(nft.properties[miningPowerField]);
+  } else {
+    return;
+  }
+  if (!miningPower) {
+    const nftBalances = {};
+    const equippedNft = { type: nftType };
+
+    nftBalances[MINING_POWER_FIELD_INDEX] = extraNftMiningPower;
+    equippedNft.extraMiningPower = extraNftMiningPower;
+    const equippedNfts = {};
+    equippedNfts[nft._id] = equippedNft;
+    miningPower = {
+      id: pool.id,
+      account,
+      balances: {},
+      nftBalances,
+      power: { $numberDecimal: '0' },
+      equippedNfts,
+    };
+    miningPower = await api.db.insert('miningPower', miningPower);
+  } else {
+    if (!miningPower.nftBalances) {
+      miningPower.nftBalances = {};
+    }
+    if (!miningPower.equippedNfts) {
+      miningPower.equippedNfts = {};
+    }
+    let oldExtraNftMiningPower = 0;
+    let equippedNft = miningPower.equippedNfts[nft._id];
+    if (!equippedNft) {
+      // If using equip field, verify already tracked in equippedNfts
+      // This condition can happen if an NFT is issued with equip field populated up front.
+      if (equipField) {
+        return api.BigNumber(0);
+      }
+
+      equippedNft = { type: nftType };
+      miningPower.equippedNfts[nft._id] = equippedNft;
+    } else {
+      oldExtraNftMiningPower = equippedNft.extraMiningPower;
+    }
+    const { nftBalances } = miningPower;
+    oldMiningPower = computeMiningPower(miningPower, pool.tokenMiners, pool.nftTokenMiner);
+    if (!nftBalances[MINING_POWER_FIELD_INDEX]) {
+      nftBalances[MINING_POWER_FIELD_INDEX] = api.BigNumber(0);
+    }
+    equippedNft.extraMiningPower = extraNftMiningPower;
+    nftBalances[MINING_POWER_FIELD_INDEX] = api.BigNumber(nftBalances[MINING_POWER_FIELD_INDEX])
+      .minus(oldExtraNftMiningPower)
+      .plus(extraNftMiningPower);
+  }
+  const newMiningPower = computeMiningPower(miningPower, pool.tokenMiners, pool.nftTokenMiner);
+  miningPower.power = { $numberDecimal: newMiningPower };
   await api.db.update('miningPower', miningPower);
 
   return newMiningPower.minus(oldMiningPower);
@@ -1075,13 +1150,10 @@ actions.handleNftSetProperty = async (payload) => {
         }
       } else if (miningPowerField && propertyName === miningPowerField) {
         if (!equipField || api.isValidAccountName(nft.properties[equipField])) {
-          const adjusted = await updateNftMiningPower(
+          const adjusted = await updateNftMiningPowerFromPropertyUpdate(
             pool,
             nft,
-            /* add= */ true,
-            pool.updating.updatePoolTimestamp,
             /* account= */ equipField ? nft.properties[equipField] : null,
-            /* update= */ true,
           );
           pool.totalPower = adjusted.plus(pool.totalPower);
         }

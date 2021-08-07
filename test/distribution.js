@@ -839,10 +839,13 @@ describe('distribution', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "2000", "to": "investor", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNB", "quantity": "2000", "to": "investor", "isSignedWithActiveKey": true }'));      
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "3000", "to": "whale", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNB", "quantity": "3000", "to": "whale", "isSignedWithActiveKey": true }'));            
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNB", "quantity": "3000", "to": "whale", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNA", "quantity": "3000", "to": "minnow", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "TKNB", "quantity": "3000", "to": "minnow", "isSignedWithActiveKey": true }'));      
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'marketpools', 'createPool', '{ "tokenPair": "TKNA:TKNB", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "TKNA:TKNB", "baseQuantity": "1", "quoteQuantity": "10", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "TKNA:TKNB", "baseQuantity": "10", "quoteQuantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'minnow', 'marketpools', 'addLiquidity', '{ "tokenPair": "TKNA:TKNB", "baseQuantity": "0.00000001", "quoteQuantity": "0.0000001", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'create', '{ "strategy": "pool", "tokenPair": "TKNA:TKNB", "numTicks": "30", "excludeAccount": ["donchate"], "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'setActive', '{ "id": 1, "active": "true", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'distribution', 'deposit', '{ "id": 1, "symbol": "BEE", "quantity": "100", "isSignedWithActiveKey": true }'));
@@ -880,13 +883,13 @@ describe('distribution', function () {
       // should be redistributed
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'BEE', balance: '0.30303030'});
-      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '3.03030303'});
-      await assertDistTokenBalance(1, 'BEE', '96.66666667');
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '3.03030302'});
+      await assertDistTokenBalance(1, 'BEE', '96.66666668');
 
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKNA', balance: '1899.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'TKNA', balance: '1999.30303030'});
-      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2993.03030303'});
-      await assertDistTokenBalance(1, 'TKNA', '96.66666667');
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2993.03030302'});
+      await assertDistTokenBalance(1, 'TKNA', '96.66666668');
 
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
@@ -908,13 +911,13 @@ describe('distribution', function () {
       // should be redistributed
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'BEE', balance: '3200.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'BEE', balance: '0.60606060'});
-      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '6.06060606'});
-      await assertDistTokenBalance(1, 'BEE', '93.33333334');
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'BEE', balance: '6.06060604'});
+      await assertDistTokenBalance(1, 'BEE', '93.33333336');
 
       await tableAsserts.assertUserBalances({ account: 'donchate', symbol: 'TKNA', balance: '1898.00000000'});
       await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'TKNA', balance: '1999.60606060'});
-      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2996.06060606'});
-      await assertDistTokenBalance(1, 'TKNA', '93.33333334');
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'TKNA', balance: '2996.06060604'});
+      await assertDistTokenBalance(1, 'TKNA', '93.33333336');
 
       resolve();
     })

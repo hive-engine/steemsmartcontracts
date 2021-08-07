@@ -111,6 +111,8 @@ async function validateRecipients(params, tokenRecipients) {
     tokenRecipientsTotalShare += tokenRecipientsConfig.pct;
 
     if (!api.assert(['user', 'contract'].includes(tokenRecipientsConfig.type), 'tokenRecipients type must be user or contract')) return false;
+    if (tokenRecipientsConfig.type === 'contract'
+      && !api.assert(typeof tokenRecipientsConfig.contractPayload === 'object', 'contract recipients must have contractPayload')) return false;
   }
   if (!api.assert(tokenRecipientsTotalShare === 100, 'tokenRecipients pct must total 100')) return false;
   return true;
@@ -222,7 +224,8 @@ actions.update = async (payload) => {
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     const exDist = await api.db.findOne('batches', { _id: id });
-    if (api.assert(exDist, 'distribution not found')) {
+    if (api.assert(exDist, 'distribution not found')
+      && api.assert(api.sender === api.owner || api.sender === exDist.creator, 'must be owner or creator')) {
       if (numTicks && api.assert(typeof numTicks === 'string'
         && api.BigNumber(numTicks).isInteger()
         && api.BigNumber(numTicks).gt(0)
@@ -320,10 +323,6 @@ actions.deposit = async (payload) => {
     const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: 'distribution' });
     if (res.errors === undefined
       && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'distribution' && el.data.quantity === quantity) !== undefined) {
-      const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-      dist.numTicksLeft = api.BigNumber(dist.numTicks).toNumber();
-      dist.lastTickTime = blockDate.getTime();
-
       await updateTokenBalances(dist, depToken, quantity);
       api.emit('deposit', { distId: id, symbol, quantity });
     }
@@ -350,6 +349,19 @@ actions.receiveDtfTokens = async (payload) => {
     await updateTokenBalances(dist, depToken, quantity);
     api.emit('receiveDtfTokens', { distId: data.distId, symbol, quantity });
   }
+
+actions.restart = async (payload) => {
+  const {
+    id, isSignedWithActiveKey,
+  } = payload;
+  const dist = await api.db.findOne('batches', { _id: id });
+  if (!api.assert(dist, 'distribution id not found')
+    || !api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  dist.numTicksLeft = api.BigNumber(dist.numTicks).toNumber();
+  dist.lastTickTime = blockDate.getTime();
+  await api.db.update('batches', dist);
+  api.emit('restart', { distId: id });
 };
 
 async function getEffectiveShares(params, dist, lp) {
@@ -405,9 +417,13 @@ async function getPoolRecipients(params, dist) {
   return result;
 }
 
-async function payRecipient(account, symbol, quantity, type = 'user') {
+async function payRecipient(account, symbol, quantity, type = 'user', contractPayload = null) {
   if (api.BigNumber(quantity).gt(0)) {
     const res = await api.transferTokens(account, symbol, quantity, type);
+    if (type === 'contract' && contractPayload) {
+      await api.executeSmartContract(account, 'receiveDistTokens',
+        { data: contractPayload, symbol, quantity });
+    }
     if (res.errors) {
       api.debug(`Error paying out distribution of ${quantity} ${symbol} to ${account} (TXID ${api.transactionId}): \n${res.errors}`);
       return false;

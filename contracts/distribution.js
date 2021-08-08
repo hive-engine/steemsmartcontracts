@@ -437,9 +437,11 @@ async function runDistribution(dist, params, flush = false) {
               .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
             if (api.BigNumber(payoutQty).gt(0)) {
               let payResult = true;
+              let payNow = true;
               if (payTxCount < params.maxTransferLimit) {
                 payResult = await payRecipient(tr.account, payTokens[i].symbol, payoutQty);
               } else {
+                payNow = false;
                 storePending.push({
                   distId: dist._id,
                   account: tr.account,
@@ -452,9 +454,11 @@ async function runDistribution(dist, params, flush = false) {
                 upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
                   .minus(payoutQty)
                   .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-                api.emit('payment', {
-                  distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutQty,
-                });
+                if (payNow) {
+                  api.emit('payment', {
+                    distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutQty,
+                  });
+                }
               }
               payTxCount += 1;
             }
@@ -531,7 +535,7 @@ actions.checkPendingDistributions = async () => {
       const pendingPay = await api.db.find('pendingPayments',
         {
           dueTime: {
-            $lte: tickTime,
+            $lt: blockDate.getTime(),
           },
         },
         params.maxDistributionsLimit,

@@ -317,9 +317,6 @@ actions.deposit = async (payload) => {
         ];
       }
 
-      const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-      dist.numTicksLeft = api.BigNumber(dist.numTicks).toNumber();
-      dist.lastTickTime = blockDate.getTime();
       await api.db.update('batches', dist);
       api.emit('deposit', { distId: id, symbol, quantity });
     }

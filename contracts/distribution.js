@@ -25,6 +25,31 @@ actions.createSSC = async () => {
       params.processQueryLimit = 1000;
       params.updateIndex = 1;
       await api.db.update('params', params);
+    } else if (params.updateIndex === 1) {
+      const clearPending = await api.db.find('pendingPayments', {});
+      for (let i = 0; i < clearPending.length; i += 1) {
+        await api.db.remove('pendingPayments', clearPending);
+      }
+      const syncDists = await api.db.find('batches', {});
+      for (let i = 0; i < syncDists.length; i += 1) {
+        const dist = syncDists[i];
+        if (dist.tokenBalances) {
+          let update = false;
+          const hiveIndex = dist.tokenBalances.findIndex(t => t.symbol === 'SWAP.HIVE');
+          if (hiveIndex !== -1) {
+            dist.tokenBalances[hiveIndex].quantity = api.BigNumber('0').toFixed(8);
+            update = true;
+          }
+          const simIndex = dist.tokenBalances.findIndex(t => t.symbol === 'SIM');
+          if (simIndex !== -1) {
+            dist.tokenBalances[simIndex].quantity = api.BigNumber('0').toFixed(3);
+            update = true;
+          }
+          if (update) await api.db.update('batches', dist);
+        }
+      }
+      params.updateIndex = 2;
+      await api.db.update('params', params);
     }
   }
 };

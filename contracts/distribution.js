@@ -28,7 +28,7 @@ actions.createSSC = async () => {
     } else if (params.updateIndex === 1) {
       const clearPending = await api.db.find('pendingPayments', {});
       for (let i = 0; i < clearPending.length; i += 1) {
-        await api.db.remove('pendingPayments', clearPending);
+        await api.db.remove('pendingPayments', clearPending[i]);
       }
       const syncDists = await api.db.find('batches', {});
       for (let i = 0; i < syncDists.length; i += 1) {

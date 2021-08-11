@@ -25,6 +25,31 @@ actions.createSSC = async () => {
       params.processQueryLimit = 1000;
       params.updateIndex = 1;
       await api.db.update('params', params);
+    } else if (params.updateIndex === 1) {
+      const clearPending = await api.db.find('pendingPayments', {});
+      for (let i = 0; i < clearPending.length; i += 1) {
+        await api.db.remove('pendingPayments', clearPending[i]);
+      }
+      const syncDists = await api.db.find('batches', {});
+      for (let i = 0; i < syncDists.length; i += 1) {
+        const dist = syncDists[i];
+        if (dist.tokenBalances) {
+          let update = false;
+          const hiveIndex = dist.tokenBalances.findIndex(t => t.symbol === 'SWAP.HIVE');
+          if (hiveIndex !== -1) {
+            dist.tokenBalances[hiveIndex].quantity = api.BigNumber('0').toFixed(8);
+            update = true;
+          }
+          const simIndex = dist.tokenBalances.findIndex(t => t.symbol === 'SIM');
+          if (simIndex !== -1) {
+            dist.tokenBalances[simIndex].quantity = api.BigNumber('0').toFixed(3);
+            update = true;
+          }
+          if (update) await api.db.update('batches', dist);
+        }
+      }
+      params.updateIndex = 2;
+      await api.db.update('params', params);
     }
   }
 };
@@ -349,19 +374,6 @@ actions.receiveDtfTokens = async (payload) => {
     await updateTokenBalances(dist, depToken, quantity);
     api.emit('receiveDtfTokens', { distId: data.distId, symbol, quantity });
   }
-
-actions.restart = async (payload) => {
-  const {
-    id, isSignedWithActiveKey,
-  } = payload;
-  const dist = await api.db.findOne('batches', { _id: id });
-  if (!api.assert(dist, 'distribution id not found')
-    || !api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
-  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-  dist.numTicksLeft = api.BigNumber(dist.numTicks).toNumber();
-  dist.lastTickTime = blockDate.getTime();
-  await api.db.update('batches', dist);
-  api.emit('restart', { distId: id });
 };
 
 async function getEffectiveShares(params, dist, lp) {
@@ -437,76 +449,81 @@ async function runDistribution(dist, params, flush = false) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const upDist = JSON.parse(JSON.stringify(dist));
   const payTokens = dist.tokenBalances.filter(d => api.BigNumber(d.quantity).gt(0));
-  if (payTokens.length === 0) return;
-
-  if (dist.strategy === 'fixed') {
-    const { tokenRecipients } = dist;
-    while (tokenRecipients.length > 0) {
-      const tr = tokenRecipients.shift();
-      for (let i = 0; i < payTokens.length; i += 1) {
-        const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
-        const minPayout = dist.tokenMinPayout.find(p => p.symbol === payTokens[i].symbol);
-        if (api.BigNumber(payTokens[i].quantity).gt(minPayout.quantity) || flush) {
-          const payoutShare = api.BigNumber(payTokens[i].quantity)
-            .multipliedBy(tr.pct)
-            .dividedBy(100)
-            .dividedBy(dist.numTicksLeft)
-            .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-          if (api.BigNumber(payoutShare).lte(0)) return;
-          if (await payRecipient(tr.account, payTokens[i].symbol, payoutShare, tr.type)) {
-            const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
-            upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
-              .minus(payoutShare)
+  if (payTokens.length > 0) {
+    if (dist.strategy === 'fixed') {
+      const { tokenRecipients } = dist;
+      while (tokenRecipients.length > 0) {
+        const tr = tokenRecipients.shift();
+        for (let i = 0; i < payTokens.length; i += 1) {
+          const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
+          const minPayout = dist.tokenMinPayout.find(p => p.symbol === payTokens[i].symbol);
+          if (api.BigNumber(payTokens[i].quantity).gt(minPayout.quantity) || flush) {
+            const payoutShare = api.BigNumber(payTokens[i].quantity)
+              .multipliedBy(tr.pct)
+              .dividedBy(100)
+              .dividedBy(dist.numTicksLeft)
               .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-            api.emit('payment', {
-              distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutShare,
-            });
+            if (api.BigNumber(payoutShare).gt(0)) {
+              if (await payRecipient(tr.account, payTokens[i].symbol, payoutShare, tr.type)) {
+                const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
+                upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
+                  .minus(payoutShare)
+                  .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+                api.emit('payment', {
+                  distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutShare,
+                });
+              }
+            }
           }
         }
       }
-    }
-  } else if (dist.strategy === 'pool') {
-    const tokenRecipients = await getPoolRecipients(params, dist);
-    const shareTotal = tokenRecipients.reduce((acc, cur) => acc.plus(cur.effShares), api.BigNumber(0));
-    if (!api.assert(shareTotal.gt(0), 'no liquidity shares for this tokenPair')) return;
-
-    let payTxCount = 0;
-    const storePending = [];
-    while (tokenRecipients.length > 0) {
-      const tr = tokenRecipients.shift();
-      const payoutShare = api.BigNumber(tr.effShares).dividedBy(shareTotal);
-      for (let i = 0; i < payTokens.length; i += 1) {
-        const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
-        const payoutQty = api.BigNumber(payTokens[i].quantity)
-          .multipliedBy(payoutShare)
-          .dividedBy(dist.numTicksLeft)
-          .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-        if (api.BigNumber(payoutQty).lte(0)) return;
-
-        let payResult = true;
-        if (payTxCount < params.maxTransferLimit) {
-          payResult = await payRecipient(tr.account, payTokens[i].symbol, payoutQty);
-        } else {
-          storePending.push({
-            distId: dist._id,
-            account: tr.account,
-            symbol: payTokens[i].symbol,
-            quantity: payoutQty,
-          });
+    } else if (dist.strategy === 'pool') {
+      const tokenRecipients = await getPoolRecipients(params, dist);
+      const shareTotal = tokenRecipients.reduce((acc, cur) => acc.plus(cur.effShares), api.BigNumber(0));
+      if (api.assert(shareTotal.gt(0), 'no liquidity shares for this tokenPair')) {
+        let payTxCount = 0;
+        const storePending = [];
+        while (tokenRecipients.length > 0) {
+          const tr = tokenRecipients.shift();
+          const payoutShare = api.BigNumber(tr.effShares).dividedBy(shareTotal);
+          for (let i = 0; i < payTokens.length; i += 1) {
+            const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
+            const payoutQty = api.BigNumber(payTokens[i].quantity)
+              .multipliedBy(payoutShare)
+              .dividedBy(dist.numTicksLeft)
+              .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+            if (api.BigNumber(payoutQty).gt(0)) {
+              let payResult = true;
+              let payNow = true;
+              if (payTxCount < params.maxTransferLimit) {
+                payResult = await payRecipient(tr.account, payTokens[i].symbol, payoutQty);
+              } else {
+                payNow = false;
+                storePending.push({
+                  distId: dist._id,
+                  account: tr.account,
+                  symbol: payTokens[i].symbol,
+                  quantity: payoutQty,
+                });
+              }
+              if (payResult) {
+                const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
+                upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
+                  .minus(payoutQty)
+                  .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+                if (payNow) {
+                  api.emit('payment', {
+                    distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutQty,
+                  });
+                }
+              }
+              payTxCount += 1;
+            }
+          }
         }
-        if (payResult) {
-          const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
-          upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
-            .minus(payoutQty)
-            .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-          api.emit('payment', {
-            distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutQty,
-          });
-        }
-        payTxCount += 1;
+        if (storePending.length > 0) await api.db.insert('pendingPayments', { dueTime: blockDate.getTime(), accounts: storePending });
       }
     }
-    if (storePending.length > 0) await api.db.insert('pendingPayments', { dueTime: blockDate.getTime(), accounts: storePending });
   }
 
   upDist.numTicksLeft -= 1;
@@ -575,7 +592,7 @@ actions.checkPendingDistributions = async () => {
       const pendingPay = await api.db.find('pendingPayments',
         {
           dueTime: {
-            $lte: tickTime,
+            $lt: blockDate.getTime(),
           },
         },
         params.maxDistributionsLimit,

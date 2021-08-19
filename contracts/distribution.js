@@ -464,7 +464,13 @@ async function runDistribution(dist, params, flush = false) {
               .dividedBy(dist.numTicksLeft)
               .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
             if (api.BigNumber(payoutShare).gt(0)) {
-              if (await payRecipient(tr.account, payTokens[i].symbol, payoutShare, tr.type)) {
+              if (await payRecipient(
+                tr.account,
+                payTokens[i].symbol,
+                payoutShare,
+                tr.type,
+                tr.contractPayload || null,
+              )) {
                 const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
                 upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
                   .minus(payoutShare)
@@ -554,7 +560,7 @@ async function runPendingPay(pendingPay, params) {
     const p = pendingPay.accounts[i];
     if (await payRecipient(p.account, p.symbol, p.quantity)) {
       pendingPay.accounts.splice(i, 1);
-      api.emit('payment', { p, pending: true });
+      api.emit('payment', { ...p, pending: true });
     }
   }
   if (pendingPay.accounts.length === 0) {

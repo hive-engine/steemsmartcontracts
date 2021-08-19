@@ -16,8 +16,6 @@ actions.issueNewTokens = async () => {
   if (api.sender !== 'null') return;
   // 100k tokens per year = 11.41552511 tokens per hour (an hour = 1200 blocks)
   const nbTokens = '11.41552511';
-  // 1MM tokens per year = 2739.72602739 tokens per day
-  const milTokens = '2739.72602739';
 
   // issue tokens to HIVE_ENGINE_ACCOUNT (100k/year)
   await api.executeSmartContract('tokens', 'issue',
@@ -27,22 +25,40 @@ actions.issueNewTokens = async () => {
   await api.executeSmartContract('tokens', 'issueToContract',
     { symbol: UTILITY_TOKEN_SYMBOL, quantity: nbTokens, to: 'witnesses' });
 
-  // establish utility token DTF (up to 1MM/year)
+  // establish utility token DTFs
   if (api.refHiveBlockNumber === 56428800) {
+    // BEE:WORKERBEE at up to 200k/year
     await api.executeSmartContract('tokenfunds', 'createFund', {
       payToken: UTILITY_TOKEN_SYMBOL,
       voteToken: GOVERNANCE_TOKEN_SYMBOL,
-      voteThreshold: '1',
+      voteThreshold: '6667',
       maxDays: '365',
-      maxAmountPerDay: milTokens,
+      maxAmountPerDay: '547.94520547',
       proposalFee: {
         method: 'burn',
         symbol: UTILITY_TOKEN_SYMBOL,
-        amount: '25',
+        amount: '50',
       },
     });
     await api.executeSmartContract('tokenfunds', 'setDtfActive', {
       fundId: `${UTILITY_TOKEN_SYMBOL}:${GOVERNANCE_TOKEN_SYMBOL}`,
+      active: true,
+    });
+    // BEE:BEE at up to 800k/year
+    await api.executeSmartContract('tokenfunds', 'createFund', {
+      payToken: UTILITY_TOKEN_SYMBOL,
+      voteToken: UTILITY_TOKEN_SYMBOL,
+      voteThreshold: '20000',
+      maxDays: '365',
+      maxAmountPerDay: '2191.78082191',
+      proposalFee: {
+        method: 'burn',
+        symbol: UTILITY_TOKEN_SYMBOL,
+        amount: '50',
+      },
+    });
+    await api.executeSmartContract('tokenfunds', 'setDtfActive', {
+      fundId: `${UTILITY_TOKEN_SYMBOL}:${UTILITY_TOKEN_SYMBOL}`,
       active: true,
     });
   }

@@ -177,7 +177,9 @@ actions.createFund = async (payload) => {
     const insertedDtf = await api.db.insert('funds', newDtf);
 
     // burn the token creation fees
-    if (api.sender !== api.owner && api.BigNumber(dtfCreationFee).gt(0)) {
+    if (api.sender !== api.owner
+        && api.sender !== 'null'
+        && api.BigNumber(dtfCreationFee).gt(0)) {
       await api.executeSmartContract('tokens', 'transfer', {
         // eslint-disable-next-line no-template-curly-in-string
         to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: dtfCreationFee, isSignedWithActiveKey,
@@ -229,8 +231,10 @@ actions.updateFund = async (payload) => {
     if (proposalFee) existingDtf.proposalFee = proposalFee;
     await api.db.update('funds', existingDtf);
 
-    // burn the token creation fees
-    if (api.sender !== api.owner && api.BigNumber(dtfUpdateFee).gt(0)) {
+    // burn the token update fees
+    if (api.sender !== api.owner
+        && api.sender !== 'null'
+        && api.BigNumber(dtfUpdateFee).gt(0)) {
       await api.executeSmartContract('tokens', 'transfer', {
         // eslint-disable-next-line no-template-curly-in-string
         to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: dtfUpdateFee, isSignedWithActiveKey,

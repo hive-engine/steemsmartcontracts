@@ -26,14 +26,14 @@ actions.issueNewTokens = async () => {
     { symbol: UTILITY_TOKEN_SYMBOL, quantity: nbTokens, to: 'witnesses' });
 
   // establish utility token DTFs
-  if (api.refHiveBlockNumber === 56743912) {
+  if (api.refHiveBlockNumber === 56744400) {
     // BEE:WORKERBEE at up to 200k/year
     await api.executeSmartContract('tokenfunds', 'createFund', {
       payToken: UTILITY_TOKEN_SYMBOL,
       voteToken: GOVERNANCE_TOKEN_SYMBOL,
       voteThreshold: '6667',
       maxDays: '365',
-      maxAmountPerDay: '547.945220547',
+      maxAmountPerDay: '547.94522054',
       proposalFee: {
         method: 'burn',
         symbol: UTILITY_TOKEN_SYMBOL,

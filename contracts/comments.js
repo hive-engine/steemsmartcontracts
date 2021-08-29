@@ -305,7 +305,10 @@ async function computePostRewards(params, rewardPool, token, endTimestamp) {
   }
 }
 
-async function postClaimsInInterval(rewardPool, start, end) {
+async function postClaimsInInterval(params, rewardPool, start, end) {
+  const {
+    maxPostsProcessedPerRound,
+  } = params;
   let postOffset = 0;
   let newPendingClaims = api.BigNumber(0);
   let postsToPayout = await api.db.find('posts',
@@ -313,7 +316,7 @@ async function postClaimsInInterval(rewardPool, start, end) {
       rewardPoolId: rewardPool._id,
       cashoutTime: { $gte: start, $lte: end },
     },
-    1000,
+    maxPostsProcessedPerRound,
     postOffset,
     [{ index: 'byCashoutTime', descending: false }]);
   while (postsToPayout && postsToPayout.length > 0) {
@@ -322,16 +325,16 @@ async function postClaimsInInterval(rewardPool, start, end) {
         api.BigNumber(0)),
     )
       .dp(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    if (postsToPayout.length < 1000) {
+    if (postsToPayout.length < maxPostsProcessedPerRound) {
       break;
     }
-    postOffset += 1000;
+    postOffset += maxPostsProcessedPerRound;
     postsToPayout = await api.db.find('posts',
       {
         rewardPoolId: rewardPool._id,
         cashoutTime: { $gte: start, $lte: end },
       },
-      1000,
+      maxPostsProcessedPerRound,
       postOffset,
       [{ index: 'byCashoutTime', descending: false }]);
   }
@@ -348,7 +351,25 @@ async function tokenMaintenance() {
   }
   params.lastMaintenanceBlock = api.blockNumber;
 
-  const rewardPools = await api.db.find('rewardPools', { active: true, $expr: { $lte: ['$lastClaimDecayTimestamp', { $subtract: [timestamp, { $multiply: ['$config.rewardIntervalSeconds', 1000] }] }] } }, maintenanceTokensPerBlock, 0, [{ index: 'lastClaimDecayTimestamp', descending: false }]);
+  const rewardPools = await api.db.find('rewardPools', {
+    active: true,
+    $expr: {
+      $lte: [
+        '$lastClaimDecayTimestamp',
+        {
+          $subtract: [
+            timestamp,
+            {
+              $multiply: [
+                '$config.rewardIntervalSeconds',
+                1000,
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  }, maintenanceTokensPerBlock, 0, [{ index: 'lastClaimDecayTimestamp', descending: false }]);
   if (rewardPools) {
     for (let i = 0; i < rewardPools.length; i += 1) {
       const rewardPool = rewardPools[i];
@@ -391,7 +412,9 @@ async function tokenMaintenance() {
         // ensure it cannot take more of the current pool
         rewardPool.pendingClaims = api.BigNumber(rewardPool.pendingClaims)
           .plus(
-            await postClaimsInInterval(rewardPool, lastRewardTimestamp, nextRewardTimestamp),
+            await postClaimsInInterval(
+              params, rewardPool, lastRewardTimestamp, nextRewardTimestamp,
+            ),
           )
           .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
 

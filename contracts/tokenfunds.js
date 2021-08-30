@@ -102,10 +102,16 @@ function validateDateRange(startDate, endDate, maxDays) {
   return true;
 }
 
-function validateDateChange(date, newDate) {
-  const cur = new Date(date);
+function validateDateChange(proposal, newDate, maxDays) {
+  if (!api.assert(validateDateTime(newDate), 'invalid datetime format: YYYY-MM-DDThh:mm:ss.sssZ')) return false;
+  const start = new Date(proposal.startDate);
+  const cur = new Date(proposal.endDate);
   const repl = new Date(newDate);
+  if (!api.assert(api.BigNumber(start.getTime()).lt(api.BigNumber(repl.getTime()).minus(86400 * 1000)), 'dates must be at least 1 day apart')) return false;
   if (!api.assert(repl <= cur, 'date can only be reduced')) return false;
+  const range = api.BigNumber(start.getTime()).minus(repl.getTime()).abs();
+  const rangeDays = range.dividedBy(1000 * 60 * 60 * 24).toFixed(0, api.BigNumber.ROUND_CEIL);
+  if (!api.assert(api.BigNumber(rangeDays).lte(maxDays), 'date range exceeds DTF maxDays')) return false;
   return true;
 }
 
@@ -347,8 +353,7 @@ actions.updateProposal = async (payload) => {
       && api.BigNumber(amountPerDay).gt(0)
       && api.BigNumber(amountPerDay).lte(proposal.amountPerDay), 'invalid amountPerDay: greater than 0 and cannot be increased')
     && api.assert(api.BigNumber(amountPerDay).lte(dtf.maxAmountPerDay), 'invalid amountPerDay: exceeds DTF maxAmountPerDay')
-    && validateDateChange(proposal.endDate, endDate)
-    && validateDateRange(proposal.startDate, endDate, dtf.maxDays)) {
+    && validateDateChange(proposal, endDate, dtf.maxDays)) {
     proposal.title = title;
     proposal.endDate = endDate;
     proposal.amountPerDay = amountPerDay;

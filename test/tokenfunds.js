@@ -1474,7 +1474,7 @@ describe('tokenfunds tests', function () {
       await tableAsserts.assertNoErrorInLastBlock();
 
       // utility DTF deployment block
-      refBlockNumber = 56744400;
+      refBlockNumber = 56977200;
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'tokens', 'stake', `{ "to": "voter1", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1000", "isSignedWithActiveKey": true }`));
 
@@ -1496,7 +1496,7 @@ describe('tokenfunds tests', function () {
       let e = virtualEventLog.events.find(x => x.event === 'createFund');
       assert.ok(e, 'Expected to find createFund event');
 
-      refBlockNumber = 56744401;
+      refBlockNumber = 56977201;
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokenfunds', 'createProposal', `{ "fundId": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "title": "Pay Distribution XYZ", "startDate": "2021-03-15T01:00:00.000Z", "endDate": "2022-03-14T00:00:00.000Z", "amountPerDay": "500", "authorPermlink": "@abc123/test", "payout": { "type": "contract", "name": "distribution", "contractPayload": { "distId": "1" } }, "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokenfunds', 'createProposal', `{ "fundId": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "title": "A Big Community Project", "startDate": "2021-03-15T01:00:00.000Z", "endDate": "2022-03-14T00:00:00.000Z", "amountPerDay": "400", "authorPermlink": "@abc123/test", "payout": { "type": "user", "name": "rambo" }, "isSignedWithActiveKey": true }`));
@@ -1513,7 +1513,7 @@ describe('tokenfunds tests', function () {
       await fixture.sendBlock(block);      
       await tableAsserts.assertNoErrorInLastBlock();
 
-      refBlockNumber = 56744402;
+      refBlockNumber = 56977202;
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "2" }'));
 

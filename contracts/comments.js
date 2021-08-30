@@ -26,12 +26,16 @@ actions.createSSC = async () => {
       maintenanceTokensPerBlock: 2,
       lastMaintenanceBlock: api.blockNumber,
       maxPostsProcessedPerRound: 20,
-      voteQueryLimit: 1000,
+      voteQueryLimit: 100,
+      maxVotesProcessedPerRound: 100,
+      lastProcessedPoolId: 0,
     };
     await api.db.insert('params', params);
   } else {
     const params = await api.db.findOne('params', {});
-    params.maxVotesProcessedPerRound = 1000;
+    params.maxVotesProcessedPerRound = 100;
+    params.voteQueryLimit = 100;
+    params.lastProcessedPoolId = 0;
     await api.db.update('params', params);
   }
 };
@@ -345,34 +349,57 @@ async function tokenMaintenance() {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();
   const params = await api.db.findOne('params', {});
-  const { lastMaintenanceBlock, maintenanceTokensPerBlock } = params;
+  const { lastMaintenanceBlock, lastProcessedPoolId, maintenanceTokensPerBlock } = params;
   if (lastMaintenanceBlock >= api.blockNumber) {
     return;
   }
   params.lastMaintenanceBlock = api.blockNumber;
 
-  const rewardPools = await api.db.find('rewardPools', {
+  // Checks if ready to process next reward interval
+  const rewardPoolProcessingExpression = {
+    $lte: [
+      '$lastClaimDecayTimestamp',
+      {
+        $subtract: [
+          timestamp,
+          {
+            $multiply: [
+              '$config.rewardIntervalSeconds',
+              1000,
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  let rewardPools = await api.db.find('rewardPools', {
     active: true,
-    $expr: {
-      $lte: [
-        '$lastClaimDecayTimestamp',
-        {
-          $subtract: [
-            timestamp,
-            {
-              $multiply: [
-                '$config.rewardIntervalSeconds',
-                1000,
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  }, maintenanceTokensPerBlock, 0, [{ index: 'lastClaimDecayTimestamp', descending: false }]);
+    $expr: rewardPoolProcessingExpression,
+    _id: { $gt: lastProcessedPoolId },
+  }, maintenanceTokensPerBlock, 0, [{ index: '_id', descending: false }]);
+  if (!rewardPools) {
+    // try from beginning
+    rewardPools = await api.db.find('rewardPools', {
+      active: true,
+      $expr: rewardPoolProcessingExpression,
+    }, maintenanceTokensPerBlock, 0, [{ index: '_id', descending: false }]);
+  } else if (rewardPools.length < maintenanceTokensPerBlock) {
+    // augment from beginning
+    const moreRewardPools = await api.db.find('rewardPools', {
+      active: true,
+      $expr: rewardPoolProcessingExpression,
+    }, maintenanceTokensPerBlock - rewardPools.length, 0, [{ index: '_id', descending: false }]);
+    const existingIds = new Set(rewardPools.map(p => p._id));
+    moreRewardPools.forEach((mrp) => {
+      if (!existingIds.has(mrp._id)) {
+        rewardPools.push(mrp);
+      }
+    });
+  }
   if (rewardPools) {
     for (let i = 0; i < rewardPools.length; i += 1) {
       const rewardPool = rewardPools[i];
+      params.lastProcessedPoolId = rewardPool._id;
       const {
         lastClaimDecayTimestamp,
         lastRewardTimestamp,
@@ -659,7 +686,6 @@ actions.setActive = async (payload) => {
     active,
     isSignedWithActiveKey,
   } = payload;
-  await tokenMaintenance();
   if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
     return;
   }
@@ -667,10 +693,11 @@ actions.setActive = async (payload) => {
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
   if (!api.assert(existingRewardPool, 'reward pool not found')) return;
   const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingRewardPool.symbol });
-  if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
+  if (!api.assert(api.sender === token.issuer || api.sender === api.owner, 'must be issuer of token')) return;
 
   existingRewardPool.active = active;
   await api.db.update('rewardPools', existingRewardPool);
+  await tokenMaintenance();
 };
 
 async function getRewardPoolIds(payload) {

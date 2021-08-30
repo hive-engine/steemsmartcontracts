@@ -377,13 +377,10 @@ async function tokenMaintenance() {
     $expr: rewardPoolProcessingExpression,
     _id: { $gt: lastProcessedPoolId },
   }, maintenanceTokensPerBlock, 0, [{ index: '_id', descending: false }]);
-  if (!rewardPools) {
-    // try from beginning
-    rewardPools = await api.db.find('rewardPools', {
-      active: true,
-      $expr: rewardPoolProcessingExpression,
-    }, maintenanceTokensPerBlock, 0, [{ index: '_id', descending: false }]);
-  } else if (rewardPools.length < maintenanceTokensPerBlock) {
+  if (!rewardPools || rewardPools.length < maintenanceTokensPerBlock) {
+    if (!rewardPools) {
+      rewardPools = [];
+    }
     // augment from beginning
     const moreRewardPools = await api.db.find('rewardPools', {
       active: true,

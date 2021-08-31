@@ -879,7 +879,7 @@ describe('tokenfunds tests', function () {
 
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'satoshi', 'whatever', 'whatever', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -889,6 +889,11 @@ describe('tokenfunds tests', function () {
         transactions,
       };
       await fixture.sendBlock(block);
+
+      await assertWeightConsistency(1, 'SLV');
+      await assertWeightConsistency(2, 'SLV');
+      await assertWeightConsistency(3, 'GLD');
+      await assertWeightConsistency(4, 'GLD');
 
       res = (await fixture.database.getLatestBlockInfo());
       // console.log(res);

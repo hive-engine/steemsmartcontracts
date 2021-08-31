@@ -26,6 +26,38 @@ actions.createSSC = async () => {
     params.maxAccountApprovals = 50;
     params.processQueryLimit = 1000;
     await api.db.insert('params', params);
+  } else {
+    const params = await api.db.findOne('params', {});
+    if (!params.updateIndex) {
+      const dtfs = await api.db.find('funds', {});
+      const voteTokens = new Set();
+      for (let i = 0; i < dtfs.length; i += 1) {
+        voteTokens.add(dtfs[i].voteToken);
+      }
+      const resetAccounts = await api.db.find('accounts', {});
+      for (let i = 0; i < resetAccounts.length; i += 1) {
+        const acct = resetAccounts[i];
+        acct.weights = acct.weights.filter(ele => voteTokens.has(ele.symbol));
+        await api.db.update('accounts', acct);
+      }
+      const resetProposals = await api.db.find('proposals', {});
+      for (let i = 0; i < resetProposals.length; i += 1) {
+        const prop = resetProposals[i];
+        const propFund = dtfs.find(x => x.id === prop.fundId);
+        const propApprovals = await api.db.find('approvals', { to: prop._id });
+        let newApprovalWeight = api.BigNumber('0');
+        for (let j = 0; j < propApprovals.length; j += 1) {
+          const approval = propApprovals[j];
+          const approvalAcct = resetAccounts.find(x => x.account === approval.from);
+          const approvalAcctWgt = approvalAcct.weights.find(x => x.symbol === propFund.voteToken);
+          newApprovalWeight = newApprovalWeight.plus(approvalAcctWgt.weight);
+        }
+        prop.approvalWeight = { $numberDecimal: newApprovalWeight };
+        await api.db.update('proposals', prop);
+      }
+      params.updateIndex = 1;
+      await api.db.update('params', params);
+    }
   }
 };
 

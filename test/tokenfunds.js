@@ -15,7 +15,16 @@ const { assertError } = require('../libs/util/testing/Asserts');
 
 const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
+const distributionContractPayload = setupContractPayload('distribution', './contracts/distribution.js');
+const inflationContractPayload = setupContractPayload('inflation', './contracts/inflation.js');
+const witnessContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js');
 const contractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
+
+function addGovernanceTokenTransactions(fixture, transactions, blockNumber) {
+  transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'create', `{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "precision": 5, "maxSupply": "10000000", "isSignedWithActiveKey": true }`));
+  transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableStaking', `{ "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "unstakingCooldown": 40, "numberTransactions": 4, "isSignedWithActiveKey": true }`));
+  transactions.push(new Transaction(blockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'enableDelegation', `{ "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "undelegationCooldown": 7, "isSignedWithActiveKey": true }`));
+}
 
 const fixture = new Fixture();
 const tableAsserts = new TableAsserts(fixture);
@@ -1432,6 +1441,107 @@ describe('tokenfunds tests', function () {
         fixture.tearDown();
         done();
       });
-  });  
+  });
+
+  it('should establish utility token fund', (done) => {
+    new Promise(async (resolve) => {
+
+      await fixture.setUp();
+
+      let refBlockNumber = 56428799;
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(inflationContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(miningContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(witnessContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(distributionContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      addGovernanceTokenTransactions(fixture, transactions, refBlockNumber);
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "donchate", "quantity": "50000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'issue', `{ "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1000", "to": "voter1", "isSignedWithActiveKey": true }`));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      
+      let res = await fixture.database.getLatestBlockInfo();
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      // utility DTF deployment block
+      refBlockNumber = 56428800;
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'tokens', 'stake', `{ "to": "voter1", "symbol": "${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "quantity": "1000", "isSignedWithActiveKey": true }`));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-13T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      await tableAsserts.assertNoErrorInLastBlock();
+      res = await fixture.database.getLatestBlockInfo();
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+      let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      let e = virtualEventLog.events.find(x => x.event === 'createFund');
+      assert.ok(e, 'Expected to find createFund event');
+
+      refBlockNumber = 56428801;
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokenfunds', 'createProposal', `{ "fundId": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "title": "Pay Distribution XYZ", "startDate": "2021-03-15T01:00:00.000Z", "endDate": "2022-03-14T00:00:00.000Z", "amountPerDay": "500", "authorPermlink": "@abc123/test", "payout": { "type": "contract", "name": "distribution", "contractPayload": { "distId": "1" } }, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokenfunds', 'createProposal', `{ "fundId": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}", "title": "A Big Community Project", "startDate": "2021-03-15T01:00:00.000Z", "endDate": "2022-03-14T00:00:00.000Z", "amountPerDay": "400", "authorPermlink": "@abc123/test", "payout": { "type": "user", "name": "rambo" }, "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "1" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-14T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);      
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = 56428802;
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'tokenfunds', 'approveProposal', '{ "id": "2" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-15T02:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);      
+      res = await fixture.database.getLatestBlockInfo();
+      // console.log(res);      
+
+      // await tableAsserts.assertNoErrorInLastBlock();
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+      virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      e = virtualEventLog.events.find(x => x.event === 'fundProposals');
+      assert.ok(e, 'Expected to find fundProposals event');
+      assert.equal(e.data.fundId, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}:${CONSTANTS.GOVERNANCE_TOKEN_SYMBOL}`);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
   // END TESTS
 });

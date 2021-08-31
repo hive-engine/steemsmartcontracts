@@ -25,6 +25,31 @@ actions.createSSC = async () => {
       params.processQueryLimit = 1000;
       params.updateIndex = 1;
       await api.db.update('params', params);
+    } else if (params.updateIndex === 1) {
+      const clearPending = await api.db.find('pendingPayments', {});
+      for (let i = 0; i < clearPending.length; i += 1) {
+        await api.db.remove('pendingPayments', clearPending[i]);
+      }
+      const syncDists = await api.db.find('batches', {});
+      for (let i = 0; i < syncDists.length; i += 1) {
+        const dist = syncDists[i];
+        if (dist.tokenBalances) {
+          let update = false;
+          const hiveIndex = dist.tokenBalances.findIndex(t => t.symbol === 'SWAP.HIVE');
+          if (hiveIndex !== -1) {
+            dist.tokenBalances[hiveIndex].quantity = api.BigNumber('0').toFixed(8);
+            update = true;
+          }
+          const simIndex = dist.tokenBalances.findIndex(t => t.symbol === 'SIM');
+          if (simIndex !== -1) {
+            dist.tokenBalances[simIndex].quantity = api.BigNumber('0').toFixed(3);
+            update = true;
+          }
+          if (update) await api.db.update('batches', dist);
+        }
+      }
+      params.updateIndex = 2;
+      await api.db.update('params', params);
     }
   }
 };
@@ -111,6 +136,8 @@ async function validateRecipients(params, tokenRecipients) {
     tokenRecipientsTotalShare += tokenRecipientsConfig.pct;
 
     if (!api.assert(['user', 'contract'].includes(tokenRecipientsConfig.type), 'tokenRecipients type must be user or contract')) return false;
+    if (tokenRecipientsConfig.type === 'contract'
+      && !api.assert(typeof tokenRecipientsConfig.contractPayload === 'object', 'contract recipients must have contractPayload')) return false;
   }
   if (!api.assert(tokenRecipientsTotalShare === 100, 'tokenRecipients pct must total 100')) return false;
   return true;
@@ -222,7 +249,8 @@ actions.update = async (payload) => {
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
     const exDist = await api.db.findOne('batches', { _id: id });
-    if (api.assert(exDist, 'distribution not found')) {
+    if (api.assert(exDist, 'distribution not found')
+      && api.assert(api.sender === api.owner || api.sender === exDist.creator, 'must be owner or creator')) {
       if (numTicks && api.assert(typeof numTicks === 'string'
         && api.BigNumber(numTicks).isInteger()
         && api.BigNumber(numTicks).gt(0)
@@ -281,6 +309,25 @@ actions.setActive = async (payload) => {
   }
 };
 
+async function updateTokenBalances(dist, token, quantity) {
+  const upDist = dist;
+  if (upDist.tokenBalances) {
+    const tIndex = upDist.tokenBalances.findIndex(t => t.symbol === token.symbol);
+    if (tIndex === -1) {
+      upDist.tokenBalances.push({ symbol: token.symbol, quantity });
+    } else {
+      upDist.tokenBalances[tIndex].quantity = api.BigNumber(upDist.tokenBalances[tIndex].quantity)
+        .plus(quantity)
+        .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+    }
+  } else {
+    upDist.tokenBalances = [
+      { symbol: token.symbol, quantity },
+    ];
+  }
+  await api.db.update('batches', upDist);
+}
+
 actions.deposit = async (payload) => {
   const {
     id, symbol, quantity, isSignedWithActiveKey,
@@ -301,28 +348,31 @@ actions.deposit = async (payload) => {
     const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: 'distribution' });
     if (res.errors === undefined
       && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'distribution' && el.data.quantity === quantity) !== undefined) {
-      // update token balances
-      if (dist.tokenBalances) {
-        const tIndex = dist.tokenBalances.findIndex(t => t.symbol === symbol);
-        if (tIndex === -1) {
-          dist.tokenBalances.push({ symbol, quantity });
-        } else {
-          dist.tokenBalances[tIndex].quantity = api.BigNumber(dist.tokenBalances[tIndex].quantity)
-            .plus(quantity)
-            .toFixed(depToken.precision, api.BigNumber.ROUND_DOWN);
-        }
-      } else {
-        dist.tokenBalances = [
-          { symbol, quantity },
-        ];
-      }
-
-      const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
-      dist.numTicksLeft = api.BigNumber(dist.numTicks).toNumber();
-      dist.lastTickTime = blockDate.getTime();
-      await api.db.update('batches', dist);
+      await updateTokenBalances(dist, depToken, quantity);
       api.emit('deposit', { distId: id, symbol, quantity });
     }
+  }
+};
+
+actions.receiveDtfTokens = async (payload) => {
+  const {
+    data, symbol, quantity,
+    callingContractInfo,
+  } = payload;
+
+  if (!api.assert(callingContractInfo && callingContractInfo.name === 'tokenfunds', 'not authorized')) return;
+  if (!api.assert(typeof data === 'object'
+    && data.constructor.name === 'Object'
+    && 'distId' in data
+    && typeof data.distId === 'string'
+    && api.BigNumber(data.distId).isInteger(), 'invalid DTF payload')) return;
+
+  const dist = await api.db.findOne('batches', { _id: api.BigNumber(data.distId).toNumber() });
+  if (api.assert(dist, 'distribution id not found') && api.assert(dist.active, 'distribution must be active to deposit')) {
+    if (dist.strategy === 'fixed' && !api.assert(validateIncomingToken(dist, symbol), `${symbol} is not accepted by this distribution`)) return;
+    const depToken = await api.db.findOneInTable('tokens', 'tokens', { symbol });
+    await updateTokenBalances(dist, depToken, quantity);
+    api.emit('receiveDtfTokens', { distId: data.distId, symbol, quantity });
   }
 };
 
@@ -379,9 +429,13 @@ async function getPoolRecipients(params, dist) {
   return result;
 }
 
-async function payRecipient(account, symbol, quantity, type = 'user') {
+async function payRecipient(account, symbol, quantity, type = 'user', contractPayload = null) {
   if (api.BigNumber(quantity).gt(0)) {
     const res = await api.transferTokens(account, symbol, quantity, type);
+    if (type === 'contract' && contractPayload) {
+      await api.executeSmartContract(account, 'receiveDistTokens',
+        { data: contractPayload, symbol, quantity });
+    }
     if (res.errors) {
       api.debug(`Error paying out distribution of ${quantity} ${symbol} to ${account} (TXID ${api.transactionId}): \n${res.errors}`);
       return false;
@@ -395,76 +449,87 @@ async function runDistribution(dist, params, flush = false) {
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const upDist = JSON.parse(JSON.stringify(dist));
   const payTokens = dist.tokenBalances.filter(d => api.BigNumber(d.quantity).gt(0));
-  if (payTokens.length === 0) return;
-
-  if (dist.strategy === 'fixed') {
-    const { tokenRecipients } = dist;
-    while (tokenRecipients.length > 0) {
-      const tr = tokenRecipients.shift();
-      for (let i = 0; i < payTokens.length; i += 1) {
-        const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
-        const minPayout = dist.tokenMinPayout.find(p => p.symbol === payTokens[i].symbol);
-        if (api.BigNumber(payTokens[i].quantity).gt(minPayout.quantity) || flush) {
-          const payoutShare = api.BigNumber(payTokens[i].quantity)
-            .multipliedBy(tr.pct)
-            .dividedBy(100)
-            .dividedBy(dist.numTicksLeft)
-            .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-          if (api.BigNumber(payoutShare).lte(0)) return;
-          if (await payRecipient(tr.account, payTokens[i].symbol, payoutShare, tr.type)) {
-            const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
-            upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
-              .minus(payoutShare)
+  if (payTokens.length > 0) {
+    if (dist.strategy === 'fixed') {
+      const { tokenRecipients } = dist;
+      while (tokenRecipients.length > 0) {
+        const tr = tokenRecipients.shift();
+        for (let i = 0; i < payTokens.length; i += 1) {
+          const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
+          const minPayout = dist.tokenMinPayout.find(p => p.symbol === payTokens[i].symbol);
+          if (api.BigNumber(payTokens[i].quantity).gt(minPayout.quantity) || flush) {
+            const payoutShare = api.BigNumber(payTokens[i].quantity)
+              .multipliedBy(tr.pct)
+              .dividedBy(100)
+              .dividedBy(dist.numTicksLeft)
               .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-            api.emit('payment', {
-              distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutShare,
-            });
+            if (api.BigNumber(payoutShare).gt(0)) {
+              if (await payRecipient(
+                tr.account,
+                payTokens[i].symbol,
+                payoutShare,
+                tr.type,
+                tr.contractPayload || null,
+              )) {
+                const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
+                upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
+                  .minus(payoutShare)
+                  .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+                api.emit('payment', {
+                  distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutShare,
+                });
+              }
+            }
           }
         }
       }
-    }
-  } else if (dist.strategy === 'pool') {
-    const tokenRecipients = await getPoolRecipients(params, dist);
-    const shareTotal = tokenRecipients.reduce((acc, cur) => acc.plus(cur.effShares), api.BigNumber(0));
-    if (!api.assert(shareTotal.gt(0), 'no liquidity shares for this tokenPair')) return;
-
-    let payTxCount = 0;
-    const storePending = [];
-    while (tokenRecipients.length > 0) {
-      const tr = tokenRecipients.shift();
-      const payoutShare = api.BigNumber(tr.effShares).dividedBy(shareTotal);
-      for (let i = 0; i < payTokens.length; i += 1) {
-        const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
-        const payoutQty = api.BigNumber(payTokens[i].quantity)
-          .multipliedBy(payoutShare)
-          .dividedBy(dist.numTicksLeft)
-          .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-        if (api.BigNumber(payoutQty).lte(0)) return;
-
-        let payResult = true;
-        if (payTxCount < params.maxTransferLimit) {
-          payResult = await payRecipient(tr.account, payTokens[i].symbol, payoutQty);
-        } else {
-          storePending.push({
-            distId: dist._id,
-            account: tr.account,
-            symbol: payTokens[i].symbol,
-            quantity: payoutQty,
-          });
+    } else if (dist.strategy === 'pool') {
+      const tokenRecipients = await getPoolRecipients(params, dist);
+      const shareTotal = tokenRecipients.reduce((acc, cur) => acc.plus(cur.effShares), api.BigNumber(0));
+      if (api.assert(shareTotal.gt(0), 'no liquidity shares for this tokenPair')) {
+        let payTxCount = 0;
+        const storePending = [];
+        while (tokenRecipients.length > 0) {
+          const tr = tokenRecipients.shift();
+          const payoutShare = api.BigNumber(tr.effShares).dividedBy(shareTotal);
+          for (let i = 0; i < payTokens.length; i += 1) {
+            const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[i].symbol });
+            const payoutQty = api.BigNumber(payTokens[i].quantity)
+              .multipliedBy(payoutShare)
+              .dividedBy(dist.numTicksLeft)
+              .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+            if (api.BigNumber(payoutQty).gt(0)) {
+              let payResult = true;
+              let payNow = true;
+              if (payTxCount < params.maxTransferLimit) {
+                payResult = await payRecipient(tr.account, payTokens[i].symbol, payoutQty);
+              } else {
+                payNow = false;
+                storePending.push({
+                  distId: dist._id,
+                  account: tr.account,
+                  symbol: payTokens[i].symbol,
+                  quantity: payoutQty,
+                });
+              }
+              if (payResult) {
+                const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
+                upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
+                  .minus(payoutQty)
+                  .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+                if (payNow) {
+                  api.emit('payment', {
+                    distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutQty,
+                  });
+                }
+              }
+              payTxCount += 1;
+            }
+          }
         }
-        if (payResult) {
-          const tbIndex = upDist.tokenBalances.findIndex(b => b.symbol === payTokens[i].symbol);
-          upDist.tokenBalances[tbIndex].quantity = api.BigNumber(upDist.tokenBalances[tbIndex].quantity)
-            .minus(payoutQty)
-            .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-          api.emit('payment', {
-            distId: dist._id, tokenPair: dist.tokenPair, symbol: payTokens[i].symbol, account: tr.account, quantity: payoutQty,
-          });
-        }
-        payTxCount += 1;
+        if (storePending.length > 0) await api.db.insert('pendingPayments', { dueTime: blockDate.getTime(), accounts: storePending });
       }
     }
-    if (storePending.length > 0) await api.db.insert('pendingPayments', { dueTime: blockDate.getTime(), accounts: storePending });
   }
 
   upDist.numTicksLeft -= 1;
@@ -495,7 +560,7 @@ async function runPendingPay(pendingPay, params) {
     const p = pendingPay.accounts[i];
     if (await payRecipient(p.account, p.symbol, p.quantity)) {
       pendingPay.accounts.splice(i, 1);
-      api.emit('payment', { p, pending: true });
+      api.emit('payment', { ...p, pending: true });
     }
   }
   if (pendingPay.accounts.length === 0) {
@@ -533,7 +598,7 @@ actions.checkPendingDistributions = async () => {
       const pendingPay = await api.db.find('pendingPayments',
         {
           dueTime: {
-            $lte: tickTime,
+            $lt: blockDate.getTime(),
           },
         },
         params.maxDistributionsLimit,

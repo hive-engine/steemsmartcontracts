@@ -15,6 +15,7 @@ const { assertError } = require('../libs/util/testing/Asserts');
 
 const tknContractPayload = setupContractPayload('tokens', './contracts/tokens.js');
 const nftContractPayload = setupContractPayload('nft', './contracts/nft.js');
+const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 
 // prepare test contract for issuing & transferring NFT instances
 const testSmartContractCode = `
@@ -3518,6 +3519,7 @@ describe('nft', function() {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftContractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(testcontractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nft', 'updateParams', `{ "nftCreationFee": "5", "nftIssuanceFee": {"${CONSTANTS.UTILITY_TOKEN_SYMBOL}":"0.1"} }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"cryptomancer", "quantity":"5.4", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'cryptomancer', 'nft', 'create', '{ "isSignedWithActiveKey":true, "name":"test NFT", "symbol":"TSTNFT", "url":"http://mynft.com", "maxSupply":"1000", "authorizedIssuingAccounts": ["aggroed","cryptomancer"] }'));
@@ -3570,20 +3572,20 @@ describe('nft', function() {
       
       
 
-      assert.equal(JSON.parse(transactionsBlock1[10].logs).errors[0], 'invalid params');
-      assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], 'cannot set properties on more than 50 NFT instances at once');
-      assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'invalid params');
-      assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'symbol does not exist');
-      assert.equal(JSON.parse(transactionsBlock1[14].logs).errors[0], 'nft instance does not exist');
-      assert.equal(JSON.parse(transactionsBlock1[15].logs).errors[0], 'cannot edit read-only properties');
-      assert.equal(JSON.parse(transactionsBlock1[16].logs).errors[0], 'not allowed to set data properties');
+      assert.equal(JSON.parse(transactionsBlock1[11].logs).errors[0], 'invalid params');
+      assert.equal(JSON.parse(transactionsBlock1[12].logs).errors[0], 'cannot set properties on more than 50 NFT instances at once');
+      assert.equal(JSON.parse(transactionsBlock1[13].logs).errors[0], 'invalid params');
+      assert.equal(JSON.parse(transactionsBlock1[14].logs).errors[0], 'symbol does not exist');
+      assert.equal(JSON.parse(transactionsBlock1[15].logs).errors[0], 'nft instance does not exist');
+      assert.equal(JSON.parse(transactionsBlock1[16].logs).errors[0], 'cannot edit read-only properties');
       assert.equal(JSON.parse(transactionsBlock1[17].logs).errors[0], 'not allowed to set data properties');
-      assert.equal(JSON.parse(transactionsBlock1[18].logs).errors[0], 'cannot set more data properties than NFT has');
-      assert.equal(JSON.parse(transactionsBlock1[19].logs).errors[0], 'invalid data property name: letters & numbers only, max length of 25');
-      assert.equal(JSON.parse(transactionsBlock1[20].logs).errors[0], 'data property must exist');
-      assert.equal(JSON.parse(transactionsBlock1[21].logs).errors[0], 'data property type mismatch: expected string but got number for property color');
-      assert.equal(JSON.parse(transactionsBlock1[22].logs).errors[0], 'string property max length is 100 characters');
-      assert.equal(JSON.parse(transactionsBlock1[23].logs).errors[0], 'invalid data properties');
+      assert.equal(JSON.parse(transactionsBlock1[18].logs).errors[0], 'not allowed to set data properties');
+      assert.equal(JSON.parse(transactionsBlock1[19].logs).errors[0], 'cannot set more data properties than NFT has');
+      assert.equal(JSON.parse(transactionsBlock1[20].logs).errors[0], 'invalid data property name: letters & numbers only, max length of 25');
+      assert.equal(JSON.parse(transactionsBlock1[21].logs).errors[0], 'data property must exist');
+      assert.equal(JSON.parse(transactionsBlock1[22].logs).errors[0], 'data property type mismatch: expected string but got number for property color');
+      assert.equal(JSON.parse(transactionsBlock1[23].logs).errors[0], 'string property max length is 100 characters');
+      assert.equal(JSON.parse(transactionsBlock1[24].logs).errors[0], 'invalid data properties');
 
       res = await fixture.database.find({
           contract: 'nft',

@@ -1,6 +1,6 @@
 {
   "name": "steemsmartcontracts",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -35,7 +35,7 @@
   "author": "Harpagon210 <harpagon210@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "@hiveio/dhive": "^0.14.12",
+    "@hiveio/dhive": "^1.0.1",
     "axios": "^0.21.1",
     "bignumber.js": "^8.1.1",
     "body-parser": "^1.19.0",

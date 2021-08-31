@@ -118,14 +118,11 @@ async function assertWeightConsistency(proposalId, voteSymbol) {
       table: 'accounts',
       query: { account: app[i].from }
     });
-    console.log(acct);
     const wIndex = acct.weights.findIndex(x => x.symbol === voteSymbol);
     if (wIndex !== -1) {
       appWeight = BigNumber(appWeight).plus(acct.weights[wIndex].weight).toNumber();
     }
   }
-  console.log(appWeight);
-  console.log(prop);
   assert.equal(appWeight, prop.approvalWeight.$numberDecimal, `prop.approvalWeight (${prop.approvalWeight.$numberDecimal}) doesn\'t equal total of account weights (${appWeight})`);
 }
 
@@ -864,6 +861,7 @@ describe('tokenfunds tests', function () {
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'tokens', 'stake', '{ "to":"voter4", "symbol": "TST", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'tokens', 'stake', '{ "to":"voter4", "symbol": "GLD", "quantity": "100", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,

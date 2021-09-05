@@ -274,7 +274,7 @@ async function computePostRewards(params, rewardPool, token, endTimestamp) {
     },
     maxPostsProcessedPerRound,
     0,
-    [{ index: 'byCashoutTime', descending: false }]);
+    [{ index: 'byCashoutTime', descending: false }, { index: '_id', descending: false }]);
   let done = false;
   let deductFromRewardPool = api.BigNumber(0);
   let votesProcessed = 0;
@@ -322,7 +322,7 @@ async function postClaimsInInterval(params, rewardPool, start, end) {
     },
     maxPostsProcessedPerRound,
     postOffset,
-    [{ index: 'byCashoutTime', descending: false }]);
+    [{ index: 'byCashoutTime', descending: false }, { index: '_id', descending: false }]);
   while (postsToPayout && postsToPayout.length > 0) {
     newPendingClaims = newPendingClaims.plus(
       postsToPayout.reduce((x, y) => x.plus(calculateWeightRshares(rewardPool, y.voteRshareSum)),
@@ -340,7 +340,7 @@ async function postClaimsInInterval(params, rewardPool, start, end) {
       },
       maxPostsProcessedPerRound,
       postOffset,
-      [{ index: 'byCashoutTime', descending: false }]);
+      [{ index: 'byCashoutTime', descending: false }, { index: '_id', descending: false }]);
   }
   return newPendingClaims;
 }

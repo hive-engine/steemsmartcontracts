@@ -362,11 +362,13 @@ actions.addLiquidity = async (payload) => {
     if (lp) {
       const existingShares = lp.shares;
       const finalShares = api.BigNumber(lp.shares).plus(newShares);
-      const timeOffset = api.BigNumber(finalShares).minus(existingShares).abs().dividedBy(existingShares);
+      const timePassed = api.BigNumber(blockDate.getTime()).minus(lp.timeFactor).abs();
+      const diffShares = api.BigNumber(finalShares).minus(existingShares).abs().dividedBy(api.BigNumber.max(finalShares, existingShares));
+      const timeOffset = api.BigNumber(timePassed).times(diffShares);
       lp.shares = finalShares;
       lp.timeFactor = api.BigNumber.min(
         api.BigNumber(lp.timeFactor)
-          .times(api.BigNumber('1').plus(timeOffset))
+          .plus(timeOffset)
           .dp(0, api.BigNumber.ROUND_HALF_UP),
         blockDate.getTime(),
       ).toNumber();

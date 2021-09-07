@@ -398,12 +398,12 @@ async function tokenMaintenance() {
       const rewardPool = rewardPools[i];
       params.lastProcessedPoolId = rewardPool._id;
       const {
+        symbol,
         lastClaimDecayTimestamp,
         lastRewardTimestamp,
         config,
       } = rewardPool;
       const {
-        symbol,
         rewardIntervalSeconds,
         rewardPerInterval,
         cashoutWindowDays,

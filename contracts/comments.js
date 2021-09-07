@@ -31,12 +31,6 @@ actions.createSSC = async () => {
       lastProcessedPoolId: 0,
     };
     await api.db.insert('params', params);
-  } else {
-    const params = await api.db.findOne('params', {});
-    params.maxVotesProcessedPerRound = 100;
-    params.voteQueryLimit = 100;
-    params.lastProcessedPoolId = 0;
-    await api.db.update('params', params);
   }
 };
 

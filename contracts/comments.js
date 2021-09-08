@@ -522,7 +522,8 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
 
   // for now, restrict to 1 pool per symbol, and creator must be issuer.
-  if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
+  // eslint-disable-next-line no-template-curly-in-string
+  if (!api.assert(api.sender === token.issuer || (api.sender === api.owner && token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"), 'must be issuer of token')) return;
   if (!api.assert(token.stakingEnabled, 'token must have staking enabled')) return;
 
   const existingRewardPool = await api.db.findOne('rewardPools', { symbol });
@@ -658,7 +659,8 @@ actions.updateRewardPool = async (payload) => {
   if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
   existingRewardPool.config.tags = tags;
 
-  if (!api.assert(api.sender === token.issuer, 'must be issuer of token')) return;
+  // eslint-disable-next-line no-template-curly-in-string
+  if (!api.assert(api.sender === token.issuer || (api.sender === api.owner && token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"), 'must be issuer of token')) return;
 
   // burn the fees
   if (api.sender !== api.owner && api.BigNumber(updateFee).gt(0)) {

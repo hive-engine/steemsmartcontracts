@@ -322,7 +322,7 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000.1234567899", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "SLV", "quantity": "16000", "to": "halfwhale", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'halfwhale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "100", "maxSlippage": "99", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "100", "maxPriceImpact": "0", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "100", "quoteQuantity": "1", "isSignedWithActiveKey": true }'));      
 
       let block = {
@@ -342,12 +342,12 @@ describe('marketpools tests', function () {
       assertError(txs[7], 'invalid baseQuantity');
       assertError(txs[8], 'invalid quoteQuantity');
       assertError(txs[9], 'quoteSymbol does not exist');
-      assertError(txs[15], 'exceeded max slippage for adding liquidity');
+      assertError(txs[15], 'exceeded max price impact for adding liquidity');
       assertError(txs[16], 'insufficient token balance');
       assertError(txs[17], 'baseQuantity precision mismatch');
       assertError(txs[19], 'insufficient token balance');
-      assertError(txs[20], 'maxSlippage must be greater than 0 and less than 50');
-      assertError(txs[21], 'exceeded max slippage for adding liquidity');
+      assertError(txs[20], 'maxPriceImpact must be greater than 0');
+      assertError(txs[21], 'exceeded max price impact for adding liquidity');
       
       res = await fixture.database.findOne({
         contract: 'marketpools',
@@ -466,7 +466,7 @@ describe('marketpools tests', function () {
       await fixture.sendBlock(block);
 
       let res = await fixture.database.getLatestBlockInfo();
-      console.log(res);
+      // console.log(res);
       let txs = res.transactions;
 
       assertError(txs[15], 'exceeded max deviation from order book');
@@ -512,8 +512,8 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1.234", "tradeType": "exactOutput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));      
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "0.03987654", "quoteQuantity": "0.62476567", "maxSlippage": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1.234", "tradeType": "exactOutput", "maxPriceImpact": "0.5", "isSignedWithActiveKey": true}'));      
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "0.03987654", "quoteQuantity": "0.62476567", "maxPriceImpact": "10", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -579,8 +579,8 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1.234", "tradeType": "exactOutput", "maxSlippage": "0.5", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1.02555", "quoteQuantity": "15.997", "maxSlippage": "10", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1.234", "tradeType": "exactOutput", "maxPriceImpact": "0.5", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1.02555", "quoteQuantity": "15.997", "maxPriceImpact": "10", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16.1", "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -791,16 +791,17 @@ describe('marketpools tests', function () {
       await tableAsserts.assertNoErrorInLastBlock();
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "1010", "tradeType": "exactOutput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1000", "tradeType": "exactOutput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2000", "tradeType": "exactInput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "2000", "tradeType": "exactInput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLDSLV", "tokenSymbol": "GLD", "tokenAmount": "1", "tradeType": "exactInput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2", "tradeType": "exactOutput", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2.1234567899", "tradeType": "exactOutput", "maxSlippage": "5", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2", "tradeType": "exactOutput", "maxSlippage": "0", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2", "tradeType": "exactOutput", "isSignedWithActiveKey": true}'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2", "tradeType": "x", "maxSlippage": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "1010", "tradeType": "exactOutput", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1000", "tradeType": "exactOutput", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2000", "tradeType": "exactInput", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "2000", "tradeType": "exactInput", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLDSLV", "tokenSymbol": "GLD", "tokenAmount": "1", "tradeType": "exactInput", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "1", "tradeType": "exactInput", "minAmountOut": "0", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "1", "tradeType": "exactInput", "minAmountOut": "1", "maxAmountIn": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1", "tradeType": "exactInput", "minAmountOut": "1", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "1", "tradeType": "exactOutput", "maxAmountIn": "10", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2.1234567899", "tradeType": "exactOutput", "isSignedWithActiveKey": true}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buyer', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "GLD", "tokenAmount": "2", "tradeType": "x", "isSignedWithActiveKey": true}'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -820,11 +821,12 @@ describe('marketpools tests', function () {
       assertError(txs[2], 'insufficient input balance');
       assertError(txs[3], 'insufficient input balance');
       assertError(txs[4], 'invalid tokenPair format');
-      assertError(txs[5], 'exceeded max slippage for swap');
-      assertError(txs[6], 'symbolOut precision mismatch');
-      assertError(txs[7], 'maxSlippage must be greater than 0 and less than 50');
-      assertError(txs[8], 'maxSlippage must be greater than 0 and less than 50');
-      assertError(txs[9], 'invalid tradeType');
+      assertError(txs[5], 'insufficient minAmountOut');
+      assertError(txs[6], 'specify minAmountOut or maxAmountIn but not both');
+      assertError(txs[7], 'exceeded max slippage for swap');
+      assertError(txs[8], 'exceeded max slippage for swap');
+      assertError(txs[9], 'symbolOut precision mismatch');
+      assertError(txs[10], 'invalid tradeType');
      
       resolve();
     })

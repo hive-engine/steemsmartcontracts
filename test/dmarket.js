@@ -108,10 +108,10 @@ function getNextTxId() {
   return `TXID${txId.toString().padStart(8, '0')}`;
 }
 
-async function assertBalances(accounts, balances, symbol) {
+async function assertBalances(accounts, balances, symbol, contract = false) {
   const res = await database1.find({
     contract: 'tokens',
-    table: 'balances',
+    table: contract ? 'contractsBalances' : 'balances',
     query: {
       account: {
         $in: accounts,
@@ -122,10 +122,15 @@ async function assertBalances(accounts, balances, symbol) {
 
   for (let i = 0; i < accounts.length; i += 1) {
     const account = accounts[i];
-    const {
-      balance,
-    } = res.find(el => el.account === account);
     const expectedBalance = balances[i];
+    let balance = '0';
+
+    try {
+      // eslint-disable-next-line
+      balance = (res.find(el => el.account === account)).balance;
+    } catch (e) {
+      assert(BigNumber(expectedBalance).isEqualTo(0), `no balance for @${account} found`);
+    }
 
     // console.log(expectedBalance, balance, account);
     const isEqual = BigNumber(expectedBalance).eq(balance);
@@ -232,7 +237,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "BEE", "symbol": "TKN" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"100", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
 
       const block = {
@@ -276,7 +281,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
 
       const block = {
@@ -315,7 +320,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "XYZ", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
@@ -361,7 +366,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"1200", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 8, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "XYZ", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "XYZ" }'));
@@ -381,6 +386,544 @@ describe('dMarket Smart Contract', function () {
       await assertPair('TKN', ['BEE', 'XYZ']);
 
       await assertBalances(['ali-h'], ['0'], 'BEE');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('creates a buy order for user added pair', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "ali-h", "quantity": "123.456" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.1" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      const result = await database1.findOne({
+        contract: 'dmarket',
+        table: 'buyBook',
+        query: {
+          symbol: 'BEE',
+          pair: 'TKN',
+          txId: txs[0].txId,
+        },
+      });
+
+      console.log(result);
+      // confirm some things in the order
+      assert(BigNumber(result.quantity).eq(100));
+      assert(BigNumber(result.price).eq(0.1));
+      assert(BigNumber(result.tokensLocked).eq(10));
+
+      await assertBalances(['ali-h'], ['113.456'], 'TKN');
+      await assertBalances(['dmarket'], ['10'], 'TKN', true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('does not create a buy order if pair does not exist', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      const transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "ali-h", "quantity": "123.456" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.1" }'));
+
+
+      const block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      assertError(txs[5], 'pair does not exist');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('creates a sell order for user added pair', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      const result = await database1.findOne({
+        contract: 'dmarket',
+        table: 'sellBook',
+        query: {
+          symbol: 'BEE',
+          pair: 'TKN',
+          txId: txs[0].txId,
+        },
+      });
+
+      console.log(result);
+      // confirm some things in the order
+      assert(BigNumber(result.quantity).eq(100));
+      assert(BigNumber(result.price).eq(0.16));
+
+      await assertBalances(['ali-h'], ['0'], 'BEE');
+      await assertBalances(['dmarket'], ['100'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('does not create a sell order if pair does not exist', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      const transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+
+
+      const block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      assertError(txs[4], 'pair does not exist');
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('buys from one seller', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "18.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.17" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // const res = await database1.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'james'], ['0', '100'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['16', '2.17'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('buys from multiple sellers', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"nomi", "quantity":"10", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"punkman", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "24.3" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "135", "price": "0.18" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // const res = await database1.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['0', '0', '50', '135'], 'BEE');
+      await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['16', '1.7', '4.5', '2.1'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['25'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('sells to one buyer', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "55" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.17" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // const res = await database1.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'james'], ['0', '100'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['17', '38'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('sells to multiple buyers', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "ali-h", "quantity": "18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "punkman", "quantity": "18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "nomi", "quantity": "18" }'));
+
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.17" }'));
+
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"james", "quantity":"140", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "140", "price": "0.16" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      // const res = await database1.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['40', '50', '50', '0'], 'BEE');
+      await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['2', '9.5', '9', '23.9'], 'TKN');
+      await assertBalances(['dmarket'], ['9.6'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        unloadPlugin(blockchain);
+        database1.close();
+        done();
+      });
+  });
+
+  it('market buys from multiple sellers', (done) => {
+    new Promise(async (resolve) => {
+      await loadPlugin(blockchain);
+      database1 = new Database();
+
+      await database1.init(conf.databaseURL, conf.databaseName);
+
+      let transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"nomi", "quantity":"10", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"punkman", "quantity":"100", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+
+      let block = {
+        refHiveBlockNumber: 12345678901,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      await assertNoErrorInLastBlock();
+
+      transactions = [];
+      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "22.2" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'marketBuy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "22.2" }'));
+
+      block = {
+        refHiveBlockNumber: 12345678902,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+
+      const res = await database1.getLatestBlockInfo();
+      const txs = res.transactions;
+
+      await assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['0', '0', '50', '135'], 'BEE');
+      await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['16', '1.7', '4.5', '0'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['25'], 'BEE', true);
 
       resolve();
     })

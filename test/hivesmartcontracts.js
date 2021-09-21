@@ -1,5 +1,4 @@
 /* eslint-disable */
-const { fork } = require('child_process');
 const assert = require('assert');
 const { Base64 } = require('js-base64');
 const { MongoClient } = require('mongodb');
@@ -8,91 +7,12 @@ const blockchain = require('../plugins/Blockchain');
 const { Block } = require('../libs/Block');
 const { Transaction } = require('../libs/Transaction');
 const { CONSTANTS } = require('../libs/Constants');
-const configFile = require('../config.json');
+const { Fixture, conf } = require('../libs/util/testing/Fixture');
+const { TableAsserts } = require('../libs/util/testing/TableAsserts');
+const { assertError } = require('../libs/util/testing/Asserts');
 
-const conf = {
-  chainId: "test-chain-id",
-  genesisSteemBlock: 2000000,
-  dataDirectory: "./test/data/",
-  databaseFileName: "database.db",
-  autosaveInterval: 0,
-  javascriptVMTimeout: 10000,
-  databaseURL: "mongodb://localhost:27017",
-  databaseName: "testssc",
-  streamNodes: ["https://api.steemit.com"],
-};
-
-let plugins = {};
-let jobs = new Map();
-let currentJobId = 0;
-let database = null;
-
-function send(pluginName, from, message) {
-  const plugin = plugins[pluginName];
-  const newMessage = {
-    ...message,
-    to: plugin.name,
-    from,
-    type: 'request',
-  };
-  currentJobId += 1;
-  newMessage.jobId = currentJobId;
-  plugin.cp.send(newMessage);
-  return new Promise((resolve) => {
-    jobs.set(currentJobId, {
-      message: newMessage,
-      resolve,
-    });
-  });
-}
-
-
-// function to route the IPC requests
-const route = (message) => {
-  const { to, type, jobId } = message;
-  if (to) {
-    if (to === 'MASTER') {
-      if (type && type === 'request') {
-        // do something
-      } else if (type && type === 'response' && jobId) {
-        const job = jobs.get(jobId);
-        if (job && job.resolve) {
-          const { resolve } = job;
-          jobs.delete(jobId);
-          resolve(message);
-        }
-      }
-    } else if (type && type === 'broadcast') {
-      plugins.forEach((plugin) => {
-        plugin.cp.send(message);
-      });
-    } else if (plugins[to]) {
-      plugins[to].cp.send(message);
-    } else {
-      console.error('ROUTING ERROR: ', message);
-    }
-  }
-};
-
-const loadPlugin = (newPlugin) => {
-  const plugin = {};
-  plugin.name = newPlugin.PLUGIN_NAME;
-  plugin.cp = fork(newPlugin.PLUGIN_PATH, [], { silent: true });
-  plugin.cp.on('message', msg => route(msg));
-  plugin.cp.stdout.on('data', data => console.log(`[${newPlugin.PLUGIN_NAME}]`, data.toString()));
-  plugin.cp.stderr.on('data', data => console.error(`[${newPlugin.PLUGIN_NAME}]`, data.toString()));
-
-  plugins[newPlugin.PLUGIN_NAME] = plugin;
-
-  return send(newPlugin.PLUGIN_NAME, 'MASTER', { action: 'init', payload: Object.assign(conf, { chainId: configFile.chainId }, { genesisSteemBlock: configFile.genesisSteemBlock }) });
-};
-
-const unloadPlugin = (plugin) => {
-  plugins[plugin.PLUGIN_NAME].cp.kill('SIGINT');
-  plugins[plugin.PLUGIN_NAME] = null;
-  jobs = new Map();
-  currentJobId = 0;
-}
+const fixture = new Fixture();
+const tableAsserts = new TableAsserts(fixture);
 
 // Database
 describe('Database', function () {
@@ -101,7 +21,7 @@ describe('Database', function () {
 
   before((done) => {
     new Promise(async (resolve) => {
-      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true });
+      client = await MongoClient.connect(conf.databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
       db = await client.db(conf.databaseName);
       await db.dropDatabase();
       resolve();
@@ -145,35 +65,32 @@ describe('Database', function () {
   it.skip('should get the genesis block', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
-      const genesisBlock = await database.getBlockInfo(0);
+      await fixture.setUp();
+      const genesisBlock = await fixture.database.getBlockInfo(0);
       assert.equal(genesisBlock.blockNumber, 0);
 
       if (configFile.chainId === 'testnet1'
         && configFile.genesisSteemBlock === 29862600
         && CONSTANTS.UTILITY_TOKEN_SYMBOL === 'SSC') {
           assert.equal(genesisBlock.hash, '51b19802489567cb2669bfb37119dbe09f36c0847fe2dca2e918176422a0bcd9');
-          assert.equal(genesisBlock.databaseHash, 'a3daa72622eb02abd0b1614943f45500633dc10789477e8ee538a8398e61f976');
+          assert.equal(genesisBlock.fixture.databaseHash, 'a3daa72622eb02abd0b1614943f45500633dc10789477e8ee538a8398e61f976');
           assert.equal(genesisBlock.merkleRoot, '8b2c7d50aadcba182e4de6140d795b6e6e4e0a64b654d6b1a3ab48a234489293');
       } else if (configFile.chainId === 'mainnet1'
         && CONSTANTS.UTILITY_TOKEN_SYMBOL === 'ENG') {
         assert.equal(genesisBlock.hash, 'c1dee96a6b7a0cc9408ccb407ab641f444c26f6859ba33b9c9ba2c0a368d20b2');
-        assert.equal(genesisBlock.databaseHash, 'a3daa72622eb02abd0b1614943f45500633dc10789477e8ee538a8398e61f976');
+        assert.equal(genesisBlock.fixture.databaseHash, 'a3daa72622eb02abd0b1614943f45500633dc10789477e8ee538a8398e61f976');
         assert.equal(genesisBlock.merkleRoot, '7048315fc8861b98fe1b2a82b86a24f80aa6e6dd225223e39771807532f5fb21');
       } else if (configFile.chainId === 'mainnet-hive'
       && CONSTANTS.UTILITY_TOKEN_SYMBOL === 'BEE') {
         assert.equal(genesisBlock.hash, '13bcc1207ec01a24c949bb423c37b00548457660c985fb2795745981edf17d7a');
-        assert.equal(genesisBlock.databaseHash, '9358cdfbc5d508a188506b51b6fbcb2a1a43322bf74179665520b7dc0510f0c7');
+        assert.equal(genesisBlock.fixture.databaseHash, '9358cdfbc5d508a188506b51b6fbcb2a1a43322bf74179665520b7dc0510f0c7');
         assert.equal(genesisBlock.merkleRoot, '5100259ec554ba31ffe14cb9a92817535258834536fc0b14d248875293541d6f');
       }
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -181,12 +98,11 @@ describe('Database', function () {
   it('should get the latest block', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', ''));
 
       let block = new Block(
         '2018-06-01T00:00:00',
@@ -198,10 +114,11 @@ describe('Database', function () {
         'PREV_HASH',
       );
 
-      await database.addBlock(block);
+      await fixture.database.addBlock(block);
 
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', ''));
 
       block = new Block(
         '2018-06-01T00:00:00',
@@ -213,15 +130,14 @@ describe('Database', function () {
         'PREV_HASH',
       );
 
-      await database.addBlock(block);
+      await fixture.database.addBlock(block);
 
-      const res = await database.getLatestBlockInfo();
+      const res = await fixture.database.getLatestBlockInfo();
       assert.equal(res.blockNumber, 123456790);
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -277,9 +193,7 @@ describe('Smart Contracts', function ()  {
   it('should deploy a basic smart contract', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = function (payload) {
@@ -295,28 +209,28 @@ describe('Smart Contracts', function ()  {
         code: base64SmartContractCode,
       };
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const contract = await database.findContract({ name: 'testcontract' });
+      const contract = await fixture.database.findContract({ name: 'testcontract' });
 
       assert.equal(contract._id, 'testcontract');
       assert.equal(contract.owner, CONSTANTS.HIVE_ENGINE_ACCOUNT);
       resolve()
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -324,9 +238,7 @@ describe('Smart Contracts', function ()  {
   it('should create a table during the smart contract deployment', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -343,31 +255,31 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const contract = await database.findContract({ name: 'testcontract' });
+      const contract = await fixture.database.findContract({ name: 'testcontract' });
 
       assert.notEqual(contract.tables['testcontract_testTable'], undefined);
 
-      res = await database.getTableDetails({ contract: 'testcontract', table: 'testTable' });
+      res = await fixture.database.getTableDetails({ contract: 'testcontract', table: 'testTable' });
 
       assert.notEqual(res, null);
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -375,9 +287,7 @@ describe('Smart Contracts', function ()  {
   it('should create a table with indexes during the smart contract deployment', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -394,20 +304,21 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const table = await database.getTableDetails({ contract: 'testcontract', table: 'testTable' });
+      const table = await fixture.database.getTableDetails({ contract: 'testcontract', table: 'testTable' });
       const { indexes } = table;
 
       assert.equal(indexes._id_[0][0], '_id');
@@ -422,8 +333,7 @@ describe('Smart Contracts', function ()  {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -431,9 +341,7 @@ describe('Smart Contracts', function ()  {
   it('should add a record into a smart contract table', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
       
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -459,29 +367,29 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const user = await database.findOne({ contract: 'usersContract', table: 'users', query: { "id": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
+      const user = await fixture.database.findOne({ contract: 'usersContract', table: 'users', query: { "id": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
 
       assert.equal(user.id, CONSTANTS.HIVE_ENGINE_ACCOUNT);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -489,9 +397,7 @@ describe('Smart Contracts', function ()  {
   it('should update a record from a smart contract table', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
       
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -528,22 +434,23 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'updateUser', '{ "username": "MyUsernameUpdated" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'updateUser', '{ "username": "MyUsernameUpdated" }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const user = await database.findOne({ contract: 'usersContract', table: 'users', query: { "id": CONSTANTS.HIVE_ENGINE_ACCOUNT } })
+      const user = await fixture.database.findOne({ contract: 'usersContract', table: 'users', query: { "id": CONSTANTS.HIVE_ENGINE_ACCOUNT } })
 
       assert.equal(user.id, CONSTANTS.HIVE_ENGINE_ACCOUNT);
       assert.equal(user.username, 'MyUsernameUpdated');
@@ -551,8 +458,7 @@ describe('Smart Contracts', function ()  {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -560,9 +466,7 @@ describe('Smart Contracts', function ()  {
   it('should remove a record from a smart contract table', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -595,30 +499,30 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'removeUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'removeUser', ''));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const user = await database.findOne({ contract: 'usersContract', table: 'users', query: { "id": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
+      const user = await fixture.database.findOne({ contract: 'usersContract', table: 'users', query: { "id": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
 
       assert.equal(user, null);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -626,9 +530,7 @@ describe('Smart Contracts', function ()  {
   it('should read the records from a smart contract table via pagination', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -655,28 +557,29 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID1236', 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID1237', 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID1238', 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID1239', 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID12310', 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID12311', 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID12312', 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID12313', 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID12314', 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', ''));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       let payload = {
         contract: 'usersContract',
@@ -685,7 +588,7 @@ describe('Smart Contracts', function ()  {
         limit: 5
       };
 
-      let users = await database.find(payload);
+      let users = await fixture.database.find(payload);
 
       assert.equal(users[0]._id, 1);
       assert.equal(users[4]._id, 5);
@@ -698,7 +601,7 @@ describe('Smart Contracts', function ()  {
         offset: 5,
       };
 
-      users = await database.find(payload);
+      users = await fixture.database.find(payload);
 
       assert.equal(users[0]._id, 6);
       assert.equal(users[4]._id, 10);
@@ -711,15 +614,14 @@ describe('Smart Contracts', function ()  {
         offset: 10,
       };
 
-      users = await database.find(payload);
+      users = await fixture.database.find(payload);
 
       assert.equal(users.length, 0);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -727,9 +629,7 @@ describe('Smart Contracts', function ()  {
   it('should read the records from a smart contract table using an index ascending (integer)', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -758,28 +658,29 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": 2 }'));
-      transactions.push(new Transaction(123456789, 'TXID1236', 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": 10 }'));
-      transactions.push(new Transaction(123456789, 'TXID1237', 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": 3 }'));
-      transactions.push(new Transaction(123456789, 'TXID1238', 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": 199 }'));
-      transactions.push(new Transaction(123456789, 'TXID1239', 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": 200 }'));
-      transactions.push(new Transaction(123456789, 'TXID12310', 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": 1 }'));
-      transactions.push(new Transaction(123456789, 'TXID12311', 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": 89 }'));
-      transactions.push(new Transaction(123456789, 'TXID12312', 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": 2 }'));
-      transactions.push(new Transaction(123456789, 'TXID12313', 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": 34 }'));
-      transactions.push(new Transaction(123456789, 'TXID12314', 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": 20 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": 2 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": 10 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": 3 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": 199 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": 200 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": 1 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": 89 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": 2 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": 34 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": 20 }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       let payload = {
         contract: 'usersContract',
@@ -790,7 +691,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: false }],
       };
 
-      let users = await database.find(payload);
+      let users = await fixture.database.find(payload);
 
       assert.equal(users[0]._id, 6);
       assert.equal(users[4]._id, 2);
@@ -804,7 +705,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: false }],
       };
 
-      users = await database.find(payload);
+      users = await fixture.database.find(payload);
 
       assert.equal(users[0]._id, 10);
       assert.equal(users[4]._id, 5);
@@ -818,15 +719,14 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: false }],
       };
 
-      users = await database.find(payload);
+      users = await fixture.database.find(payload);
 
       assert.equal(users.length, 0);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -834,9 +734,7 @@ describe('Smart Contracts', function ()  {
   it.skip('should read the records from a smart contract table using an index ascending (string)', (done) => {
     new Promise(async (resolve) => {
       
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -865,28 +763,29 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": "2" }'));
-      transactions.push(new Transaction(123456789, 'TXID1236', 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": "10" }'));
-      transactions.push(new Transaction(123456789, 'TXID1237', 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": "3" }'));
-      transactions.push(new Transaction(123456789, 'TXID1238', 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": "199" }'));
-      transactions.push(new Transaction(123456789, 'TXID1239', 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": "200" }'));
-      transactions.push(new Transaction(123456789, 'TXID12310', 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": "1" }'));
-      transactions.push(new Transaction(123456789, 'TXID12311', 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": "89" }'));
-      transactions.push(new Transaction(123456789, 'TXID12312', 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": "2" }'));
-      transactions.push(new Transaction(123456789, 'TXID12313', 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": "34" }'));
-      transactions.push(new Transaction(123456789, 'TXID12314', 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": "20" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": "2" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": "10" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": "3" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": "199" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": "200" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": "1" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": "89" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": "2" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": "34" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": "20" }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       let payload = {
         contract: 'usersContract',
@@ -897,7 +796,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: false }],
       };
 
-      let users = await database.find(payload);;
+      let users = await fixture.database.find(payload);;
 
       assert.equal(users[0]._id, 6);
       assert.equal(users[4]._id, 2);
@@ -911,7 +810,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: false }],
       };
 
-      users = await database.find(payload);;
+      users = await fixture.database.find(payload);;
 
       assert.equal(users[0]._id, 10);
       assert.equal(users[4]._id, 5);
@@ -925,15 +824,14 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: false }],
       };
 
-      users = await database.find(payload);;
+      users = await fixture.database.find(payload);;
 
       assert.equal(users.length, 0);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -941,9 +839,7 @@ describe('Smart Contracts', function ()  {
   it('should read the records from a smart contract table using an index descending (integer)', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -972,28 +868,29 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": 2 }'));
-      transactions.push(new Transaction(123456789, 'TXID1236', 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": 10 }'));
-      transactions.push(new Transaction(123456789, 'TXID1237', 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": 3 }'));
-      transactions.push(new Transaction(123456789, 'TXID1238', 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": 199 }'));
-      transactions.push(new Transaction(123456789, 'TXID1239', 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": 200 }'));
-      transactions.push(new Transaction(123456789, 'TXID12310', 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": 1 }'));
-      transactions.push(new Transaction(123456789, 'TXID12311', 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": 89 }'));
-      transactions.push(new Transaction(123456789, 'TXID12312', 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": 2 }'));
-      transactions.push(new Transaction(123456789, 'TXID12313', 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": 34 }'));
-      transactions.push(new Transaction(123456789, 'TXID12314', 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": 20 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": 2 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": 10 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": 3 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": 199 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": 200 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": 1 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": 89 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": 2 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": 34 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": 20 }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       let payload = {
         contract: 'usersContract',
@@ -1003,7 +900,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: true }],
       };
 
-      let users = await database.find(payload);;
+      let users = await fixture.database.find(payload);;
 
       assert.equal(users[0]._id, 5);
       assert.equal(users[4]._id, 10);
@@ -1017,7 +914,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: true }],
       };
 
-      users = await database.find(payload);
+      users = await fixture.database.find(payload);
 
       assert.equal(users[0]._id, 2);
       assert.equal(users[4]._id, 6);
@@ -1031,15 +928,14 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: true }],
       };
 
-      users = await database.find(payload);;
+      users = await fixture.database.find(payload);;
 
       assert.equal(users.length, 0);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1047,9 +943,7 @@ describe('Smart Contracts', function ()  {
   it.skip('should read the records from a smart contract table using an index descending (string)', (done) => {
     new Promise(async (resolve) => {
       
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1078,28 +972,29 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": "2" }'));
-      transactions.push(new Transaction(123456789, 'TXID1236', 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": "10" }'));
-      transactions.push(new Transaction(123456789, 'TXID1237', 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": "3" }'));
-      transactions.push(new Transaction(123456789, 'TXID1238', 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": "199" }'));
-      transactions.push(new Transaction(123456789, 'TXID1239', 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": "200" }'));
-      transactions.push(new Transaction(123456789, 'TXID12310', 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": "1" }'));
-      transactions.push(new Transaction(123456789, 'TXID12311', 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": "89" }'));
-      transactions.push(new Transaction(123456789, 'TXID12312', 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": "2" }'));
-      transactions.push(new Transaction(123456789, 'TXID12313', 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": "34" }'));
-      transactions.push(new Transaction(123456789, 'TXID12314', 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": "20" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "age": "2" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT1', 'usersContract', 'addUser', '{ "age": "10" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT2', 'usersContract', 'addUser', '{ "age": "3" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT3', 'usersContract', 'addUser', '{ "age": "199" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT4', 'usersContract', 'addUser', '{ "age": "200" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT5', 'usersContract', 'addUser', '{ "age": "1" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT6', 'usersContract', 'addUser', '{ "age": "89" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT7', 'usersContract', 'addUser', '{ "age": "2" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT8', 'usersContract', 'addUser', '{ "age": "34" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'CONSTANTS.HIVE_ENGINE_ACCOUNT9', 'usersContract', 'addUser', '{ "age": "20" }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       let payload = {
         contract: 'usersContract',
@@ -1109,7 +1004,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: true }],
       };
 
-      let users = await database.find(payload);;
+      let users = await fixture.database.find(payload);;
 
       assert.equal(users[0]._id, 5);
       assert.equal(users[4]._id, 10);
@@ -1123,7 +1018,7 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: true }],
       };
 
-      users = await database.find(payload);;
+      users = await fixture.database.find(payload);;
 
       assert.equal(users[0]._id, 2);
       assert.equal(users[4]._id, 6);
@@ -1137,15 +1032,14 @@ describe('Smart Contracts', function ()  {
         indexes: [{ index: 'age', descending: true }],
       };
 
-      users = await database.find(payload);;
+      users = await fixture.database.find(payload);;
 
       assert.equal(users.length, 0);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1153,9 +1047,7 @@ describe('Smart Contracts', function ()  {
   it('should allow only the owner of the smart contract to perform certain actions', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1185,46 +1077,47 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', 'Dan', 'usersContract', 'addUser', '{ "userId": "Dan" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'Dan', 'usersContract', 'addUser', '{ "userId": "Dan" }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      let user = await database.findOne({ contract: 'usersContract', table: 'users', query: { "id": "Dan" } });
+      let user = await fixture.database.findOne({ contract: 'usersContract', table: 'users', query: { "id": "Dan" } });
 
       assert.equal(user, null);
 
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "userId": "Dan" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', '{ "userId": "Dan" }'));
 
       block = {
-        refHiveBlockNumber: 123456789,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:03',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      user = await database.findOne({ contract: 'usersContract', table: 'users', query: { "id": "Dan" } });
+      user = await fixture.database.findOne({ contract: 'usersContract', table: 'users', query: { "id": "Dan" } });
 
       assert.equal(user.id, "Dan");
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1232,9 +1125,7 @@ describe('Smart Contracts', function ()  {
   it('should perform a search in a smart contract table from another smart contract', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const usersSmartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1291,31 +1182,31 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
-      transactions.push(new Transaction(123456789, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'booksContract', 'addBook', '{ "title": "The Awesome Book" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'booksContract', 'addBook', '{ "title": "The Awesome Book" }'));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const book = await database.findOne({ contract: 'booksContract', table: 'books', query: { "userId": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
+      const book = await fixture.database.findOne({ contract: 'booksContract', table: 'books', query: { "userId": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
 
       assert.equal(book.title, "The Awesome Book");
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1323,9 +1214,7 @@ describe('Smart Contracts', function ()  {
   it('should execute a smart contract from another smart contract', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const usersSmartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1386,30 +1275,30 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const book = await database.findOne({ contract: 'booksContract', table: 'books', query: { "userId": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
+      const book = await fixture.database.findOne({ contract: 'booksContract', table: 'books', query: { "userId": CONSTANTS.HIVE_ENGINE_ACCOUNT } });
 
       assert.equal(book.title, "The Awesome Book");
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1417,9 +1306,7 @@ describe('Smart Contracts', function ()  {
   it('should emit an event from a smart contract', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = function (payload) {
@@ -1437,22 +1324,24 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      const createContractTx = fixture.getNextTxId();
+      transactions.push(new Transaction(refBlockNumber, createContractTx, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const latestBlock = await database.getLatestBlockInfo();
+      const latestBlock = await fixture.database.getLatestBlockInfo();
 
-      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === 'TXID1234');
+      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === createContractTx);
 
       const logs = JSON.parse(txs[0].logs);
 
@@ -1462,8 +1351,7 @@ describe('Smart Contracts', function ()  {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1471,9 +1359,7 @@ describe('Smart Contracts', function ()  {
   it('should emit an event from another smart contract', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const usersSmartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1511,24 +1397,26 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
+      const createContractTx = fixture.getNextTxId();
+      transactions.push(new Transaction(refBlockNumber, createContractTx, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const latestBlock = await database.getLatestBlockInfo();
+      const latestBlock = await fixture.database.getLatestBlockInfo();
 
-      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === 'TXID1235');
+      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === createContractTx);
 
       const logs = JSON.parse(txs[0].logs);
 
@@ -1538,8 +1426,7 @@ describe('Smart Contracts', function ()  {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1548,9 +1435,7 @@ describe('Smart Contracts', function ()  {
   it('should log an error during the deployment of a smart contract if an error is thrown', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1568,22 +1453,24 @@ describe('Smart Contracts', function ()  {
         code: base64SmartContractCode,
       };
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      const crashTx = fixture.getNextTxId();
+      transactions.push(new Transaction(refBlockNumber, crashTx, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const latestBlock = await database.getLatestBlockInfo();
+      const latestBlock = await fixture.database.getLatestBlockInfo();
 
-      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === 'TXID1234');
+      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === crashTx);
 
       const logs = JSON.parse(txs[0].logs);
 
@@ -1592,8 +1479,7 @@ describe('Smart Contracts', function ()  {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1601,9 +1487,7 @@ describe('Smart Contracts', function ()  {
   it('should log an error during the execution of a smart contract if an error is thrown', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1623,23 +1507,25 @@ describe('Smart Contracts', function ()  {
         code: base64SmartContractCode,
       };
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'testcontract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      const errorTx = fixture.getNextTxId();
+      transactions.push(new Transaction(refBlockNumber, errorTx, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'testcontract', 'addUser', ''));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const latestBlock = await database.getLatestBlockInfo();
+      const latestBlock = await fixture.database.getLatestBlockInfo();
 
-      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === 'TXID1235');
+      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === errorTx);
 
       const logs = JSON.parse(txs[0].logs);
 
@@ -1648,8 +1534,7 @@ describe('Smart Contracts', function ()  {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1657,9 +1542,7 @@ describe('Smart Contracts', function ()  {
   it('should log an error from another smart contract', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const usersSmartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1697,24 +1580,26 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1233', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(usersContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(booksContractPayload)));
+      const errorTx = fixture.getNextTxId();
+      transactions.push(new Transaction(refBlockNumber, errorTx, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'usersContract', 'addUser', ''));
 
       let block = {
-        refHiveBlockNumber: 1,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const latestBlock = await database.getLatestBlockInfo()
+      const latestBlock = await fixture.database.getLatestBlockInfo()
 
-      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === 'TXID1235');
+      const txs = latestBlock.transactions.filter(transaction => transaction.transactionId === errorTx);
 
       const logs = JSON.parse(txs[0].logs);
 
@@ -1723,8 +1608,7 @@ describe('Smart Contracts', function ()  {
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1732,9 +1616,7 @@ describe('Smart Contracts', function ()  {
   it('should generate random numbers in a deterministic way', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       const smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1761,60 +1643,63 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(123456789, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'random', 'generateRandomNumbers', ''));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      let txId = fixture.getNextTxId();
+      transactions.push(new Transaction(refBlockNumber, txId, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'random', 'generateRandomNumbers', ''));
 
       let block = {
-        refHiveBlockNumber: 123456789,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      let latestBlock = await database.getLatestBlockInfo();
+      let latestBlock = await fixture.database.getLatestBlockInfo();
 
-      let txs = latestBlock.transactions.filter(transaction => transaction.transactionId === 'TXID1235');
+      let txs = latestBlock.transactions.filter(transaction => transaction.transactionId === txId);
 
       let logs = JSON.parse(txs[0].logs);
 
       assert.equal(logs.events[0].event, 'random_generated');
-      assert.equal(logs.events[0].data.generatedRandom, 0.04779785670324099);
+      assert.equal(logs.events[0].data.generatedRandom, 0.8420569525190019);
       assert.equal(logs.events[1].event, 'random_generated');
-      assert.equal(logs.events[1].data.generatedRandom, 0.8219068960473853);
+      assert.equal(logs.events[1].data.generatedRandom, 0.4013183210933376);
 
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(1234567891, 'TXID1236', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'random', 'generateRandomNumbers', ''));
+      txId = fixture.getNextTxId();
+      transactions.push(new Transaction(refBlockNumber, txId, CONSTANTS.HIVE_ENGINE_ACCOUNT, 'random', 'generateRandomNumbers', ''));
 
       block = {
-        refHiveBlockNumber: 1234567891,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      latestBlock = await database.getLatestBlockInfo();
+      latestBlock = await fixture.database.getLatestBlockInfo();
 
-      txs = latestBlock.transactions.filter(transaction => transaction.transactionId === 'TXID1236');
+      txs = latestBlock.transactions.filter(transaction => transaction.transactionId === txId);
 
       logs = JSON.parse(txs[0].logs);
 
       assert.equal(logs.events[0].event, 'random_generated');
-      assert.equal(logs.events[0].data.generatedRandom, 0.02979556650325206);
+      assert.equal(logs.events[0].data.generatedRandom, 0.2249617564549172);
       assert.equal(logs.events[1].event, 'random_generated');
-      assert.equal(logs.events[1].data.generatedRandom, 0.8985215841304178);
+      assert.equal(logs.events[1].data.generatedRandom, 0.6461833723309268);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });
@@ -1822,9 +1707,7 @@ describe('Smart Contracts', function ()  {
   it('should update a smart contract', (done) => {
     new Promise(async (resolve) => {
 
-      await loadPlugin(blockchain);
-      database = new Database();
-      await database.init(conf.databaseURL, conf.databaseName);
+      await fixture.setUp();
 
       let smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1841,18 +1724,19 @@ describe('Smart Contracts', function ()  {
       };
 
 
+      let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(123456789, 'TXID1234', 'null', 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'contract', 'deploy', JSON.stringify(contractPayload)));
 
       let block = {
-        refHiveBlockNumber: 123456789,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:00:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
       smartContractCode = `
         actions.createSSC = async (payload) => {
@@ -1864,38 +1748,38 @@ describe('Smart Contracts', function ()  {
 
       contractPayload.code = base64SmartContractCode;
 
+      refBlockNumber = fixture.getNextRefBlockNumber();
       transactions = [];
-      transactions.push(new Transaction(123456790, 'TXID1235', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(contractPayload)));
 
       block = {
-        refHiveBlockNumber: 123456790,
+        refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD3',
         prevRefHiveBlockId: 'ABCD2',
         timestamp: '2018-06-01T00:01:00',
         transactions,
       };
 
-      await send(blockchain.PLUGIN_NAME, 'MASTER', { action: blockchain.PLUGIN_ACTIONS.PRODUCE_NEW_BLOCK_SYNC, payload: block });
+      await fixture.sendBlock(block);
 
-      const contract = await database.findContract({ name: 'testcontract' });
+      const contract = await fixture.database.findContract({ name: 'testcontract' });
 
       assert.equal(contract.version, 2);
       assert.notEqual(contract.tables['testcontract_testTable'], undefined);
       assert.notEqual(contract.tables['testcontract_testUpdateTable'], undefined);
 
-      res = await database.getTableDetails({ contract: 'testcontract', table: 'testTable' })
+      res = await fixture.database.getTableDetails({ contract: 'testcontract', table: 'testTable' })
 
       assert.notEqual(res, null);
 
-      res = await database.getTableDetails({ contract: 'testcontract', table: 'testUpdateTable' })
+      res = await fixture.database.getTableDetails({ contract: 'testcontract', table: 'testUpdateTable' })
 
       assert.notEqual(res, null);
 
       resolve();
     })
       .then(() => {
-        unloadPlugin(blockchain);
-        database.close();
+        fixture.tearDown();
         done();
       });
   });

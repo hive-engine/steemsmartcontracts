@@ -104,13 +104,14 @@ class Block {
     let currentDatabaseHash = this.previousDatabaseHash;
 
     let relIndex = 0;
+    const allowCommentContract = this.refHiveBlockNumber > 54560500;
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
 
       currentDatabaseHash = transaction.databaseHash;
 
-      if (transaction.contract !== 'comments' || transaction.logs === '{}') {
+      if ((transaction.contract !== 'comments' || allowCommentContract) || transaction.logs === '{}') {
         if (mainBlock && currentDatabaseHash !== mainBlock.transactions[relIndex].databaseHash) {
           console.warn(mainBlock.transactions[relIndex]); // eslint-disable-line no-console
           console.warn(transaction); // eslint-disable-line no-console
@@ -121,36 +122,19 @@ class Block {
     }
 
     // remove comment, comment_options and votes if not relevant
-    this.transactions = this.transactions.filter(value => value.contract !== 'comments' || value.logs === '{}');
+    this.transactions = this.transactions.filter(value => (value.contract !== 'comments' || allowCommentContract) || value.logs === '{}');
 
     // handle virtual transactions
     const virtualTransactions = [];
 
-    virtualTransactions.push(new Transaction(0, '', 'null', 'tokens', 'checkPendingUnstakes', ''));
-    virtualTransactions.push(new Transaction(0, '', 'null', 'tokens', 'checkPendingUndelegations', ''));
-    virtualTransactions.push(new Transaction(0, '', 'null', 'nft', 'checkPendingUndelegations', ''));
+    // use contracts_config contractTicks to trigger ticking contract actions.
+    const contractsConfig = await database.getContractsConfig();
 
-    if (this.refHiveBlockNumber >= 45251626) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'botcontroller', 'tick', ''));
-    }
-    if (this.refHiveBlockNumber >= 47746850) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'mining', 'checkPendingLotteries', ''));
-    }
-    if (this.refHiveBlockNumber >= 48664773) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'airdrops', 'checkPendingAirdrops', ''));
-    }
-    if (this.refHiveBlockNumber >= 52494020) {
-      virtualTransactions.push(new Transaction(0, '', 'null', 'nftauction', 'updateAuctions', ''));
-    }
-
-    if (this.refHiveBlockNumber >= 51022551) {
-      virtualTransactions
-        .push(new Transaction(0, '', 'null', 'witnesses', 'scheduleWitnesses', ''));
-    }
-
-    if (this.refHiveBlockNumber >= 53610300) {
-      virtualTransactions
-        .push(new Transaction(0, '', 'null', 'tokenfunds', 'checkPendingDtfs', ''));
+    for (let i = 0; i < contractsConfig.contractTicks.length; i += 1) {
+      const contractTick = contractsConfig.contractTicks[i];
+      if (this.refHiveBlockNumber >= contractTick.startRefBlock) {
+        virtualTransactions.push(new Transaction(0, '', 'null', contractTick.contract, contractTick.action, ''));
+      }
     }
 
     if (this.refHiveBlockNumber % 1200 === 0) {
@@ -169,37 +153,22 @@ class Block {
       // the "unknown error" errors are removed as they are related to a non existing action
       if (transaction.logs !== '{}'
         && transaction.logs !== '{"errors":["unknown error"]}') {
-        if (transaction.contract === 'witnesses'
-          && transaction.action === 'scheduleWitnesses'
+        let tickingAction = false;
+        for (let j = 0; j < contractsConfig.contractTicks.length; j += 1) {
+          const contractTick = contractsConfig.contractTicks[j];
+          if (transaction.contract === contractTick.contract
+            && transaction.action === contractTick.action
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'inflation'
+            tickingAction = true;
+          }
+        }
+
+
+        if (transaction.contract === 'inflation'
           && transaction.action === 'issueNewTokens'
           && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
           // don't save logs
-        } else if (transaction.contract === 'nft'
-          && transaction.action === 'checkPendingUndelegations'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'botcontroller'
-          && transaction.action === 'tick'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'mining'
-          && transaction.action === 'checkPendingLotteries'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'airdrops'
-          && transaction.action === 'checkPendingAirdrops'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'nftauction'
-          && transaction.action === 'updateAuctions'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
-          // don't save logs
-        } else if (transaction.contract === 'tokenfunds'
-          && transaction.action === 'checkPendingDtfs'
-          && transaction.logs === '{"errors":["contract doesn\'t exist"]}') {
+        } else if (tickingAction) {
           // don't save logs
         } else {
           this.virtualTransactions.push(transaction);
@@ -252,6 +221,14 @@ class Block {
           );
         } else {
           results = { logs: { errors: ['the contract deployment is currently unavailable'] } };
+        }
+      } else if (contract === 'contract' && action === 'registerTick' && payload) {
+        const authorizedAccountTickRegister = [
+          CONSTANTS.HIVE_ENGINE_ACCOUNT, CONSTANTS.HIVE_PEGGED_ACCOUNT];
+        if (authorizedAccountTickRegister.includes(sender)) {
+          results = await SmartContracts.registerTick(database, transaction);
+        } else {
+          results = { logs: { errors: ['registerTick unauthorized'] } };
         }
       } else {
         results = await SmartContracts.executeSmartContract(// eslint-disable-line

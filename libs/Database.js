@@ -5,15 +5,24 @@ const enchex = require('crypto-js/enc-hex');
 const validator = require('validator');
 const { MongoClient } = require('mongodb');
 const { EJSON } = require('bson');
+const { CONSTANTS } = require('../libs/Constants');
 
 // Change this to turn on hash logging.
 const enableHashLogging = false;
 
+function validateIndexName(indexName) {
+  if (typeof indexName !== 'string') {
+    return false;
+  }
+  const indexNameParts = indexName.split('.');
+  return indexNameParts.every(p => p.length > 0 && validator.isAlphanumeric(p));
+}
+
 function validateIndexSpec(spec) {
-  if (typeof spec === 'string') return validator.isAlphanumeric(spec);
+  if (typeof spec === 'string') return validateIndexName(spec);
   if (typeof spec === 'object') {
     return spec.name && validator.isAlphanumeric(spec.name) && typeof spec.index === 'object'
-          && Object.keys(spec.index).every(indexName => validator.isAlphanumeric(indexName))
+          && Object.keys(spec.index).every(indexName => validateIndexName(indexName))
           && Object.values(spec.index).every(asc => asc === 1 || asc === -1);
   }
   return false;
@@ -34,6 +43,21 @@ function objectCacheKey(contract, table, object) {
     return `${contract}_${table}_${object.id}_${object.account}`;
   }
   return null;
+}
+
+function adjustQueryForPrimaryKey(query, customPrimaryKey) {
+  const primaryKeyQuery = {};
+  let usePrimaryKey = true;
+  customPrimaryKey.forEach((k) => {
+    if (k in query) {
+      primaryKeyQuery[k] = query[k];
+    } else {
+      usePrimaryKey = false;
+    }
+  });
+  if (usePrimaryKey) {
+    query._id = primaryKeyQuery; // eslint-disable-line no-underscore-dangle, no-param-reassign
+  }
 }
 
 
@@ -125,6 +149,16 @@ class Database {
       await this.database.createCollection('contracts', { session: this.session });
     } else {
       this.chain = coll;
+    }
+
+    const contractsConfigColl = await this.getCollection('contracts_config');
+    if (contractsConfigColl === null) {
+      const newContractsConfigColl = await this.database.createCollection('contracts_config', { session: this.session });
+      // WARNING: Do not add any more entries to this initial configuration.
+      // Future contracts must use the contract action 'registerTick'.
+      await newContractsConfigColl.insertOne({
+        contractTicks: CONSTANTS.INITIAL_CONTRACT_TICKS,
+      }, { session: this.session });
     }
   }
 
@@ -386,6 +420,23 @@ class Database {
   }
 
   /**
+   * Get contracts configuration data.
+   */
+  async getContractsConfig() {
+    const contractsConfig = await this.getCollection('contracts_config');
+    return contractsConfig.findOne({}, { session: this.session });
+  }
+
+  /**
+   * Update contracts configuration data.
+   * @param {Object} config data.
+   */
+  async updateContractsConfig(config) {
+    const contractsConfig = await this.getCollection('contracts_config');
+    await contractsConfig.updateOne({}, { $set: config }, { session: this.session });
+  }
+
+  /**
    * Add a table to the database
    * @param {String} contractName name of the contract
    * @param {String} tableName name of the table
@@ -436,6 +487,8 @@ class Database {
 
         result = true;
       }
+    } else {
+      console.warn(`Table invalid, was not created, payload: ${JSON.stringify(payload)}`); // eslint-disable-line no-console
     }
 
     return result;
@@ -548,11 +601,7 @@ class Database {
         if (tableData) {
           const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
           if (customPrimaryKey) {
-            customPrimaryKey.forEach((k) => {
-              if (k in query) {
-                query[`_id.${k}`] = query[k];
-              }
-            });
+            adjustQueryForPrimaryKey(query, customPrimaryKey);
           }
 
           // if there is an index passed, check if it exists
@@ -637,11 +686,7 @@ class Database {
         if (tableData) {
           const customPrimaryKey = contractInDb.tables[finalTableName].primaryKey;
           if (customPrimaryKey) {
-            customPrimaryKey.forEach((k) => {
-              if (k in query) {
-                query[`_id.${k}`] = query[k];
-              }
-            });
+            adjustQueryForPrimaryKey(query, customPrimaryKey);
           }
 
           if (this.session) {

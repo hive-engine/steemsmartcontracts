@@ -98,10 +98,6 @@ class Fixture {
     return `TXID${this.txId.toString().padStart(8, '0')}`;
   }
 
-  resetRefBlockNumber() {
-    this.refBlockNumber = 100000000;
-  }
-
   getNextRefBlockNumber() {
     this.refBlockNumber += 1;
     return this.refBlockNumber;
@@ -111,6 +107,8 @@ class Fixture {
     await this.loadPlugin(blockchain);
     this.database = new Database();
     await this.database.init(conf.databaseURL, conf.databaseName);
+    this.refBlockNumber = 100000000;
+    this.txId = 1;
   }
 
   tearDown() {
@@ -118,7 +116,6 @@ class Fixture {
     this.jobs = new Map();
     this.currentJobId = 0;
     this.database.close();
-    this.txId = 1;
   }
 }
 

@@ -1089,3 +1089,197 @@ actions.marketBuy = async (payload) => {
     await updateBidMetric(symbol, pair);
   }
 };
+
+actions.marketSell = async (payload) => {
+  const {
+    account,
+    symbol,
+    pair,
+    quantity,
+    isSignedWithActiveKey,
+  } = payload;
+
+  const finalAccount = (account === undefined || api.sender !== 'null') ? api.sender : account;
+
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) return;
+
+  if (!api.assert(finalAccount && typeof finalAccount === 'string' && api.isValidAccountName(finalAccount)
+    && symbol && typeof symbol === 'string'
+    && pair && typeof pair === 'string'
+    && quantity && typeof quantity === 'string' && !api.BigNumber(quantity).isNaN(), 'invalid params')
+  ) return;
+
+  // get the token params
+  const token = await api.db.findOneInTable('tokens', 'tokens', { symbol });
+
+  // perform a few verifications
+  if (!api.assert(token, 'symbol does not exist')) return;
+
+  const pairInDb = await api.db.findOne('pairs', { pair });
+
+  // check if symbol is included in allowedSymbols or the pair is global
+  if (!api.assert(pairInDb && (pairInDb.allowedSymbols.indexOf(symbol) !== -1 || pairInDb.allowedSymbols === true), 'pair does not exist')) return;
+  if (!api.assert(countDecimals(quantity) <= token.precision
+    && api.BigNumber(quantity).gt(0), 'invalid quantity')) return;
+
+  // initiate a transfer from sender to contract balance
+  // lock symbol tokens
+  const tokenTransfer = await api.executeSmartContract('tokens', 'transferToContract', {
+    from: finalAccount, to: CONTRACT_NAME, symbol, quantity,
+  });
+
+  // make sure tokens are locked
+  if (api.assert(transferIsSuccessful(tokenTransfer, 'transferToContract', finalAccount, CONTRACT_NAME, symbol, quantity), 'failed to transfer tokens')) {
+    let tokensRemaining = quantity;
+    let offset = 0;
+    let volumeTraded = 0;
+
+    await removeExpiredOrders('buyBook');
+
+    // get the orders that match the symbol
+    let buyOrderBook = await api.db.find('buyBook', {
+      symbol,
+      pair,
+    }, 1000, offset,
+    [
+      { index: 'priceDec', descending: true },
+      { index: '_id', descending: false },
+    ]);
+
+    do {
+      const nbOrders = buyOrderBook.length;
+      let inc = 0;
+
+      while (inc < nbOrders && api.BigNumber(tokensRemaining).gt(0)) {
+        const buyOrder = buyOrderBook[inc];
+        if (api.BigNumber(tokensRemaining).lte(buyOrder.quantity)) {
+          let qtyTokensToSend = api.BigNumber(buyOrder.price)
+            .multipliedBy(tokensRemaining)
+            .toFixed(pairInDb.precision);
+
+          if (api.BigNumber(qtyTokensToSend).gt(buyOrder.tokensLocked)) {
+            qtyTokensToSend = api.BigNumber(buyOrder.price)
+              .multipliedBy(tokensRemaining)
+              .toFixed(pairInDb.precision, api.BigNumber.ROUND_DOWN);
+          }
+
+          if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
+            && api.BigNumber(tokensRemaining).gt(0), 'the order cannot be filled')) {
+            // transfer the tokens to the buyer
+            await api.transferTokens(buyOrder.account, symbol, tokensRemaining, 'user');
+
+            // transfer the tokens to the seller
+            await api.transferTokens(finalAccount, pair, qtyTokensToSend, 'user');
+
+            // update the buy order
+            const qtyLeftBuyOrder = api.BigNumber(buyOrder.quantity)
+              .minus(tokensRemaining)
+              .toFixed(token.precision);
+
+            const buyOrdertokensLocked = api.BigNumber(buyOrder.tokensLocked)
+              .minus(qtyTokensToSend)
+              .toFixed(pairInDb.precision);
+            const nbTokensToFillOrder = api.BigNumber(buyOrder.price)
+              .multipliedBy(qtyLeftBuyOrder)
+              .toFixed(pairInDb.precision);
+
+            if (api.BigNumber(qtyLeftBuyOrder).gt(0)
+              && (api.BigNumber(nbTokensToFillOrder).gte('0.00000001'))) {
+              buyOrder.quantity = qtyLeftBuyOrder;
+              buyOrder.tokensLocked = buyOrdertokensLocked;
+
+              await api.db.update('buyBook', buyOrder);
+            } else {
+              if (api.BigNumber(buyOrdertokensLocked).gt(0)) {
+                // transfer remaining tokens to buyer since the order can no longer be filled
+                await api.transferTokens(buyOrder.account, pair, buyOrdertokensLocked, 'user');
+              }
+
+              // remove the sell order
+              api.emit('orderClosed', { account: buyOrder.account, type: 'buy', txId: buyOrder.txId });
+              await api.db.remove('buyBook', buyOrder);
+            }
+
+            // add the trade to the history
+            await updateTradesHistory('sell', buyOrder.account, finalAccount, symbol, pair, pairInDb.precision, tokensRemaining, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
+
+            // update the volume
+            volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
+
+            tokensRemaining = 0;
+          }
+        } else {
+          let qtyTokensToSend = api.BigNumber(buyOrder.price)
+            .multipliedBy(buyOrder.quantity)
+            .toFixed(pairInDb.precision);
+
+          if (qtyTokensToSend > buyOrder.tokensLocked) {
+            qtyTokensToSend = api.BigNumber(buyOrder.price)
+              .multipliedBy(buyOrder.quantity)
+              .toFixed(pairInDb.precision, api.BigNumber.ROUND_DOWN);
+          }
+
+          if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
+            && api.BigNumber(tokensRemaining).gt(0), 'the order cannot be filled')) {
+            // transfer the tokens to the buyer
+            await api.transferTokens(buyOrder.account, symbol, buyOrder.quantity, 'user');
+
+            // transfer the tokens to the seller
+            await api.transferTokens(finalAccount, pair, qtyTokensToSend, 'user');
+
+            const buyOrdertokensLocked = api.BigNumber(buyOrder.tokensLocked)
+              .minus(qtyTokensToSend)
+              .toFixed(pairInDb.precision);
+
+            if (api.BigNumber(buyOrdertokensLocked).gt(0)) {
+              // transfer remaining tokens to buyer since the order can no longer be filled
+              await api.transferTokens(buyOrder.account, pair, buyOrdertokensLocked, 'user');
+            }
+
+            // remove the buy order
+            api.emit('orderClosed', { account: buyOrder.account, type: 'buy', txId: buyOrder.txId });
+            await api.db.remove('buyBook', buyOrder);
+
+            // update the quantity to get
+            tokensRemaining = api.BigNumber(tokensRemaining)
+              .minus(buyOrder.quantity)
+              .toFixed(token.precision);
+
+            // add the trade to the history
+            await updateTradesHistory('sell', buyOrder.account, finalAccount, symbol, pair, pairInDb.precision, buyOrder.quantity, buyOrder.price, qtyTokensToSend, buyOrder.txId, api.transactionId);
+
+            // update the volume
+            volumeTraded = api.BigNumber(volumeTraded).plus(qtyTokensToSend);
+          }
+        }
+
+        inc += 1;
+      }
+
+      offset += 1000;
+
+      if (api.BigNumber(tokensRemaining).gt(0)) {
+        // get the orders that match the symbol and the price
+        buyOrderBook = await api.db.find('buyBook', {
+          symbol,
+          pair,
+        }, 1000, offset,
+        [
+          { index: 'priceDec', descending: true },
+          { index: '_id', descending: false },
+        ]);
+      }
+    } while (buyOrderBook.length > 0 && api.BigNumber(tokensRemaining).gt(0));
+
+    // send back the remaining tokens
+    if (api.BigNumber(tokensRemaining).gt(0)) {
+      await api.transferTokens(finalAccount, symbol, tokensRemaining, 'user');
+    }
+
+    if (api.BigNumber(volumeTraded).gt(0)) {
+      await updateVolumeMetric(symbol, pair, pairInDb.precision, volumeTraded);
+    }
+    await updateAskMetric(symbol, pair);
+    await updateBidMetric(symbol, pair);
+  }
+};

@@ -257,7 +257,7 @@ const settleAuction = async (auction, index = null) => {
 
     api.emit('settleAuction', ackPacket);
   } else {
-    // if there are no bids, expire the auction
+    // expire the auction
     await api.db.remove('auctions', auction);
 
     // return NFTs to the seller
@@ -381,7 +381,7 @@ actions.create = async (payload) => {
                 expiryTimestamp,
                 bids: [],
                 currentLead: null,
-                lastLeadUpdate: timestamp,
+                lastLeadUpdate: null,
               };
 
               const res = await api.db.insert('auctions', auction);

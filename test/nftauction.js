@@ -1412,7 +1412,7 @@ describe('NFT Auction Smart Contract', function () {
         refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2021-03-12T23:59:59',
+        timestamp: '2021-03-19T23:59:59',
         transactions,
       };
 
@@ -1465,7 +1465,7 @@ describe('NFT Auction Smart Contract', function () {
         refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2021-03-13T00:00:00',
+        timestamp: '2021-03-21T00:00:00',
         transactions,
       };
 
@@ -1524,7 +1524,7 @@ describe('NFT Auction Smart Contract', function () {
         refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2021-03-13T00:00:00',
+        timestamp: '2021-03-21T00:00:00',
         transactions,
       };
 
@@ -1549,7 +1549,7 @@ describe('NFT Auction Smart Contract', function () {
         refHiveBlockNumber: refBlockNumber,
         refHiveBlockId: 'ABCD1',
         prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2021-03-13T00:00:03',
+        timestamp: '2021-03-21T00:00:03',
         transactions,
       };
 

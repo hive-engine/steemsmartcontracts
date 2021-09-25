@@ -1,6 +1,6 @@
 {
   "name": "steemsmartcontracts",
-  "version": "1.3.0",
+  "version": "1.5.2",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -23,7 +23,9 @@
     "test13": "./node_modules/mocha/bin/mocha ./test/witnesses.js",
     "test14": "./node_modules/mocha/bin/mocha ./test/marketpools.js",
     "test15": "./node_modules/mocha/bin/mocha ./test/tokenfunds.js",
-    "test16": "./node_modules/mocha/bin/mocha ./test/nftauction.js"
+    "test16": "./node_modules/mocha/bin/mocha ./test/nftauction.js",
+    "test17": "./node_modules/mocha/bin/mocha ./test/comments.js",
+    "test18": "./node_modules/mocha/bin/mocha ./test/ticks.js"
   },
   "engines": {
     "node": ">=13.7.0",
@@ -33,7 +35,7 @@
   "author": "Harpagon210 <harpagon210@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "@hiveio/dhive": "^0.14.12",
+    "@hiveio/dhive": "^1.0.1",
     "axios": "^0.21.1",
     "bignumber.js": "^8.1.1",
     "body-parser": "^1.19.0",

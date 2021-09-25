@@ -45,6 +45,7 @@ const RESERVED_SYMBOLS = {
 };
 
 const VERIFIED_ISSUERS = [
+  'comments',
   'mining',
   'tokenfunds',
 ];
@@ -371,6 +372,9 @@ actions.create = async (payload) => {
     )
       && api.assert(RESERVED_SYMBOLS[symbol] === undefined || api.sender === RESERVED_SYMBOLS[symbol], 'cannot use this symbol')
       && api.assert(heAccounts[api.sender] === 1 || symbol.indexOf('SWAP') === -1, 'invalid symbol: not allowed to use SWAP')
+      && api.assert(heAccounts[api.sender] === 1 || symbol.indexOf('ETH') === -1, 'invalid symbol: not allowed to use ETH')
+      && api.assert(heAccounts[api.sender] === 1 || symbol.indexOf('BSC') === -1, 'invalid symbol: not allowed to use BSC')
+      && api.assert(heAccounts[api.sender] === 1 || symbol.indexOf('.') === -1, 'invalid symbol: usage of "." is restricted')
       && api.assert(api.validator.isAlphanumeric(api.validator.blacklist(name, ' ')) && name.length > 0 && name.length <= 50, 'invalid name: letters, numbers, whitespaces only, max length of 50')
       && api.assert(url === undefined || url.length <= 255, 'invalid url: max length of 255')
       && api.assert((precision >= 0 && precision <= 8) && (Number.isInteger(precision)), 'invalid precision')
@@ -1380,7 +1384,7 @@ actions.undelegate = async (payload) => {
               && api.assert(api.BigNumber(delegation.quantity).gte(quantity), 'overdrawn delegation')) {
               // update balanceTo
               balanceTo.pendingUndelegations = calculateBalance(
-                balanceFrom.pendingUndelegations, quantity, token.precision, true,
+                balanceTo.pendingUndelegations, quantity, token.precision, true,
               );
               balanceTo.delegationsOut = calculateBalance(
                 balanceTo.delegationsOut, quantity, token.precision, false,

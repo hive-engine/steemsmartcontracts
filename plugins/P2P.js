@@ -299,9 +299,7 @@ const manageRoundProposition = async () => {
     // check if this witness is part of the round
     const witnessFound = schedules.find(w => w.witness === WITNESS_ACCOUNT);
 
-    // If schedule size > 7, use new params table for signatures required.
-    // After completing transition, modify this to always use params table.
-    const witnessSignaturesRequired = schedules.length > 7 ? params.witnessSignaturesRequired : 5;
+    const { witnessSignaturesRequired } = params;
 
     if (witnessFound !== undefined
       && lastProposedRound === null
@@ -446,7 +444,13 @@ const proposeRoundHandler = async (args, callback) => {
 
 function p2p() {
   return {
-    proposeRoundHash: (args, callback) => proposeRoundHandler(args, callback),
+    proposeRoundHash: (args, callback) => {
+      try {
+        proposeRoundHandler(args, callback);
+      } catch (error) {
+        callback(error, null);
+      }
+    },
   };
 }
 

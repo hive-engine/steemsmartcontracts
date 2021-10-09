@@ -431,16 +431,13 @@ const findMatchingSellOrders = async (order, tokenPrecision, qtPrecision) => {
 
     while (inc < nbOrders && api.BigNumber(buyOrder.quantity).gt(0)) {
       const sellOrder = sellOrderBook[inc];
-      if (api.BigNumber(buyOrder.quantity).lte(sellOrder.quantity)) {
-        let qtyTokensToSend = api.BigNumber(sellOrder.price)
-          .multipliedBy(buyOrder.quantity)
-          .toFixed(qtPrecision);
+      // gets the minimum quantity of quoteToken required to fill the order
+      const minimumToFillOrder = api.BigNumber(1).shiftedBy(-qtPrecision);
 
-        if (api.BigNumber(qtyTokensToSend).gt(buyOrder.tokensLocked)) {
-          qtyTokensToSend = api.BigNumber(sellOrder.price)
-            .multipliedBy(buyOrder.quantity)
-            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
-        }
+      if (api.BigNumber(buyOrder.quantity).lte(sellOrder.quantity)) {
+        const qtyTokensToSend = api.BigNumber(sellOrder.price)
+          .multipliedBy(buyOrder.quantity)
+          .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
         if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
           && api.BigNumber(buyOrder.quantity).gt(0), 'the order cannot be filled')) {
@@ -456,10 +453,10 @@ const findMatchingSellOrders = async (order, tokenPrecision, qtPrecision) => {
             .toFixed(tokenPrecision);
           const nbTokensToFillOrder = api.BigNumber(sellOrder.price)
             .multipliedBy(qtyLeftSellOrder)
-            .toFixed(qtPrecision);
+            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
           if (api.BigNumber(qtyLeftSellOrder).gt(0)
-            && (api.BigNumber(nbTokensToFillOrder).gte('0.00000001'))) {
+            && (api.BigNumber(nbTokensToFillOrder).gte(minimumToFillOrder))) {
             sellOrder.quantity = qtyLeftSellOrder;
 
             await api.db.update('sellBook', sellOrder);
@@ -494,15 +491,9 @@ const findMatchingSellOrders = async (order, tokenPrecision, qtPrecision) => {
           api.emit('orderClosed', { account: buyOrder.account, type: 'buy', txId: buyOrder.txId });
         }
       } else {
-        let qtyTokensToSend = api.BigNumber(sellOrder.price)
+        const qtyTokensToSend = api.BigNumber(sellOrder.price)
           .multipliedBy(sellOrder.quantity)
-          .toFixed(qtPrecision);
-
-        if (api.BigNumber(qtyTokensToSend).gt(buyOrder.tokensLocked)) {
-          qtyTokensToSend = api.BigNumber(sellOrder.price)
-            .multipliedBy(sellOrder.quantity)
-            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
-        }
+          .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
         if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
           && api.BigNumber(buyOrder.quantity).gt(0), 'the order cannot be filled')) {
@@ -527,9 +518,9 @@ const findMatchingSellOrders = async (order, tokenPrecision, qtPrecision) => {
           // check if the order can still be filled
           const nbTokensToFillOrder = api.BigNumber(buyOrder.price)
             .multipliedBy(buyOrder.quantity)
-            .toFixed(qtPrecision);
+            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
-          if (api.BigNumber(nbTokensToFillOrder).lt('0.00000001')) {
+          if (api.BigNumber(nbTokensToFillOrder).lt(minimumToFillOrder)) {
             await api.transferTokens(account, quoteToken, buyOrder.tokensLocked, 'user');
 
             // stop the loop and remove buy order if it can not be filled
@@ -613,16 +604,13 @@ const findMatchingBuyOrders = async (order, tokenPrecision, qtPrecision) => {
 
     while (inc < nbOrders && api.BigNumber(sellOrder.quantity).gt(0)) {
       const buyOrder = buyOrderBook[inc];
-      if (api.BigNumber(sellOrder.quantity).lte(buyOrder.quantity)) {
-        let qtyTokensToSend = api.BigNumber(buyOrder.price)
-          .multipliedBy(sellOrder.quantity)
-          .toFixed(qtPrecision);
+      // gets the minimum quantity of quoteToken required to fill the order
+      const minimumToFillOrder = api.BigNumber(1).shiftedBy(-qtPrecision);
 
-        if (api.BigNumber(qtyTokensToSend).gt(buyOrder.tokensLocked)) {
-          qtyTokensToSend = api.BigNumber(buyOrder.price)
-            .multipliedBy(sellOrder.quantity)
-            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
-        }
+      if (api.BigNumber(sellOrder.quantity).lte(buyOrder.quantity)) {
+        const qtyTokensToSend = api.BigNumber(buyOrder.price)
+          .multipliedBy(sellOrder.quantity)
+          .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
         if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
           && api.BigNumber(sellOrder.quantity).gt(0), 'the order cannot be filled')) {
@@ -642,10 +630,10 @@ const findMatchingBuyOrders = async (order, tokenPrecision, qtPrecision) => {
             .toFixed(qtPrecision);
           const nbTokensToFillOrder = api.BigNumber(buyOrder.price)
             .multipliedBy(qtyLeftBuyOrder)
-            .toFixed(qtPrecision);
+            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
           if (api.BigNumber(qtyLeftBuyOrder).gt(0)
-            && (api.BigNumber(nbTokensToFillOrder).gte('0.00000001'))) {
+            && (api.BigNumber(nbTokensToFillOrder).gte(minimumToFillOrder))) {
             buyOrder.quantity = qtyLeftBuyOrder;
             buyOrder.tokensLocked = buyOrdertokensLocked;
 
@@ -671,15 +659,9 @@ const findMatchingBuyOrders = async (order, tokenPrecision, qtPrecision) => {
           api.emit('orderClosed', { account: sellOrder.account, type: 'sell', txId: sellOrder.txId });
         }
       } else {
-        let qtyTokensToSend = api.BigNumber(buyOrder.price)
+        const qtyTokensToSend = api.BigNumber(buyOrder.price)
           .multipliedBy(buyOrder.quantity)
-          .toFixed(qtPrecision);
-
-        if (qtyTokensToSend > buyOrder.tokensLocked) {
-          qtyTokensToSend = api.BigNumber(buyOrder.price)
-            .multipliedBy(buyOrder.quantity)
-            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
-        }
+          .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
         if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
           && api.BigNumber(sellOrder.quantity).gt(0), 'the order cannot be filled')) {
@@ -710,9 +692,9 @@ const findMatchingBuyOrders = async (order, tokenPrecision, qtPrecision) => {
           // check if the order can still be filled
           const nbTokensToFillOrder = api.BigNumber(sellOrder.price)
             .multipliedBy(sellOrder.quantity)
-            .toFixed(qtPrecision);
+            .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
-          if (api.BigNumber(nbTokensToFillOrder).lt('0.00000001')) {
+          if (api.BigNumber(nbTokensToFillOrder).lt(minimumToFillOrder)) {
             await api.transferTokens(account, symbol, sellOrder.quantity, 'user');
 
             // stop the loop and remove sell order if it can not be filled
@@ -978,6 +960,9 @@ actions.marketBuy = async (payload) => {
 
       while (inc < nbOrders && api.BigNumber(qtQtyRemaining).gt(0)) {
         const sellOrder = sellOrderBook[inc];
+        // gets the minimum quantity of quoteToken required to fill the order
+        const minimumToFillOrder = api.BigNumber(1).shiftedBy(-qtInDb.precision);
+
         const qtyTokensToSend = api.BigNumber(qtQtyRemaining)
           .dividedBy(sellOrder.price)
           .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
@@ -998,10 +983,10 @@ actions.marketBuy = async (payload) => {
               .toFixed(token.precision);
             const nbTokensToFillOrder = api.BigNumber(sellOrder.price)
               .multipliedBy(qtyLeftSellOrder)
-              .toFixed(qtInDb.precision);
+              .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
 
             if (api.BigNumber(qtyLeftSellOrder).gt(0)
-              && (api.BigNumber(nbTokensToFillOrder).gte('0.00000001'))) {
+              && (api.BigNumber(nbTokensToFillOrder).gte(minimumToFillOrder))) {
               sellOrder.quantity = qtyLeftSellOrder;
 
               await api.db.update('sellBook', sellOrder);
@@ -1026,15 +1011,9 @@ actions.marketBuy = async (payload) => {
             qtQtyRemaining = '0';
           }
         } else if (api.BigNumber(qtyTokensToSend).gt(0)) {
-          let qtyQuoteTokenToSend = api.BigNumber(sellOrder.price)
+          const qtyQuoteTokenToSend = api.BigNumber(sellOrder.price)
             .multipliedBy(sellOrder.quantity)
-            .toFixed(qtInDb.precision);
-
-          if (api.BigNumber(qtyQuoteTokenToSend).gt(qtQtyRemaining)) {
-            qtyQuoteTokenToSend = api.BigNumber(sellOrder.price)
-              .multipliedBy(sellOrder.quantity)
-              .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
-          }
+            .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
 
           if (api.assert(api.BigNumber(qtyQuoteTokenToSend).gt(0)
             && api.BigNumber(qtQtyRemaining).gt(0), 'the order cannot be filled')) {
@@ -1155,16 +1134,13 @@ actions.marketSell = async (payload) => {
 
       while (inc < nbOrders && api.BigNumber(tokensRemaining).gt(0)) {
         const buyOrder = buyOrderBook[inc];
-        if (api.BigNumber(tokensRemaining).lte(buyOrder.quantity)) {
-          let qtyTokensToSend = api.BigNumber(buyOrder.price)
-            .multipliedBy(tokensRemaining)
-            .toFixed(qtInDb.precision);
+        // gets the minimum quantity of quoteToken required to fill the order
+        const minimumToFillOrder = api.BigNumber(1).shiftedBy(-qtInDb.precision);
 
-          if (api.BigNumber(qtyTokensToSend).gt(buyOrder.tokensLocked)) {
-            qtyTokensToSend = api.BigNumber(buyOrder.price)
-              .multipliedBy(tokensRemaining)
-              .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
-          }
+        if (api.BigNumber(tokensRemaining).lte(buyOrder.quantity)) {
+          const qtyTokensToSend = api.BigNumber(buyOrder.price)
+            .multipliedBy(tokensRemaining)
+            .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
 
           if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
             && api.BigNumber(tokensRemaining).gt(0), 'the order cannot be filled')) {
@@ -1184,10 +1160,10 @@ actions.marketSell = async (payload) => {
               .toFixed(qtInDb.precision);
             const nbTokensToFillOrder = api.BigNumber(buyOrder.price)
               .multipliedBy(qtyLeftBuyOrder)
-              .toFixed(qtInDb.precision);
+              .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
 
             if (api.BigNumber(qtyLeftBuyOrder).gt(0)
-              && (api.BigNumber(nbTokensToFillOrder).gte('0.00000001'))) {
+              && (api.BigNumber(nbTokensToFillOrder).gte(minimumToFillOrder))) {
               buyOrder.quantity = qtyLeftBuyOrder;
               buyOrder.tokensLocked = buyOrdertokensLocked;
 
@@ -1212,15 +1188,9 @@ actions.marketSell = async (payload) => {
             tokensRemaining = 0;
           }
         } else {
-          let qtyTokensToSend = api.BigNumber(buyOrder.price)
+          const qtyTokensToSend = api.BigNumber(buyOrder.price)
             .multipliedBy(buyOrder.quantity)
-            .toFixed(qtInDb.precision);
-
-          if (qtyTokensToSend > buyOrder.tokensLocked) {
-            qtyTokensToSend = api.BigNumber(buyOrder.price)
-              .multipliedBy(buyOrder.quantity)
-              .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
-          }
+            .toFixed(qtInDb.precision, api.BigNumber.ROUND_DOWN);
 
           if (api.assert(api.BigNumber(qtyTokensToSend).gt(0)
             && api.BigNumber(tokensRemaining).gt(0), 'the order cannot be filled')) {

@@ -139,13 +139,13 @@ async function assertBalances(accounts, balances, symbol, contract = false) {
   }
 }
 
-async function verifyAskBid(symbol, pair, ask, bid) {
+async function verifyAskBid(symbol, quoteToken, ask, bid) {
   const res = await database1.findOne({
     contract: 'dmarket',
     table: 'metrics',
     query: {
       symbol,
-      pair,
+      quoteToken,
     },
   });
 
@@ -154,25 +154,25 @@ async function verifyAskBid(symbol, pair, ask, bid) {
   assert(BigNumber(res.highestBid).isEqualTo(bid), `bid ${bid} not equal to ${res.highestBid}`);
 }
 
-async function assertPair(pair, symbols) {
+async function assertPair(quoteToken, symbols) {
   const res = await database1.findOne({
     contract: 'dmarket',
-    table: 'pairs',
+    table: 'quoteTokens',
     query: {
-      pair,
+      quoteToken,
     },
   });
 
   console.log(res);
 
-  assert(res, 'pair not found');
+  assert(res, 'quoteToken not found');
 
   if (symbols !== true) {
-    assert(res.allowedSymbols !== true, 'pair is global');
+    assert(res.isGlobal !== true, 'quoteToken is global');
     symbols.forEach((symbol) => {
-      assert(res.allowedSymbols.includes(symbol), `symbol ${symbol} not found in pair`);
+      assert(res.allowedBaseTokens.includes(symbol), `symbol ${symbol} not found in this pair`);
     });
-  } else assert(res.allowedSymbols === true, 'pair is not global');
+  } else assert(res.isGlobal === true, 'quoteToken is not global');
 }
 
 function assertError(tx, message) {
@@ -246,15 +246,15 @@ describe('dMarket Smart Contract', function () {
       const transactions = [];
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": false, "pair": "TKN", "symbol": "BEE" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": 5, "symbol": "BEE" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": 5 }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "TKN" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "BEE", "symbol": "TKN" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": false, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": 5, "baseToken": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": 5 }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "TKN" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "BEE", "baseToken": "TKN" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -270,11 +270,11 @@ describe('dMarket Smart Contract', function () {
       const txs = res.transactions;
 
       assertError(txs[2], 'you must use a custom_json signed with your active key');
-      assertError(txs[3], 'invalid pair');
-      assertError(txs[4], 'invalid symbol');
-      assertError(txs[5], 'pair and symbol can not be the same');
-      assertError(txs[6], 'symbol does not exist');
-      assertError(txs[7], 'pair symbol does not exist');
+      assertError(txs[3], 'invalid quoteToken');
+      assertError(txs[4], 'invalid baseToken');
+      assertError(txs[5], 'quoteToken and baseToken can not be the same');
+      assertError(txs[6], 'baseToken does not exist');
+      assertError(txs[7], 'quoteToken does not exist');
       assertError(txs[10], 'you must have enough tokens to cover the pair creation fee');
 
       resolve();
@@ -298,7 +298,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -325,7 +325,7 @@ describe('dMarket Smart Contract', function () {
       });
   });
 
-  it('does not add symbol into existing pair', (done) => {
+  it('does not add baseToken into existing quoteToken', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
@@ -338,10 +338,10 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "XYZ", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'dmarket', 'addGlobalPair', '{ "pair": "TKN" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "XYZ" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'dmarket', 'setGlobalQuoteToken', '{ "quoteToken": "TKN" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "XYZ" }'));
 
 
       const block = {
@@ -359,8 +359,8 @@ describe('dMarket Smart Contract', function () {
 
       await assertPair('TKN', true);
 
-      assertError(txs[6], 'symbol is already in the pair');
-      assertError(txs[8], 'can not add symbol to a global pair');
+      assertError(txs[6], 'baseToken is already in this pair');
+      assertError(txs[8], 'can not add another baseToken to a global quoteToken');
 
       resolve();
     })
@@ -371,7 +371,7 @@ describe('dMarket Smart Contract', function () {
       });
   });
 
-  it('adds symbol into existing pair', (done) => {
+  it('adds baseToken into existing quoteToken', (done) => {
     new Promise(async (resolve) => {
       await loadPlugin(blockchain);
       database1 = new Database();
@@ -384,8 +384,8 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"1200", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "XYZ", "precision": 8, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "XYZ" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "XYZ" }'));
 
       const block = {
         refHiveBlockNumber: 12345678901,
@@ -424,7 +424,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "ali-h", "quantity": "123.456" }'));
 
       let block = {
@@ -440,7 +440,7 @@ describe('dMarket Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       transactions = [];
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.1" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.1" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -462,7 +462,7 @@ describe('dMarket Smart Contract', function () {
         table: 'buyBook',
         query: {
           symbol: 'BEE',
-          pair: 'TKN',
+          quoteToken: 'TKN',
           txId: txs[0].txId,
         },
       });
@@ -498,7 +498,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "ali-h", "quantity": "123.456" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.1" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.1" }'));
 
 
       const block = {
@@ -537,7 +537,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -552,7 +552,7 @@ describe('dMarket Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       transactions = [];
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -574,7 +574,7 @@ describe('dMarket Smart Contract', function () {
         table: 'sellBook',
         query: {
           symbol: 'BEE',
-          pair: 'TKN',
+          quoteToken: 'TKN',
           txId: txs[0].txId,
         },
       });
@@ -608,7 +608,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
 
 
       const block = {
@@ -647,7 +647,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -662,9 +662,9 @@ describe('dMarket Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       transactions = [];
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "18.17" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.17" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -709,7 +709,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"nomi", "quantity":"10", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"punkman", "quantity":"100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -724,11 +724,11 @@ describe('dMarket Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       transactions = [];
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.18" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "50", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.17" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "24.3" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "135", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "135", "price": "0.18" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -771,7 +771,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -787,8 +787,8 @@ describe('dMarket Smart Contract', function () {
 
       transactions = [];
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "55" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.17" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.17" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -831,7 +831,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -850,12 +850,12 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "punkman", "quantity": "18" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "nomi", "quantity": "18" }'));
 
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.18" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "50", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "50", "price": "0.17" }'));
 
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"james", "quantity":"140", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "140", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "140", "price": "0.16" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -900,7 +900,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"nomi", "quantity":"10", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"punkman", "quantity":"100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -915,11 +915,11 @@ describe('dMarket Smart Contract', function () {
       await assertNoErrorInLastBlock();
 
       transactions = [];
-      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.18" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "100", "price": "0.16" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "50", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.17" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "22.2" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'marketBuy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "22.2" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'marketBuy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "22.2" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -962,7 +962,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       let block = {
         refHiveBlockNumber: 12345678901,
@@ -981,12 +981,12 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "ali-h", "quantity": "50" }'));
       transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "nomi", "quantity": "12" }'));
 
-      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "55", "price": "0.18" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "312", "price": "0.16" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "50", "price": "0.17" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'punkman', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "55", "price": "0.18" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "312", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'nomi', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "50", "price": "0.17" }'));
 
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"james", "quantity":"210", "isSignedWithActiveKey":true }`));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'marketSell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "210" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'james', 'dmarket', 'marketSell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "210" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1029,7 +1029,7 @@ describe('dMarket Smart Contract', function () {
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"600", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(12345678901, getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "pair": "TKN", "symbol": "BEE" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
 
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"a001", "quantity":"100", "isSignedWithActiveKey":true }`));
       transactions.push(new Transaction(38145386, getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"a002", "quantity":"100", "isSignedWithActiveKey":true }`));
@@ -1055,9 +1055,9 @@ describe('dMarket Smart Contract', function () {
       transactions = [];
       transactions = [];
 
-      transactions.push(new Transaction(38145386, getNextTxId(), 'b001', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.15" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'b002', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.20" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'b003', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.16" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'b001', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.15" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'b002', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.20" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'b003', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.16" }'));
 
       block = {
         refHiveBlockNumber: 12345678902,
@@ -1077,9 +1077,9 @@ describe('dMarket Smart Contract', function () {
       transactions = [];
       transactions = [];
 
-      transactions.push(new Transaction(38145386, getNextTxId(), 'a001', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.23" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'a003', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.21" }'));
-      transactions.push(new Transaction(38145386, getNextTxId(), 'a002', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "10", "price": "0.25" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'a001', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.23" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'a003', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.21" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'a002', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10", "price": "0.25" }'));
 
       block = {
         refHiveBlockNumber: 12345678903,
@@ -1100,10 +1100,10 @@ describe('dMarket Smart Contract', function () {
       transactions = [];
 
       // sell to the highest bid
-      transactions.push(new Transaction(38145386, getNextTxId(), 'a001', 'dmarket', 'marketSell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "20" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'a001', 'dmarket', 'marketSell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "20" }'));
 
       // buy from the lowest ask
-      transactions.push(new Transaction(38145386, getNextTxId(), 'b001', 'dmarket', 'marketBuy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "pair": "TKN", "quantity": "4.4" }'));
+      transactions.push(new Transaction(38145386, getNextTxId(), 'b001', 'dmarket', 'marketBuy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "4.4" }'));
 
       block = {
         refHiveBlockNumber: 12345678904,
@@ -1124,7 +1124,7 @@ describe('dMarket Smart Contract', function () {
         table: 'metrics',
         query: {
           symbol: 'BEE',
-          pair: 'TKN',
+          quoteToken: 'TKN',
         },
       });
 

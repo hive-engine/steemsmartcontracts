@@ -15,10 +15,10 @@ actions.createSSC = async () => {
 
   if (tableExists === false) {
     await api.db.createTable('quoteTokens', ['quoteToken']);
-    await api.db.createTable('buyBook', ['symbol', 'quoteToken', 'account', 'priceDec', 'expiration', 'txId']);
-    await api.db.createTable('sellBook', ['symbol', 'quoteToken', 'account', 'priceDec', 'expiration', 'txId']);
-    await api.db.createTable('tradesHistory', ['symbol', 'quoteToken']);
-    await api.db.createTable('metrics', ['symbol', 'quoteToken']);
+    await api.db.createTable('buyBook', [{ name: 'byPriceDecDesc', index: { quoteToken: 1, symbol: 1, priceDec: -1 } }, 'expiration']);
+    await api.db.createTable('sellBook', [{ name: 'byPriceDecAsc', index: { quoteToken: 1, symbol: 1, priceDec: 1 } }, 'expiration']);
+    await api.db.createTable('tradesHistory', [{ name: 'byTimestamp', index: { quoteToken: 1, symbol: 1, timestamp: 1 } }]);
+    await api.db.createTable('metrics', [], { primaryKey: ['quoteToken', 'symbol'] });
 
     // default global quoteTokens
     const quoteTokens = [
@@ -239,7 +239,7 @@ const updateBidMetric = async (symbol, quoteToken) => {
       quoteToken,
     }, 1, 0,
     [
-      { index: 'priceDec', descending: true },
+      { index: 'byPriceDecDesc', descending: false },
     ]);
 
 
@@ -261,7 +261,7 @@ const updateAskMetric = async (symbol, quoteToken) => {
       quoteToken,
     }, 1, 0,
     [
-      { index: 'priceDec', descending: false },
+      { index: 'byPriceDecAsc', descending: false },
     ]);
 
   if (sellOrderBook.length > 0) {
@@ -377,11 +377,11 @@ const removeExpiredOrders = async (table) => {
       if (table === 'buyBook') {
         api.emit('orderExpired', { type: 'buy', txId: order.txId });
 
-        await updateAskMetric(order.symbol);
+        await updateAskMetric(order.symbol, order.quoteToken);
       } else {
         api.emit('orderExpired', { type: 'sell', txId: order.txId });
 
-        await updateBidMetric(order.symbol);
+        await updateBidMetric(order.symbol, order.quoteToken);
       }
     }
 
@@ -421,7 +421,7 @@ const findMatchingSellOrders = async (order, tokenPrecision, qtPrecision) => {
     },
   }, 1000, offset,
   [
-    { index: 'priceDec', descending: false },
+    { index: 'byPriceDecAsc', descending: false },
     { index: '_id', descending: false },
   ]);
 
@@ -521,7 +521,9 @@ const findMatchingSellOrders = async (order, tokenPrecision, qtPrecision) => {
             .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
           if (api.BigNumber(nbTokensToFillOrder).lt(minimumToFillOrder)) {
-            await api.transferTokens(account, quoteToken, buyOrder.tokensLocked, 'user');
+            if (api.BigNumber(buyOrder.tokensLocked).gt(0)) {
+              await api.transferTokens(account, quoteToken, buyOrder.tokensLocked, 'user');
+            }
 
             // stop the loop and remove buy order if it can not be filled
             buyOrder.quantity = '0';
@@ -552,7 +554,7 @@ const findMatchingSellOrders = async (order, tokenPrecision, qtPrecision) => {
         },
       }, 1000, offset,
       [
-        { index: 'priceDec', descending: false },
+        { index: 'byPriceDecAsc', descending: false },
         { index: '_id', descending: false },
       ]);
     }
@@ -594,7 +596,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision, qtPrecision) => {
     },
   }, 1000, offset,
   [
-    { index: 'priceDec', descending: true },
+    { index: 'byPriceDecDesc', descending: false },
     { index: '_id', descending: false },
   ]);
 
@@ -695,7 +697,9 @@ const findMatchingBuyOrders = async (order, tokenPrecision, qtPrecision) => {
             .toFixed(qtPrecision, api.BigNumber.ROUND_DOWN);
 
           if (api.BigNumber(nbTokensToFillOrder).lt(minimumToFillOrder)) {
-            await api.transferTokens(account, symbol, sellOrder.quantity, 'user');
+            if (api.BigNumber(sellOrder.quantity).gt(0)) {
+              await api.transferTokens(account, symbol, sellOrder.quantity, 'user');
+            }
 
             // stop the loop and remove sell order if it can not be filled
             sellOrder.quantity = '0';
@@ -726,7 +730,7 @@ const findMatchingBuyOrders = async (order, tokenPrecision, qtPrecision) => {
         },
       }, 1000, offset,
       [
-        { index: 'priceDec', descending: true },
+        { index: 'byPriceDecDesc', descending: false },
         { index: '_id', descending: false },
       ]);
     }
@@ -950,7 +954,7 @@ actions.marketBuy = async (payload) => {
       quoteToken,
     }, 1000, offset,
     [
-      { index: 'priceDec', descending: false },
+      { index: 'byPriceDecAsc', descending: false },
       { index: '_id', descending: false },
     ]);
 
@@ -1052,7 +1056,7 @@ actions.marketBuy = async (payload) => {
           quoteToken,
         }, 1000, offset,
         [
-          { index: 'priceDec', descending: false },
+          { index: 'byPriceDecAsc', descending: false },
           { index: '_id', descending: false },
         ]);
       }
@@ -1124,7 +1128,7 @@ actions.marketSell = async (payload) => {
       quoteToken,
     }, 1000, offset,
     [
-      { index: 'priceDec', descending: true },
+      { index: 'byPriceDecDesc', descending: false },
       { index: '_id', descending: false },
     ]);
 
@@ -1238,7 +1242,7 @@ actions.marketSell = async (payload) => {
           quoteToken,
         }, 1000, offset,
         [
-          { index: 'priceDec', descending: true },
+          { index: 'byPriceDecDesc', descending: false },
           { index: '_id', descending: false },
         ]);
       }

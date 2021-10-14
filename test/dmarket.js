@@ -53,6 +53,20 @@ async function assertBalances(accounts, balances, symbol, contract = false) {
   }
 }
 
+async function verifyOpenOrders(table, account, symbol, quoteToken, num) {
+  const book = await fixture.database.find({
+    contract: 'dmarket',
+    table,
+    query: {
+      account,
+      symbol,
+      quoteToken
+    }
+  });
+
+  assert.equal(book.length, num);
+}
+
 async function verifyAskBid(symbol, quoteToken, ask, bid) {
   const res = await fixture.database.findOne({
     contract: 'dmarket',
@@ -886,6 +900,336 @@ describe('dMarket Smart Contract', function () {
       await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['105', '50', '55', '0'], 'BEE');
       await assertBalances(['ali-h', 'nomi', 'punkman', 'james'], ['0.08', '3.5', '0.1', '35.2'], 'TKN');
       await assertBalances(['dmarket'], ['33.12'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+  
+  it('removes dust sell orders', (done) => {
+    new Promise(async (resolve) => {
+ 
+      await fixture.setUp();
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "16" }'));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "99.99999999", "price": "0.16" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await verifyOpenOrders('sellBook', 'ali-h', 'BEE', 'TKN', 0);
+
+      await assertBalances(['ali-h', 'james'], ['0.00000001', '99.99999999'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['15.999', '0.001'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('removes dust buy orders', (done) => {
+    new Promise(async (resolve) => {
+ 
+      await fixture.setUp();
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "16" }'));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100", "price": "0.16" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "100.00000001", "price": "0.16" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await verifyOpenOrders('buyBook', 'james', 'BEE', 'TKN', 0);
+
+      await assertBalances(['ali-h', 'james'], ['0', '100'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['16', '0'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('removes expired buy orders', (done) => {
+    new Promise(async (resolve) => {
+
+      await fixture.setUp();
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "55" }'));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "20", "price": "0.19", "expiration": 100 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'james', 'dmarket', 'buy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "20", "price": "0.18" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      // should hit the 0.18 order and expire 0.19 one
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'marketSell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:10:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'james'], ['90', '10'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['1.8', '51.4'], 'TKN');
+      await assertBalances(['dmarket'], ['1.8'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      // should hit the 0.18 order and expire 0.19 one
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'marketSell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "10" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-04-12T00:00:06',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'james'], ['90', '10'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['1.8', '53.2'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['0'], 'BEE', true);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('removes expired sell orders', (done) => {
+    new Promise(async (resolve) => {
+
+      await fixture.setUp();
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tknContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(dmarketContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol":"${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to":"ali-h", "quantity":"700", "isSignedWithActiveKey":true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "url": "https://token.com", "symbol": "TKN", "precision": 3, "maxSupply": "1000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'addPair', '{ "isSignedWithActiveKey": true, "quoteToken": "TKN", "baseToken": "BEE" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'tokens', 'issue', '{ "isSignedWithActiveKey": true, "symbol": "TKN", "to": "james", "quantity": "55" }'));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "50", "price": "0.18", "expiration": 100 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'ali-h', 'dmarket', 'sell', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "50", "price": "0.19" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:03',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      // should hit the 0.18 order and expire 0.19 one
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'james', 'dmarket', 'marketBuy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "4.75" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:10:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'james'], ['50', '25'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['4.75', '50.25'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
+      await assertBalances(['dmarket'], ['25'], 'BEE', true);
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      // should hit the 0.18 order and expire 0.19 one
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'james', 'dmarket', 'marketBuy', '{ "isSignedWithActiveKey": true, "symbol": "BEE", "quoteToken": "TKN", "quantity": "4.75" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-04-12T00:00:06',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+
+      // const res = await fixture.database.getLatestBlockInfo();
+      // const txs = res.transactions;
+
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await assertBalances(['ali-h', 'james'], ['75', '25'], 'BEE');
+      await assertBalances(['ali-h', 'james'], ['4.75', '50.25'], 'TKN');
+      await assertBalances(['dmarket'], ['0'], 'TKN', true);
       await assertBalances(['dmarket'], ['0'], 'BEE', true);
 
       resolve();

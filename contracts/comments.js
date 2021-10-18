@@ -108,7 +108,8 @@ function calculateCurationWeightRshares(rewardPool, voteRshareSum) {
   return api.BigNumber(voteRshareSum);
 }
 
-async function payUser(symbol, quantity, user, stakedRewardPercentage) {
+async function payUser(symbol, quantity, user, stakedRewardPercentage, mute) {
+  if (mute) return;
   const quantityBignum = api.BigNumber(quantity);
   const stakedQuantity = quantityBignum.multipliedBy(stakedRewardPercentage).dividedBy(100)
     .toFixed(quantityBignum.dp(), api.BigNumber.ROUND_DOWN);
@@ -129,6 +130,11 @@ async function payUser(symbol, quantity, user, stakedRewardPercentage) {
   }
 }
 
+async function getMute(rewardPoolId, account) {
+  const votingPower = await api.db.findOne('votingPower', { rewardPoolId, account });
+  return votingPower ? votingPower.mute : false;
+}
+
 async function payOutBeneficiaries(rewardPool, token, post, authorBenePortion) {
   const {
     authorperm,
@@ -145,10 +151,16 @@ async function payOutBeneficiaries(rewardPool, token, post, authorBenePortion) {
     const benePay = api.BigNumber(authorBenePortion).multipliedBy(beneficiary.weight)
       .dividedBy(10000)
       .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
-    api.emit('beneficiaryReward', {
+    const mute = await getMute(rewardPoolId, beneficiary.account);
+    const rewardLog = {
       rewardPoolId, authorperm, symbol, account: beneficiary.account, quantity: benePay,
-    });
-    await payUser(symbol, benePay, beneficiary.account, rewardPool.config.stakedRewardPercentage);
+    };
+    if (mute) {
+      rewardLog.mute = true;
+    }
+    api.emit('beneficiaryReward', rewardLog);
+    await payUser(symbol, benePay, beneficiary.account, rewardPool.config.stakedRewardPercentage,
+      mute);
     totalBenePay = api.BigNumber(totalBenePay).plus(benePay);
   }
   return totalBenePay;
@@ -180,10 +192,15 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
         const votePay = api.BigNumber(curatorPortion).multipliedBy(vote.curationWeight)
           .dividedBy(totalCurationWeight)
           .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
-        api.emit('curationReward', {
+        const mute = await getMute(rewardPoolId, vote.voter);
+        const rewardLog = {
           rewardPoolId, authorperm, symbol, account: vote.voter, quantity: votePay,
-        });
-        await payUser(symbol, votePay, vote.voter, rewardPool.config.stakedRewardPercentage);
+        };
+        if (mute) {
+          rewardLog.mute = true;
+        }
+        api.emit('curationReward', rewardLog);
+        await payUser(symbol, votePay, vote.voter, rewardPool.config.stakedRewardPercentage, mute);
       }
       await api.db.remove('votes', vote);
     }
@@ -238,15 +255,20 @@ async function payOutPost(rewardPool, token, post, params) {
   response.votesProcessed += curatorPayStatus.votesProcessed;
   response.done = curatorPayStatus.done;
   if (curatorPayStatus.done) {
-    api.emit('authorReward', {
+    const mute = await getMute(post.rewardPoolId, post.author);
+    const rewardLog = {
       rewardPoolId: post.rewardPoolId,
       authorperm: post.authorperm,
       symbol: post.symbol,
       account: post.author,
       quantity: authorPortion,
-    });
+    };
+    if (mute) {
+      rewardLog.mute = true;
+    }
+    api.emit('authorReward', rewardLog);
     await payUser(post.symbol, authorPortion, post.author,
-      rewardPool.config.stakedRewardPercentage);
+      rewardPool.config.stakedRewardPercentage, mute);
     await api.db.remove('posts', post);
   }
   return response;
@@ -691,6 +713,43 @@ actions.setActive = async (payload) => {
   existingRewardPool.active = active;
   await api.db.update('rewardPools', existingRewardPool);
   await tokenMaintenance();
+};
+
+actions.setMute = async (payload) => {
+  const {
+    rewardPoolId,
+    account,
+    mute,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
+    return;
+  }
+  const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
+  if (!api.assert(existingRewardPool, 'reward pool not found')) return;
+  const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingRewardPool.symbol });
+  if (!api.assert(api.sender === token.issuer || api.sender === api.owner, 'must be issuer of token')) return;
+  if (!api.assert(api.isValidAccountName(account), 'invalid account')) return;
+  if (!api.assert(typeof mute === 'boolean', 'mute must be a boolean')) return;
+
+  const votingPower = await api.db.findOne('votingPower', { rewardPoolId, account });
+  if (!votingPower) {
+    const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+    const timestamp = blockDate.getTime();
+    const newVotingPower = {
+      rewardPoolId,
+      account,
+      lastVoteTimestamp: timestamp,
+      votingPower: MAX_VOTING_POWER,
+      downvotingPower: MAX_VOTING_POWER,
+      mute,
+    };
+    await api.db.insert('votingPower', newVotingPower);
+  } else {
+    votingPower.mute = mute;
+    await api.db.update('votingPower', votingPower);
+  }
 };
 
 async function getRewardPoolIds(payload) {

@@ -948,6 +948,11 @@ async function processVote(post, voter, weight, timestamp) {
     );
   }
 
+  if (votingPower.mute) {
+    voteRshares = '0';
+    curationWeight = '0';
+  }
+
   await api.db.update('votingPower', votingPower);
 
   let vote = await api.db.findOne('votes', { rewardPoolId, authorperm, voter });
@@ -961,7 +966,11 @@ async function processVote(post, voter, weight, timestamp) {
     updatedPostRshares = api.BigNumber(voteRshares).minus(oldVoteRshares)
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
     await api.db.update('votes', vote);
-    api.emit('updateVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
+    const voteLog = { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares };
+    if (votingPower.mute) {
+      voteLog.mute = true;
+    }
+    api.emit('updateVote', voteLog);
   } else {
     vote = {
       rewardPoolId,
@@ -975,7 +984,11 @@ async function processVote(post, voter, weight, timestamp) {
     };
     updatedPostRshares = voteRshares;
     await api.db.insert('votes', vote);
-    api.emit('newVote', { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares });
+    const voteLog = { rewardPoolId, symbol: rewardPool.symbol, rshares: voteRshares };
+    if (votingPower.mute) {
+      voteLog.mute = true;
+    }
+    api.emit('newVote', voteLog);
   }
 
   const oldPostClaims = calculateWeightRshares(rewardPool, post.voteRshareSum);

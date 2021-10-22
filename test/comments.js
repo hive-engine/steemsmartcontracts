@@ -68,6 +68,10 @@ async function setUpRewardPool(configOverride = {}) {
       await tableAsserts.assertNoErrorInLastBlock();
 }
 
+function maintenanceOp(refBlockNumber) {
+    return new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "null", "author": "null", "permlink": "test", "weight": 10000 }');
+}
+
 async function forwardPostMaintenanceAndAssertIssue(timestamp, tokens) {
   let transactions, refBlockNumber, block, res, rewardPool;
   let tokensIssued = BigNumber(0);
@@ -79,7 +83,7 @@ async function forwardPostMaintenanceAndAssertIssue(timestamp, tokens) {
   for (let i = 0; i < verifyNumBlocks; i += 1) {
     transactions = [];
     refBlockNumber = fixture.getNextRefBlockNumber();
-    transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+    transactions.push(maintenanceOp(refBlockNumber));
     block = {
       refHiveBlockNumber: refBlockNumber,
       refHiveBlockId: 'ABCD1',
@@ -178,7 +182,7 @@ async function runBeneficiaryTest(options) {
   transactions = [];
   refBlockNumber = fixture.getNextRefBlockNumber();
   // this transaction pays out with maintenance op
-  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+  transactions.push(maintenanceOp(refBlockNumber));
 
   block = {
     refHiveBlockNumber: refBlockNumber,
@@ -1088,7 +1092,7 @@ describe('comments', function () {
       // forward clock and then pay out both posts
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1214,7 +1218,7 @@ describe('comments', function () {
       // forward clock and then pay out both posts
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1295,7 +1299,7 @@ describe('comments', function () {
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
       // this transaction pays out with maintenance op
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
       // this vote should be ignored.
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
@@ -1409,7 +1413,7 @@ describe('comments', function () {
       // pay out post
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1559,7 +1563,7 @@ describe('comments', function () {
       // forward clock and then pay out both posts
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2043,7 +2047,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2081,7 +2085,7 @@ describe('comments', function () {
       // forward clock and then pay out second post (3 seconds min gap time)
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2118,7 +2122,7 @@ describe('comments', function () {
       // forward clock and then finish paying out second post (3 seconds min gap time)
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2152,7 +2156,7 @@ describe('comments', function () {
       // forward clock and then finalize reward interval (3 seconds min gap time)
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2261,7 +2265,7 @@ describe('comments', function () {
       for (let i = 0; i < 11; i += 1) {
         transactions = [];
         refBlockNumber = fixture.getNextRefBlockNumber();
-        transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+        transactions.push(maintenanceOp(refBlockNumber));
         block = {
           refHiveBlockNumber: refBlockNumber,
           refHiveBlockId: 'ABCD1',
@@ -2321,8 +2325,8 @@ describe('comments', function () {
       // forward clock and process one token (two comment actions, but should only process once)
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2345,8 +2349,8 @@ describe('comments', function () {
       // forward clock and process one token (two comment actions, but should only process once)
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2446,7 +2450,7 @@ describe('comments', function () {
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
       // this transaction pays out with maintenance op
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2497,7 +2501,7 @@ describe('comments', function () {
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
       // this transaction will trigger maintenance op
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -2520,7 +2524,7 @@ describe('comments', function () {
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
       // this transaction will trigger maintenance op
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(maintenanceOp(refBlockNumber));
 
       block = {
         refHiveBlockNumber: refBlockNumber,

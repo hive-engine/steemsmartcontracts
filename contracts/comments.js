@@ -477,7 +477,6 @@ actions.createRewardPool = async (payload) => {
     config,
     isSignedWithActiveKey,
   } = payload;
-  await tokenMaintenance();
   if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
     return;
   }
@@ -596,7 +595,6 @@ actions.updateRewardPool = async (payload) => {
     config,
     isSignedWithActiveKey,
   } = payload;
-  await tokenMaintenance();
   if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
     return;
   }
@@ -712,7 +710,6 @@ actions.setActive = async (payload) => {
 
   existingRewardPool.active = active;
   await api.db.update('rewardPools', existingRewardPool);
-  await tokenMaintenance();
 };
 
 actions.setMute = async (payload) => {
@@ -799,9 +796,10 @@ actions.comment = async (payload) => {
     rewardPools,
   } = payload;
 
-  await tokenMaintenance();
   // Node enforces author / permlinks from Hive. Check that sender is null.
   if (!api.assert(api.sender === 'null', 'action must use comment operation')) return;
+  await tokenMaintenance();
+
   if (!api.assert(!rewardPools || (Array.isArray(rewardPools) && rewardPools.every(rp => Number.isInteger(rp))), 'rewardPools must be an array of integers')) return;
 
   const rewardPoolIds = await getRewardPoolIds(payload);
@@ -1020,9 +1018,9 @@ actions.vote = async (payload) => {
     permlink,
     weight,
   } = payload;
-  await tokenMaintenance();
 
   if (!api.assert(api.sender === 'null', 'can only vote with voting op')) return;
+  await tokenMaintenance();
 
   if (!api.assert(Number.isInteger(weight) && weight >= -10000 && weight <= 10000,
     'weight must be an integer from -10000 to 10000')) return;

@@ -769,6 +769,8 @@ async function getRewardPoolIds(payload) {
     if (parentPostMetadata) {
       return parentPostMetadata.rewardPoolIds;
     }
+    // This fallback is needed while we populate metadata, can be removed after
+    // all oustanding posts are also in metadata.
     // Can only return params.maxPoolsPerPost (<1000) posts
     const parentPosts = await api.db.find('posts', { authorperm: parentAuthorperm });
     if (parentPosts && parentPosts.length > 0) {

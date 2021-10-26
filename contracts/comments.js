@@ -16,7 +16,7 @@ actions.createSSC = async () => {
       'authorperm',
       { name: 'byCashoutTime', index: { rewardPoolId: 1, cashoutTime: 1 } },
     ], { primaryKey: ['authorperm', 'rewardPoolId'] });
-    await api.db.createTable('postMetadata', []);
+    await api.db.createTable('postMetadata', [], { primaryKey: ['authorperm'] });
     await api.db.createTable('votes', [{ name: 'byTimestamp', index: { rewardPoolId: 1, authorperm: 1, timestamp: 1 } }], { primaryKey: ['rewardPoolId', 'authorperm', 'voter'] });
     await api.db.createTable('votingPower', [], { primaryKey: ['rewardPoolId', 'account'] });
 
@@ -35,7 +35,7 @@ actions.createSSC = async () => {
     await api.db.insert('params', params);
   } else {
     // Clean up after deployment
-    await api.db.createTable('postMetadata', []);
+    await api.db.createTable('postMetadata', [], { primaryKey: ['authorperm'] });
   }
 };
 
@@ -765,7 +765,7 @@ async function getRewardPoolIds(payload) {
   // from the parent.
   if (parentAuthor && parentPermlink) {
     const parentAuthorperm = `@${parentAuthor}/${parentPermlink}`;
-    const parentPostMetadata = await api.db.findOne('postMetadata', { _id: parentAuthorperm });
+    const parentPostMetadata = await api.db.findOne('postMetadata', { authorperm: parentAuthorperm });
     if (parentPostMetadata) {
       return parentPostMetadata.rewardPoolIds;
     }
@@ -812,12 +812,12 @@ actions.comment = async (payload) => {
   const authorperm = `@${author}/${permlink}`;
 
   // Validate that comment is not an edit (cannot add multiple pools)
-  const existingPost = await api.db.findOne('postMetadata', { _id: authorperm });
+  const existingPost = await api.db.findOne('postMetadata', { authorperm });
   if (existingPost) {
     return;
   }
   // Tracks whether we have seen this authorperm before
-  await api.db.insert('postMetadata', { _id: authorperm, rewardPoolIds });
+  await api.db.insert('postMetadata', { authorperm, rewardPoolIds });
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();

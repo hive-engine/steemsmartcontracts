@@ -46,13 +46,16 @@ const blockData = t => ({
   executedCodeHash: t.executedCodeHash,
   logs: t.logs,
 });
+function getCompareData(block) {
+  return block.transactions.map(blockData).concat(
+    block.virtualTransactions.map(blockData),
+  );
+}
+function getCompareString(block) {
+  return JSON.stringify(getCompareData(block));
+}
 function compareBlocks(block1, block2) {
-  return JSON.stringify(block1.transactions.map(blockData).concat(
-    block1.virtualTransactions.map(blockData),
-  ))
-     === JSON.stringify(block2.transactions.map(blockData).concat(
-       block2.virtualTransactions.map(blockData),
-     ));
+  return getCompareString(block1) === getCompareString(block2);
 }
 
 async function findDivergentBlock() {
@@ -78,9 +81,9 @@ async function findDivergentBlock() {
     }
     block = await chain.findOne({ _id: check });
     // Different comparison modes, uncomment desired comparison.
-    // if (mainBlock.databaseHash !== block.databaseHash) {
+    if (mainBlock.databaseHash !== block.databaseHash) {
     // if (mainBlock.refHiveBlockNumber !== block.refHiveBlockNumber) {
-    if (!compareBlocks(mainBlock, block)) {
+    // if (!compareBlocks(mainBlock, block)) {
       high = check - 1;
     } else {
       low = check + 1;
@@ -92,9 +95,22 @@ async function findDivergentBlock() {
   if (high === headBlock && high - low <= 1) {
     console.log('ok');
   } else {
-    console.log(block);
-    console.log(mainBlock);
+    console.log('### high block');
+    console.log(getCompareData(block));
+    console.log(getCompareData(mainBlock));
+    if (low < high) {
+      console.log('### low block');
+      block = await chain.findOne({ _id: low });
+      mainBlock = await getBlock(low);
+      console.log(getCompareData(block));
+      console.log(getCompareData(mainBlock));
+    }
     console.log(`divergent block id around${low} or ${high}`);
+    console.log('sampling for divergent blocks');
+    for (let i = low; i < low + 1000; i += 1) {
+      console.log(`${i}: ${compareBlocks(await getBlock(i), await chain.findOne({ _id: i }))}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
   database.close();
 }

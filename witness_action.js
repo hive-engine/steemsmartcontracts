@@ -8,14 +8,16 @@ const ip = process.env.NODE_IP;
 const witnessAccount = process.env.ACCOUNT;
 const privateSigningKey = dhive.PrivateKey.fromString(process.env.ACTIVE_SIGNING_KEY);
 const publicSigningKey = privateSigningKey.createPublic().toString();
-const { rpcNodePort, p2pPort } = config;
+const {
+  rpcNodePort, p2pPort, streamNodes, chainId,
+} = config;
 
 function broadcastWitnessAction(contractAction, contractPayload) {
-  const client = new dhive.Client('https://api.hive.blog');
+  const client = new dhive.Client(streamNodes[0]);
   const transaction = {
     required_auths: [witnessAccount],
     required_posting_auths: [],
-    id: 'ssc-mainnet-hive',
+    id: `ssc-${chainId}`,
     json: JSON.stringify({
       contractName: 'witnesses',
       contractAction,

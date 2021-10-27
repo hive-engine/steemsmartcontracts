@@ -107,6 +107,7 @@ class Block {
     const allowCommentContract = this.refHiveBlockNumber > 54560500;
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
+      console.log(transaction);
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
 
       currentDatabaseHash = transaction.databaseHash;
@@ -236,6 +237,7 @@ class Block {
           this.refHiveBlockId, this.prevRefHiveBlockId, jsVMTimeout,
         );
       }
+        console.log(results);
     } else {
       results = { logs: { errors: ['the parameters sender, contract and action are required'] } };
     }
@@ -247,7 +249,7 @@ class Block {
     newCurrentDatabaseHash = database.getDatabaseHash();
 
 
-    // console.log('transac logs', results.logs);
+    console.log('transac logs', results.logs);
     transaction.addLogs(results.logs);
     transaction.executedCodeHash = results.executedCodeHash || ''; // eslint-disable-line
     transaction.databaseHash = newCurrentDatabaseHash; // eslint-disable-line

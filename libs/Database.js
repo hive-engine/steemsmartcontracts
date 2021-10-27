@@ -572,6 +572,7 @@ class Database {
         indexes,
       } = payload;
 
+        console.log(JSON.stringify(payload));
       await this.flushCache();
 
       const lim = limit || 1000;
@@ -632,6 +633,7 @@ class Database {
               // not exist.
               console.log(`Index ${JSON.stringify(ind)} not available for ${finalTableName}`); // eslint-disable-line no-console
             }
+            console.log(query);
             result = await tableData.find(EJSON.deserialize(query), {
               limit: lim,
               skip: off,
@@ -639,6 +641,8 @@ class Database {
               session: this.session,
             }).toArray();
 
+            console.log("*****");
+            console.log(result);
             result = EJSON.serialize(result);
           } else {
             result = await tableData.find(EJSON.deserialize(query), {
@@ -669,6 +673,7 @@ class Database {
   async findOne(payload) { // eslint-disable-line no-unused-vars
     try {
       const { contract, table, query } = payload;
+        console.log(payload);
       let result = null;
       if (contract && typeof contract === 'string'
         && table && typeof table === 'string'

@@ -18,7 +18,7 @@ const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens
 const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 const witnessContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js');
-const commentsContractPayload = setupContractPayload('comments', './contracts/comments.js', (contractCode) => contractCode.replace(/POST_QUERY_LIMIT = .*;/, 'POST_QUERY_LIMIT = 1;'));
+const commentsContractPayload = setupContractPayload('comments', './contracts/comments.js');
 
 const fixture = new Fixture();
 const tableAsserts = new TableAsserts(fixture);
@@ -953,87 +953,6 @@ describe('comments', function () {
       assertError(txs[0], 'action must use comment operation');
       assertError(txs[1], 'rewardPools must be an array of integers');
       assertError(txs[2], 'rewardPools must be an array of integers');
-
-      const posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
-      assert.equal(posts.length, 0);
-
-      resolve();
-    })
-      .then(() => {
-        fixture.tearDown();
-        done();
-      });
-  });
-
-  it('should not reactivate comment after payout', (done) => {
-    new Promise(async (resolve) => {
-      await fixture.setUp();
-
-      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
-
-      let transactions;
-      let refBlockNumber;
-      let block;
-
-      transactions = [];
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-01T00:00:00',
-        transactions,
-      };
-
-      await fixture.sendBlock(block);
-      await tableAsserts.assertNoErrorInLastBlock();
-
-      let posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
-      assert.equal(JSON.stringify(posts), '[{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"0","voteRshareSum":"0"}]');
-      let postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/test1" }});
-      assert.equal(JSON.stringify(postMetadata), '{"_id":{"authorperm":"@author1/test1"},"authorperm":"@author1/test1","rewardPoolIds":[1]}');
-
-      // catch up post maintenance
-      await forwardPostMaintenanceAndAssertIssue('2018-06-07T23:59:57', "302398.50000000");
-
-      // forward clock and then pay out post
-      transactions = [];
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(maintenanceOp(refBlockNumber));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-08T00:00:00',
-        transactions,
-      };
-
-      await fixture.sendBlock(block);
-      await tableAsserts.assertNoErrorInLastBlock();
-
-      posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
-      assert.equal(JSON.stringify(posts), '[]');
-
-      transactions = [];
-      refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
-
-      block = {
-        refHiveBlockNumber: refBlockNumber,
-        refHiveBlockId: 'ABCD1',
-        prevRefHiveBlockId: 'ABCD2',
-        timestamp: '2018-06-08T00:00:03',
-        transactions,
-      };
-
-      await fixture.sendBlock(block);
-      await tableAsserts.assertNoErrorInLastBlock();
-
-      posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
-      assert.equal(JSON.stringify(posts), '[]');
 
       resolve();
     })

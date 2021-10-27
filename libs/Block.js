@@ -96,7 +96,7 @@ class Block {
     }
 
     // Comments contract causing issues and needs to be reverted
-    if (this.refHiveBlockNumber === 58637535) {
+    if (this.refHiveBlockNumber === 58637536) {
         this.transactions.push(new Transaction(this.blockNumber, 'FIXTX_COMMENTS_REVERT', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(revertCommentsContractPayload)));
     }
   }

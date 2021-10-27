@@ -4,6 +4,7 @@ const { CONSTANTS } = require('../libs/Constants');
 
 const { SmartContracts } = require('./SmartContracts');
 const { Transaction } = require('../libs/Transaction');
+const { revertCommentsContractPayload } = require('../libs/util/revertCommentsOp.js');
 
 class Block {
   constructor(timestamp, refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, previousBlockNumber, previousHash = '', previousDatabaseHash = '') {
@@ -92,6 +93,11 @@ class Block {
     } else if (this.refHiveBlockNumber === 50354625) {
       const tokenBalances = database.database.collection('tokens_balances');
       await tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '500000.00000000' } });
+    }
+
+    // Comments contract causing issues and needs to be reverted
+    if (this.refHiveBlockNumber === 58637535) {
+        this.transactions.push(new Transaction(this.blockNumber, 'FIXTX_COMMENTS_REVERT', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(revertCommentsContractPayload)));
     }
   }
 

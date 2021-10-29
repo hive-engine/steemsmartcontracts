@@ -33,9 +33,6 @@ actions.createSSC = async () => {
       lastProcessedPoolId: 0,
     };
     await api.db.insert('params', params);
-  } else {
-    // Clean up after deployment
-    await api.db.createTable('postMetadata', [], { primaryKey: ['authorperm'] });
   }
 };
 
@@ -814,11 +811,16 @@ actions.comment = async (payload) => {
   const authorperm = `@${author}/${permlink}`;
 
   // Validate that comment is not an edit (cannot add multiple pools)
-  const existingPost = await api.db.findOne('postMetadata', { authorperm });
+  const existingPostMetadata = await api.db.findOne('postMetadata', { authorperm });
+  if (existingPostMetadata) {
+    return;
+  }
+  // Needed for posts before metadata updated. Can be removed once all posts have metadata.
+  const existingPost = await api.db.findOne('posts', { authorperm });
   if (existingPost) {
     return;
   }
-  // Tracks whether we have seen this authorperm before
+  
   await api.db.insert('postMetadata', { authorperm, rewardPoolIds });
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);

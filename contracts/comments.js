@@ -820,7 +820,7 @@ actions.comment = async (payload) => {
   if (existingPost) {
     return;
   }
-  
+
   await api.db.insert('postMetadata', { authorperm, rewardPoolIds });
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);

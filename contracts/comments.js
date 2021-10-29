@@ -5,6 +5,7 @@
 const SMT_PRECISION = 10;
 const MAX_VOTING_POWER = 10000;
 const MAX_WEIGHT = 10000;
+const POST_QUERY_LIMIT = 1000;
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('rewardPools');
@@ -15,6 +16,7 @@ actions.createSSC = async () => {
       'authorperm',
       { name: 'byCashoutTime', index: { rewardPoolId: 1, cashoutTime: 1 } },
     ], { primaryKey: ['authorperm', 'rewardPoolId'] });
+    await api.db.createTable('postMetadata', [], { primaryKey: ['authorperm'] });
     await api.db.createTable('votes', [{ name: 'byTimestamp', index: { rewardPoolId: 1, authorperm: 1, timestamp: 1 } }], { primaryKey: ['rewardPoolId', 'authorperm', 'voter'] });
     await api.db.createTable('votingPower', [], { primaryKey: ['rewardPoolId', 'account'] });
 
@@ -31,6 +33,9 @@ actions.createSSC = async () => {
       lastProcessedPoolId: 0,
     };
     await api.db.insert('params', params);
+  } else {
+    // Clean up after deployment
+    await api.db.createTable('postMetadata', [], { primaryKey: ['authorperm'] });
   }
 };
 
@@ -326,9 +331,6 @@ async function computePostRewards(params, rewardPool, token, endTimestamp) {
 }
 
 async function postClaimsInInterval(params, rewardPool, start, end) {
-  const {
-    maxPostsProcessedPerRound,
-  } = params;
   let postOffset = 0;
   let newPendingClaims = api.BigNumber(0);
   let postsToPayout = await api.db.find('posts',
@@ -336,7 +338,7 @@ async function postClaimsInInterval(params, rewardPool, start, end) {
       rewardPoolId: rewardPool._id,
       cashoutTime: { $gte: start, $lte: end },
     },
-    maxPostsProcessedPerRound,
+    POST_QUERY_LIMIT,
     postOffset,
     [{ index: 'byCashoutTime', descending: false }, { index: '_id', descending: false }]);
   while (postsToPayout && postsToPayout.length > 0) {
@@ -345,16 +347,16 @@ async function postClaimsInInterval(params, rewardPool, start, end) {
         api.BigNumber(0)),
     )
       .dp(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-    if (postsToPayout.length < maxPostsProcessedPerRound) {
+    if (postsToPayout.length < POST_QUERY_LIMIT) {
       break;
     }
-    postOffset += maxPostsProcessedPerRound;
+    postOffset += POST_QUERY_LIMIT;
     postsToPayout = await api.db.find('posts',
       {
         rewardPoolId: rewardPool._id,
         cashoutTime: { $gte: start, $lte: end },
       },
-      maxPostsProcessedPerRound,
+      POST_QUERY_LIMIT,
       postOffset,
       [{ index: 'byCashoutTime', descending: false }, { index: '_id', descending: false }]);
   }
@@ -763,6 +765,12 @@ async function getRewardPoolIds(payload) {
   // from the parent.
   if (parentAuthor && parentPermlink) {
     const parentAuthorperm = `@${parentAuthor}/${parentPermlink}`;
+    const parentPostMetadata = await api.db.findOne('postMetadata', { authorperm: parentAuthorperm });
+    if (parentPostMetadata) {
+      return parentPostMetadata.rewardPoolIds;
+    }
+    // This fallback is needed while we populate metadata, can be removed after
+    // all oustanding posts are also in metadata.
     // Can only return params.maxPoolsPerPost (<1000) posts
     const parentPosts = await api.db.find('posts', { authorperm: parentAuthorperm });
     if (parentPosts && parentPosts.length > 0) {
@@ -806,10 +814,12 @@ actions.comment = async (payload) => {
   const authorperm = `@${author}/${permlink}`;
 
   // Validate that comment is not an edit (cannot add multiple pools)
-  const existingPost = await api.db.findOne('posts', { authorperm });
+  const existingPost = await api.db.findOne('postMetadata', { authorperm });
   if (existingPost) {
     return;
   }
+  // Tracks whether we have seen this authorperm before
+  await api.db.insert('postMetadata', { authorperm, rewardPoolIds });
 
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const timestamp = blockDate.getTime();

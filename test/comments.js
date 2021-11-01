@@ -1043,6 +1043,49 @@ describe('comments', function () {
       });
   });
 
+  it('should fall back to post if metadata not present', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      let transactions;
+      let refBlockNumber;
+      let block;
+
+      await fixture.database.insert({ contract: 'comments', table: 'posts', record: { authorperm: '@author1/test1', rewardPoolId: 1 }});
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "re-test1", "parentAuthor": "author1", "parentPermlink": "test1" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      let posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
+      assert.equal(JSON.stringify(posts), '[{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"authorperm":"@author1/test1","rewardPoolId":1},{"_id":{"authorperm":"@author1/re-test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/re-test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"0","voteRshareSum":"0"}]');
+      let postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/test1" }});
+      assert.equal(postMetadata, null);
+      postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/re-test1" }});
+      assert.equal(JSON.stringify(postMetadata), '{"_id":{"authorperm":"@author1/re-test1"},"authorperm":"@author1/re-test1","rewardPoolIds":[1]}');
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
   it('should not vote', (done) => {
     new Promise(async (resolve) => {
       await fixture.setUp();

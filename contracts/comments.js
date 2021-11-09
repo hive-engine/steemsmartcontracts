@@ -774,7 +774,6 @@ actions.resetPool = async (payload) => {
 };
 
 
-
 async function getRewardPoolIds(payload) {
   const {
     rewardPools,

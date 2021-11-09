@@ -715,6 +715,7 @@ describe('comments', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "-invalid", "mute": true, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "invalid", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'nobody', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "true", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -732,6 +733,7 @@ describe('comments', function () {
       assertError(txs[2], 'invalid account');
       assertError(txs[3], 'mute must be a boolean');
       assertError(txs[4], 'mute must be a boolean');
+      assertError(txs[5], 'must be issuer of token');
 
       resolve();
     })
@@ -764,6 +766,101 @@ describe('comments', function () {
 
       const vp = await fixture.database.findOne({ contract: 'comments', table: 'votingPower', query: { account: 'author', rewardPoolId: 1}});
       assert(vp.mute);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should not resetPool', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'resetPool', '{ "rewardPoolId": 1, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'resetPool', '{ "rewardPoolId": 2, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'nobody', 'comments', 'resetPool', '{ "rewardPoolId": 1, "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      let res = await fixture.database.getLatestBlockInfo();
+      let txs = res.transactions;
+      assertError(txs[0], 'operation must be signed with your active key');
+      assertError(txs[1], 'reward pool not found');
+      assertError(txs[2], 'must be issuer of token');
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should resetPool', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      // catch up post maintenance
+      await forwardPostMaintenanceAndAssertIssue('2018-06-07T23:59:57', "302398.50000000");
+
+      let rewardPool = await fixture.database.findOne({ contract: 'comments', table: 'rewardPools', query: { _id: 1}});
+      const expectedRewardPool = {"_id":1,"symbol":"TKN","rewardPool":"302398.50000000","lastRewardTimestamp":1528415997000,"lastClaimDecayTimestamp":1528415997000,"createdTimestamp":1527811200000,"config":{"postRewardCurve":"power","postRewardCurveParameter":"1","curationRewardCurve":"power","curationRewardCurveParameter":"0.5","curationRewardPercentage":50,"cashoutWindowDays":7,"rewardPerInterval":"1.5","rewardIntervalSeconds":3,"voteRegenerationDays":14,"downvoteRegenerationDays":14,"stakedRewardPercentage":50,"votePowerConsumption":200,"downvotePowerConsumption":2000,"tags":["scottest"]},"pendingClaims":"9.9997685205","active":true,"intervalPendingClaims":"9.9997685205","intervalRewardPool":"15.00000000"};
+      assert.equal(JSON.stringify(rewardPool), JSON.stringify(expectedRewardPool));
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'resetPool', '{ "rewardPoolId": 1, "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-08T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      rewardPool = await fixture.database.findOne({ contract: 'comments', table: 'rewardPools', query: { _id: 1}});
+      expectedRewardPool.rewardPool = '0';
+      expectedRewardPool.pendingClaims = '0';
+      expectedRewardPool.lastClaimDecayTimestamp = 1528416000000;
+      expectedRewardPool.lastRewardTimestamp = 1528416000000;
+      expectedRewardPool.createdTimestamp = 1528416000000;
+      assert.equal(JSON.stringify(rewardPool), JSON.stringify(expectedRewardPool));
 
       resolve();
     })

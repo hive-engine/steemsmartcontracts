@@ -248,7 +248,7 @@ class Block {
       results = { logs: { errors: ['the parameters sender, contract and action are required'] } };
     }
     if (results.logs && results.logs.errors && results.logs.errors.find(m => m.includes('MongoError'))) {
-      console.error(`Mongo tx error, transaction: ${JSON.stringify(transaction)}, result: ${JSON.stringify(results)}`); // eslint-disable-line no-console
+      throw new Error(`Mongo tx error, transaction: ${JSON.stringify(transaction)}, result: ${JSON.stringify(results)}`);
     }
 
     await database.flushCache();

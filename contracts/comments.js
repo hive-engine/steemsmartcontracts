@@ -748,6 +748,31 @@ actions.setMute = async (payload) => {
   }
 };
 
+actions.resetPool = async (payload) => {
+  const {
+    rewardPoolId,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
+    return;
+  }
+  const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
+  if (!api.assert(existingRewardPool, 'reward pool not found')) return;
+  const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingRewardPool.symbol });
+  if (!api.assert(api.sender === token.issuer || api.sender === api.owner, 'must be issuer of token')) return;
+
+  const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
+  const timestamp = blockDate.getTime();
+  existingRewardPool.rewardPool = '0';
+  existingRewardPool.lastRewardTimestamp = timestamp;
+  existingRewardPool.lastClaimDecayTimestamp = timestamp;
+  existingRewardPool.createdTimestamp = timestamp;
+  existingRewardPool.pendingClaims = '0';
+  await api.db.update('rewardPools', existingRewardPool);
+};
+
+
 async function getRewardPoolIds(payload) {
   const {
     rewardPools,

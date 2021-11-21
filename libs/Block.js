@@ -4,6 +4,9 @@ const { CONSTANTS } = require('../libs/Constants');
 
 const { SmartContracts } = require('./SmartContracts');
 const { Transaction } = require('../libs/Transaction');
+const { setupContractPayload } = require('../libs/util/contractUtil');
+
+const revertCommentsContractPayload = setupContractPayload('comments', './contracts/revert/comments_minify_20211027.js');
 
 class Block {
   constructor(timestamp, refHiveBlockNumber, refHiveBlockId, prevRefHiveBlockId, transactions, previousBlockNumber, previousHash = '', previousDatabaseHash = '') {
@@ -92,6 +95,11 @@ class Block {
     } else if (this.refHiveBlockNumber === 50354625) {
       const tokenBalances = database.database.collection('tokens_balances');
       await tokenBalances.updateOne({ _id: 21725 }, { $set: { account: 'nightowl1', balance: '500000.00000000' } });
+    }
+
+    // Comments contract causing issues and needs to be reverted. put at beginning
+    if (this.refHiveBlockNumber === 58637536) {
+      this.transactions.unshift(new Transaction(this.blockNumber, 'FIXTX_COMMENTS_REVERT', CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(revertCommentsContractPayload)));
     }
   }
 
@@ -240,6 +248,9 @@ class Block {
         console.log(results);
     } else {
       results = { logs: { errors: ['the parameters sender, contract and action are required'] } };
+    }
+    if (results.logs && results.logs.errors && results.logs.errors.find(m => m.includes('MongoError'))) {
+      throw new Error(`Mongo tx error, transaction: ${JSON.stringify(transaction)}, result: ${JSON.stringify(results)}`);
     }
 
     await database.flushCache();

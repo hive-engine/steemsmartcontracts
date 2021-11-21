@@ -18,7 +18,7 @@ const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens
 const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 const witnessContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js');
-const commentsContractPayload = setupContractPayload('comments', './contracts/comments.js');
+const commentsContractPayload = setupContractPayload('comments', './contracts/comments.js', (contractCode) => contractCode.replace(/POST_QUERY_LIMIT = .*;/, 'POST_QUERY_LIMIT = 1;'));
 
 const fixture = new Fixture();
 const tableAsserts = new TableAsserts(fixture);
@@ -715,6 +715,7 @@ describe('comments', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "-invalid", "mute": true, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "invalid", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'nobody', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "true", "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -732,6 +733,7 @@ describe('comments', function () {
       assertError(txs[2], 'invalid account');
       assertError(txs[3], 'mute must be a boolean');
       assertError(txs[4], 'mute must be a boolean');
+      assertError(txs[5], 'must be issuer of token');
 
       resolve();
     })
@@ -764,6 +766,101 @@ describe('comments', function () {
 
       const vp = await fixture.database.findOne({ contract: 'comments', table: 'votingPower', query: { account: 'author', rewardPoolId: 1}});
       assert(vp.mute);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should not resetPool', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'resetPool', '{ "rewardPoolId": 1, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'resetPool', '{ "rewardPoolId": 2, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'nobody', 'comments', 'resetPool', '{ "rewardPoolId": 1, "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      let res = await fixture.database.getLatestBlockInfo();
+      let txs = res.transactions;
+      assertError(txs[0], 'operation must be signed with your active key');
+      assertError(txs[1], 'reward pool not found');
+      assertError(txs[2], 'must be issuer of token');
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should resetPool', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      // catch up post maintenance
+      await forwardPostMaintenanceAndAssertIssue('2018-06-07T23:59:57', "302398.50000000");
+
+      let rewardPool = await fixture.database.findOne({ contract: 'comments', table: 'rewardPools', query: { _id: 1}});
+      const expectedRewardPool = {"_id":1,"symbol":"TKN","rewardPool":"302398.50000000","lastRewardTimestamp":1528415997000,"lastClaimDecayTimestamp":1528415997000,"createdTimestamp":1527811200000,"config":{"postRewardCurve":"power","postRewardCurveParameter":"1","curationRewardCurve":"power","curationRewardCurveParameter":"0.5","curationRewardPercentage":50,"cashoutWindowDays":7,"rewardPerInterval":"1.5","rewardIntervalSeconds":3,"voteRegenerationDays":14,"downvoteRegenerationDays":14,"stakedRewardPercentage":50,"votePowerConsumption":200,"downvotePowerConsumption":2000,"tags":["scottest"]},"pendingClaims":"9.9997685205","active":true,"intervalPendingClaims":"9.9997685205","intervalRewardPool":"15.00000000"};
+      assert.equal(JSON.stringify(rewardPool), JSON.stringify(expectedRewardPool));
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'resetPool', '{ "rewardPoolId": 1, "isSignedWithActiveKey": true }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-08T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      rewardPool = await fixture.database.findOne({ contract: 'comments', table: 'rewardPools', query: { _id: 1}});
+      expectedRewardPool.rewardPool = '0';
+      expectedRewardPool.pendingClaims = '0';
+      expectedRewardPool.lastClaimDecayTimestamp = 1528416000000;
+      expectedRewardPool.lastRewardTimestamp = 1528416000000;
+      expectedRewardPool.createdTimestamp = 1528416000000;
+      assert.equal(JSON.stringify(rewardPool), JSON.stringify(expectedRewardPool));
 
       resolve();
     })
@@ -953,6 +1050,130 @@ describe('comments', function () {
       assertError(txs[0], 'action must use comment operation');
       assertError(txs[1], 'rewardPools must be an array of integers');
       assertError(txs[2], 'rewardPools must be an array of integers');
+
+      const posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
+      assert.equal(posts.length, 0);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should not reactivate comment after payout', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      let transactions;
+      let refBlockNumber;
+      let block;
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      let posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
+      assert.equal(JSON.stringify(posts), '[{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"0","voteRshareSum":"0"}]');
+      let postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/test1" }});
+      assert.equal(JSON.stringify(postMetadata), '{"_id":{"authorperm":"@author1/test1"},"authorperm":"@author1/test1","rewardPoolIds":[1]}');
+
+      // catch up post maintenance
+      await forwardPostMaintenanceAndAssertIssue('2018-06-07T23:59:57', "302398.50000000");
+
+      // forward clock and then pay out post
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(maintenanceOp(refBlockNumber));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-08T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
+      assert.equal(JSON.stringify(posts), '[]');
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-08T00:00:03',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
+      assert.equal(JSON.stringify(posts), '[]');
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should fall back to post if metadata not present', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      let transactions;
+      let refBlockNumber;
+      let block;
+
+      await fixture.database.insert({ contract: 'comments', table: 'posts', record: { authorperm: '@author1/test1', rewardPoolId: 1 }});
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "re-test1", "parentAuthor": "author1", "parentPermlink": "test1" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      let posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
+      assert.equal(JSON.stringify(posts), '[{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"authorperm":"@author1/test1","rewardPoolId":1},{"_id":{"authorperm":"@author1/re-test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/re-test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"0","voteRshareSum":"0"}]');
+      let postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/test1" }});
+      assert.equal(postMetadata, null);
+      postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/re-test1" }});
+      assert.equal(JSON.stringify(postMetadata), '{"_id":{"authorperm":"@author1/re-test1"},"authorperm":"@author1/re-test1","rewardPoolIds":[1]}');
 
       resolve();
     })

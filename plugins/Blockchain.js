@@ -55,7 +55,7 @@ async function getCompareBlock(blockNumber) {
     if (compareBlock) return compareBlock;
     try {
       compareBlock = (await axios({
-        url: 'https://api2.hive-engine.com/rpc/blockchain',
+        url: 'https://api.hive-engine.com/rpc/blockchain',
         method: 'POST',
         headers: {
           'content-type': 'application/json',

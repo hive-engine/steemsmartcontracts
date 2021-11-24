@@ -10,11 +10,10 @@
         "https://api.deathwing.me",
         "https://rpc.ecency.com",
         "https://hived.emre.sh",
-        "https://rpc.ausbit.dev",
         "https://api.hive.blog",
         "https://api.openhive.network"
     ],
     "startHiveBlock": 41967000,
     "genesisHiveBlock": 41967000,
-    "witnessEnabled": false
+    "witnessEnabled": true
 }

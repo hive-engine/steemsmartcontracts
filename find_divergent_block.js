@@ -47,9 +47,8 @@ const blockData = t => ({
   logs: t.logs,
 });
 function getCompareData(block) {
-  return block.transactions.map(blockData).concat(
-    block.virtualTransactions.map(blockData),
-  );
+  return block;
+  //return block.transactions.map(blockData).concat( block.virtualTransactions.map(blockData),);
 }
 function getCompareString(block) {
   return JSON.stringify(getCompareData(block));
@@ -81,7 +80,7 @@ async function findDivergentBlock() {
     }
     block = await chain.findOne({ _id: check });
     // Different comparison modes, uncomment desired comparison.
-    if (mainBlock.databaseHash !== block.databaseHash) {
+    if (mainBlock.hash !== block.hash) {
     // if (mainBlock.refHiveBlockNumber !== block.refHiveBlockNumber) {
     // if (!compareBlocks(mainBlock, block)) {
       high = check - 1;

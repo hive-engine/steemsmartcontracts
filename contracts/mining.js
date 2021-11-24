@@ -1062,7 +1062,9 @@ actions.handleStakeChange = async (payload) => {
   }
 };
 
-actions.handleNftChange = async (payload) => {
+actions.handleNftChange = async (payload) => {};
+
+actions.handleNftDelegationChange = async (payload) => {
   const {
     symbol, nft, add, callingContractInfo,
   } = payload;
@@ -1073,6 +1075,9 @@ actions.handleNftChange = async (payload) => {
       if (pool.updating.inProgress
           && pool.updating.tokenIndex === pool.tokenMiners.length
           && pool.updating.lastId < nft._id) {
+        return;
+      }
+      if (!pool.active) {
         return;
       }
       if (!pool.nftTokenMiner) {

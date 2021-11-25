@@ -682,8 +682,6 @@ actions.setActive = async (payload) => {
   }
   const pool = await api.db.findOne('pools', { id });
   if (api.assert(pool, 'pool id not found')) {
-    pool.active = !!active;
-
     const minedTokenObject = await api.db.findOneInTable('tokens', 'tokens', { symbol: pool.minedToken });
     // eslint-disable-next-line no-template-curly-in-string
     if (api.assert(minedTokenObject && (minedTokenObject.issuer === api.sender || (minedTokenObject.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'" && api.sender === api.owner)), 'must be issuer of minedToken')) {
@@ -691,6 +689,16 @@ actions.setActive = async (payload) => {
       pool.nextLotteryTimestamp = api.BigNumber(blockDate.getTime())
         .plus(pool.lotteryIntervalHours * 3600 * 1000).toNumber();
 
+      const { nftTokenMiner } = pool;
+      if (nftTokenMiner) {
+        const nftTokenPool = await api.db.findOne('nftTokenPools', { symbol: nftTokenMiner.symbol, id: pool.id });
+        if (active && !nftTokenPool) {
+          await api.db.insert('nftTokenPools', { symbol: nftTokenMiner.symbol, id: pool.id });
+        } else if (!active && nftTokenPool) {
+          await api.db.remove('nftTokenPools', nftTokenPool);
+        }
+      }
+      pool.active = !!active;
       await api.db.update('pools', pool);
     }
   }

@@ -302,6 +302,7 @@ class SmartContracts {
         refHiveBlockNumber,
       } = transaction;
 
+        console.log(transaction);
       if (RESERVED_ACTIONS.includes(action)) return { logs: { errors: ['you cannot trigger this action'] } };
 
       const payloadObj = payload ? JSON.parse(payload) : {};
@@ -508,8 +509,10 @@ class SmartContracts {
 
       return results;
     } catch (e) {
-      // console.error('ERROR DURING CONTRACT EXECUTION: ', e);
+      console.error('ERROR DURING CONTRACT EXECUTION: ', e);
       return { logs: { errors: [`${e.name}: ${e.message}`] } };
+    } finally {
+      console.log('completed');
     }
   }
 

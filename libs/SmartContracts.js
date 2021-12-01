@@ -592,6 +592,7 @@ class SmartContracts {
     callingContractName, callingContractAction, callingContractVersion,
   ) {
     if (typeof contract !== 'string' || typeof action !== 'string' || (parameters && typeof parameters !== 'string')) return null;
+    if (refHiveBlockNumber >= 59377007 && contract === 'mining' && action === 'handleNftChange') return null;
     const sanitizedParams = parameters ? JSON.parse(parameters) : null;
 
     // check if a recipient or amountHIVEHBD

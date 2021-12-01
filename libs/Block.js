@@ -135,6 +135,8 @@ class Block {
 
     // handle virtual transactions
     const virtualTransactions = [];
+    // reset in case block processing loops
+    this.virtualTransactions = [];
 
     // use contracts_config contractTicks to trigger ticking contract actions.
     const contractsConfig = await database.getContractsConfig();
@@ -190,6 +192,11 @@ class Block {
           relIndex += 1;
         }
       }
+    }
+
+    // add odd blocks, consensus appended double virtual transactions
+    if (this.refHiveBlockNumber === 59376574) {
+        this.virtualTransactions = this.virtualTransactions.concat(this.virtualTransactions);
     }
 
     if (this.transactions.length > 0 || this.virtualTransactions.length > 0) {

@@ -2,6 +2,7 @@
 /* eslint-disable no-await-in-loop */
 const SHA256 = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
+const log = require('loglevel');
 const validator = require('validator');
 const { MongoClient } = require('mongodb');
 const { EJSON } = require('bson');
@@ -202,8 +203,8 @@ class Database {
       this.databaseHash = SHA256(this.databaseHash + contractInDb.tables[table].hash)
         .toString(enchex);
       if (enableHashLogging) {
-        console.log(`updated hash of ${table} to ${contractInDb.tables[table].hash}`); // eslint-disable-line no-console
-        console.log(`updated db hash from ${oldDatabaseHash} to ${this.databaseHash}`); // eslint-disable-line no-console
+        log.info(`updated hash of ${table} to ${contractInDb.tables[table].hash}`); // eslint-disable-line no-console
+        log.info(`updated db hash from ${oldDatabaseHash} to ${this.databaseHash}`); // eslint-disable-line no-console
       }
     }
   }
@@ -260,7 +261,7 @@ class Database {
       return latestBlock;
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      log.error(error);
       return null;
     }
   }
@@ -278,7 +279,7 @@ class Database {
       return latestBlock;
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      log.error(error);
       return null;
     }
   }
@@ -292,7 +293,7 @@ class Database {
       return block;
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      log.error(error);
       return null;
     }
   }
@@ -327,11 +328,11 @@ class Database {
         );
       } else {
         // eslint-disable-next-line no-console
-        console.error('verifyBlock', blockNumber, 'does not exist');
+        log.error('verifyBlock', blockNumber, 'does not exist');
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      log.error(error);
     }
   }
 
@@ -360,7 +361,7 @@ class Database {
       return null;
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      log.error(error);
       return null;
     }
   }
@@ -488,7 +489,7 @@ class Database {
         result = true;
       }
     } else {
-      console.warn(`Table invalid, was not created, payload: ${JSON.stringify(payload)}`); // eslint-disable-line no-console
+      log.warn(`Table invalid, was not created, payload: ${JSON.stringify(payload)}`); // eslint-disable-line no-console
     }
 
     return result;
@@ -527,14 +528,14 @@ class Database {
             let createIndex = true;
             if (typeof index === 'object') {
               if (tableIndexes[index.name] !== undefined) {
-                console.log(`Index with name ${index.name} already exists for ${finalTableName}`); // eslint-disable-line no-console
+                log.info(`Index with name ${index.name} already exists for ${finalTableName}`); // eslint-disable-line no-console
                 createIndex = false;
               } else {
                 indexOptions.name = index.name;
                 finalIndex = index.index;
               }
             } else if (tableIndexes[`${index}_1`] !== undefined) {
-              console.log(`Index ${index} already exists for ${finalTableName}`); // eslint-disable-line no-console
+              log.info(`Index ${index} already exists for ${finalTableName}`); // eslint-disable-line no-console
               createIndex = false;
             } else {
               finalIndex[index] = 1;
@@ -572,7 +573,7 @@ class Database {
         indexes,
       } = payload;
 
-        console.log(JSON.stringify(payload));
+      log.info('Find payload ', JSON.stringify(payload));
       await this.flushCache();
 
       const lim = limit || 1000;
@@ -631,9 +632,8 @@ class Database {
               // This can happen when creating a table and using find with index all in the same transaction
               // and should be rare in production. Otherwise, contract code is asking for an index that does
               // not exist.
-              console.log(`Index ${JSON.stringify(ind)} not available for ${finalTableName}`); // eslint-disable-line no-console
+              log.info(`Index ${JSON.stringify(ind)} not available for ${finalTableName}`); // eslint-disable-line no-console
             }
-            console.log(query);
             result = await tableData.find(EJSON.deserialize(query), {
               limit: lim,
               skip: off,
@@ -641,8 +641,6 @@ class Database {
               session: this.session,
             }).toArray();
 
-            console.log("*****");
-            console.log(result);
             result = EJSON.serialize(result);
           } else {
             result = await tableData.find(EJSON.deserialize(query), {
@@ -658,7 +656,7 @@ class Database {
       return result;
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      log.error(error);
       return null;
     }
   }
@@ -673,7 +671,7 @@ class Database {
   async findOne(payload) { // eslint-disable-line no-unused-vars
     try {
       const { contract, table, query } = payload;
-        console.log(payload);
+      log.info('findOne payload ', payload);
       let result = null;
       if (contract && typeof contract === 'string'
         && table && typeof table === 'string'
@@ -715,7 +713,7 @@ class Database {
       return result;
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      log.error(error);
       return null;
     }
   }

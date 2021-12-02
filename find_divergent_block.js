@@ -56,6 +56,35 @@ function getCompareString(block) {
 function compareBlocks(block1, block2) {
   return getCompareString(block1) === getCompareString(block2);
 }
+function printBlockDiff(block, mainBlock) {
+    // go through transactions, then virtual transactions, then overall hash
+    if (!block) {
+        console.log('This node missing block');
+    } else if (!mainBlock) {
+        console.log('Comparison node missing block');
+    } else {
+        for (let i = 0; i < block.transactions.length; i += 1) {
+            const txString = JSON.stringify(block.transactions[i]);
+            const mainTxString = JSON.stringify(mainBlock.transactions[i]);
+            if (txString === mainTxString) {
+                console.log(`Transaction ${i} matches`);
+            } else {
+                console.log(`Transaction ${i} mismatch: This: ${txString}, Main: ${mainTxString}`);
+                return;
+            }
+        }
+        for (let i = 0; i < block.virtualTransactions.length; i += 1) {
+            const txString = JSON.stringify(block.virtualTransactions[i]);
+            const mainTxString = JSON.stringify(mainBlock.virtualTransactions[i]);
+            if (txString === mainTxString) {
+                console.log(`Virtual Transaction ${i} matches`);
+            } else {
+                console.log(`Virtual Transaction ${i} mismatch: This: ${txString}, Main: ${mainTxString}`);
+                return;
+            }
+        }
+    }
+}
 
 async function findDivergentBlock() {
   const {
@@ -71,7 +100,7 @@ async function findDivergentBlock() {
   let high = block._id;
   const headBlock = high;
   let mainBlock;
-  while (high - low > 1) {
+  while (high - low >= 1) {
     console.log(`low ${low} high ${high}`);
     const check = Math.floor((low + high) / 2);
     mainBlock = await getBlock(check);
@@ -83,7 +112,7 @@ async function findDivergentBlock() {
     if (mainBlock.hash !== block.hash) {
     // if (mainBlock.refHiveBlockNumber !== block.refHiveBlockNumber) {
     // if (!compareBlocks(mainBlock, block)) {
-      high = check - 1;
+      high = check;
     } else {
       low = check + 1;
     }
@@ -91,20 +120,12 @@ async function findDivergentBlock() {
   mainBlock = await getBlock(high);
   block = await chain.findOne({ _id: high });
 
-  if (high === headBlock && high - low <= 1) {
+  if (high === headBlock && high - low <= 0) {
     console.log('ok');
   } else {
     console.log('### high block');
-    console.log(getCompareData(block));
-    console.log(getCompareData(mainBlock));
-    if (low < high) {
-      console.log('### low block');
-      block = await chain.findOne({ _id: low });
-      mainBlock = await getBlock(low);
-      console.log(getCompareData(block));
-      console.log(getCompareData(mainBlock));
-    }
-    console.log(`divergent block id around${low} or ${high}`);
+    printBlockDiff(block, mainBlock);
+    console.log(`divergent block id at ${high}`);
     console.log('sampling for divergent blocks');
     for (let i = low; i < low + 1000; i += 1) {
       console.log(`${i}: ${compareBlocks(await getBlock(i), await chain.findOne({ _id: i }))}`);

@@ -513,6 +513,8 @@ actions.createRewardPool = async (payload) => {
     votePowerConsumption,
     downvotePowerConsumption,
     tags,
+    disableDownvote,
+    ignoreDeclinePayout,
   } = config;
 
   if (!api.assert(postRewardCurve && postRewardCurve === 'power', 'postRewardCurve should be one of: [power]')) return;
@@ -540,6 +542,9 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
 
   if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
+
+  if (!api.assert(typeof disableDownvote === 'boolean', 'disableDownvote should be boolean')) return;
+  if (!api.assert(typeof ignoreDeclinePayout === 'boolean', 'ignoreDeclinePayout should be boolean')) return;
 
   // for now, restrict to 1 pool per symbol, and creator must be issuer.
   // eslint-disable-next-line no-template-curly-in-string
@@ -573,6 +578,8 @@ actions.createRewardPool = async (payload) => {
       votePowerConsumption,
       downvotePowerConsumption,
       tags,
+      disableDownvote,
+      ignoreDeclinePayout, 
     },
     pendingClaims: '0',
     active: true,
@@ -627,6 +634,8 @@ actions.updateRewardPool = async (payload) => {
     votePowerConsumption,
     downvotePowerConsumption,
     tags,
+    disableDownvote,
+    ignoreDeclinePayout, 
   } = config;
 
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
@@ -677,6 +686,11 @@ actions.updateRewardPool = async (payload) => {
 
   if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
   existingRewardPool.config.tags = tags;
+
+  if (!api.assert(typeof disableDownvote === 'boolean', 'disableDownvote should be boolean')) return;
+  existingRewardPool.config.disableDownvote = disableDownvote;
+  if (!api.assert(typeof ignoreDeclinePayout === 'boolean', 'ignoreDeclinePayout should be boolean')) return;
+  existingRewardPool.config.ignoreDeclinePayout = ignoreDeclinePayout;
 
   // eslint-disable-next-line no-template-curly-in-string
   if (!api.assert(api.sender === token.issuer || (api.sender === api.owner && token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"), 'must be issuer of token')) return;
@@ -892,7 +906,10 @@ actions.commentOptions = async (payload) => {
   const declinePayout = maxAcceptedPayout.startsWith('0.000');
   for (let i = 0; i < existingPosts.length; i += 1) {
     const post = existingPosts[i];
-    post.declinePayout = declinePayout;
+    const rewardPool = await api.db.findOne('rewardPools', { _id: post.rewardPoolId });
+    if (!rewardPool.config.ignoreDeclinePayout) {
+      post.declinePayout = declinePayout;
+    }
     post.beneficiaries = beneficiaries;
     await api.db.update('posts', post);
   }
@@ -966,7 +983,7 @@ async function processVote(post, voter, weight, timestamp) {
     ))
       .minus(calculateCurationWeightRshares(rewardPool, post.votePositiveRshareSum))
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-  } else if (weight < 0) {
+  } else if (weight < 0 && !rewardPool.config.disableDownvote) {
     voteRshares = api.BigNumber(stake).multipliedBy(weight)
       .multipliedBy(votingPower.downvotingPower)
       .dividedBy(MAX_VOTING_POWER)

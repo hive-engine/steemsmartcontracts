@@ -579,7 +579,7 @@ actions.createRewardPool = async (payload) => {
       downvotePowerConsumption,
       tags,
       disableDownvote,
-      ignoreDeclinePayout, 
+      ignoreDeclinePayout,
     },
     pendingClaims: '0',
     active: true,
@@ -635,7 +635,7 @@ actions.updateRewardPool = async (payload) => {
     downvotePowerConsumption,
     tags,
     disableDownvote,
-    ignoreDeclinePayout, 
+    ignoreDeclinePayout,
   } = config;
 
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });

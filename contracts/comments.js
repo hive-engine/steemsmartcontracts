@@ -181,7 +181,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
     done: false,
     votesProcessed: 0,
   };
-  const votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
+  const votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }, { index: '_id', descending: false }]);
   if (votesToPayout.length === 0) {
     response.done = true;
   } else {

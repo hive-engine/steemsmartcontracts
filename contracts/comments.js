@@ -1066,7 +1066,7 @@ actions.vote = async (payload) => {
   const timestamp = blockDate.getTime();
   const authorperm = `@${author}/${permlink}`;
   // Can only return params.maxPoolsPerPost (<1000) posts
-  const posts = await api.db.find('posts', { authorperm });
+  const posts = await api.db.find('posts', { authorperm }, 1000, 0, [{ index: '_id', descending: false }]);
 
   if (!posts) return;
   for (let i = 0; i < posts.length; i += 1) {

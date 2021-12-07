@@ -757,6 +757,7 @@ const processUnstake = async (unstake) => {
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account, symbol, quantity: api.BigNumber(nextTokensToRelease).negated() });
           await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
+          await api.executeSmartContract('roles', 'updateCandidateApprovals', { account, token });
         }
 
         await api.db.update('balances', balance);
@@ -894,6 +895,7 @@ actions.stake = async (payload) => {
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
           await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
+          await api.executeSmartContract('roles', 'updateCandidateApprovals', { account: finalTo, token });
         }
       }
     }
@@ -940,6 +942,7 @@ actions.stakeFromContract = async (payload) => {
           await api.executeSmartContract('mining', 'handleStakeChange',
             { account: finalTo, symbol, quantity });
           await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
+          await api.executeSmartContract('roles', 'updateCandidateApprovals', { account: finalTo, token });
         }
       }
     }
@@ -1000,6 +1003,7 @@ const startUnstake = async (account, token, quantity) => {
         quantity: api.BigNumber(nextTokensToRelease).negated(),
       });
       await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
+      await api.executeSmartContract('roles', 'updateCandidateApprovals', { account, token });
     }
   } else {
     return false;
@@ -1099,6 +1103,7 @@ const processCancelUnstake = async (unstake) => {
       await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity: tokensToRelease });
       await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
+      await api.executeSmartContract('roles', 'updateCandidateApprovals', { account, token });
 
       return true;
     }
@@ -1291,6 +1296,8 @@ actions.delegate = async (payload) => {
               { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
             await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: api.sender, token });
             await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
+            await api.executeSmartContract('roles', 'updateCandidateApprovals', { account: api.sender, token });
+            await api.executeSmartContract('roles', 'updateCandidateApprovals', { account: finalTo, token });
           } else {
             // if a delegation already exists, increase it
 
@@ -1340,6 +1347,8 @@ actions.delegate = async (payload) => {
               { account: api.sender, symbol, quantity: api.BigNumber(quantity).negated() });
             await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: api.sender, token });
             await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalTo, token });
+            await api.executeSmartContract('roles', 'updateCandidateApprovals', { account: api.sender, token });
+            await api.executeSmartContract('roles', 'updateCandidateApprovals', { account: finalTo, token });
           }
         }
       }
@@ -1443,6 +1452,7 @@ actions.undelegate = async (payload) => {
                   delegated: true,
                 });
               await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account: finalFrom, token });
+              await api.executeSmartContract('roles', 'updateCandidateApprovals', { account: finalFrom, token });
             }
           }
         }
@@ -1492,6 +1502,7 @@ const processUndelegation = async (undelegation) => {
       await api.executeSmartContract('mining', 'handleStakeChange',
         { account, symbol, quantity });
       await api.executeSmartContract('tokenfunds', 'updateProposalApprovals', { account, token });
+      await api.executeSmartContract('roles', 'updateCandidateApprovals', { account, token });
     }
   }
 };

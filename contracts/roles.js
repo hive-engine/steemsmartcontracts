@@ -749,16 +749,11 @@ async function checkPendingCandidates(inst, params) {
     .dividedBy(api.BigNumber(10).pow(voteTokenObj.precision));
   const random = api.random();
 
-  const tickTime = api.BigNumber(blockDate.getTime())
-    .minus(params.instanceTickHours * 3600 * 1000).toNumber();
   const pendingRoles = await api.db.find('roles',
     {
       instanceId: inst.id,
       active: true,
       'tokenBalances.0': { $exists: true },
-      lastTickTime: {
-        $lte: tickTime,
-      },
     },
     params.maxTxPerBlock,
     0,
@@ -770,88 +765,94 @@ async function checkPendingCandidates(inst, params) {
     const payTokens = role.tokenBalances.filter(t => api.BigNumber(t.quantity).gt(0));
     const totalSlots = api.BigNumber(role.mainSlots).plus(role.backupSlots).toNumber();
 
-    if (payTokens.length > 0) {
-      let offset = 0;
-      let candidates = await api.db.find('candidates',
-        {
-          roleId: role._id,
-          active: true,
-          approvalWeight: { $gt: { $numberDecimal: api.BigNumber(role.voteThreshold) } },
-        },
-        params.processQueryLimit,
-        offset,
-        [{ index: 'byApprovalWeight', descending: true }, { index: '_id', descending: false }]);
+    const roleTickTime = api.BigNumber(blockDate.getTime())
+      .minus(role.tickHours * 3600 * 1000).toNumber();
+    if (role.lastTickTime < roleTickTime) {
+      if (payTokens.length > 0) {
+        let offset = 0;
+        let candidates = await api.db.find('candidates',
+          {
+            roleId: role._id,
+            active: true,
+            approvalWeight: { $gt: { $numberDecimal: api.BigNumber(role.voteThreshold) } },
+          },
+          params.processQueryLimit,
+          offset,
+          [{ index: 'byApprovalWeight', descending: true }, { index: '_id', descending: false }]);
 
-      let accWeight = 0;
-      let backupWeight = null;
-      do {
-        for (let j = 0; j < candidates.length; j += 1) {
-          const candidate = candidates[j];
-          if (funded.length >= role.mainSlots && backupWeight === null) {
-            backupWeight = api.BigNumber(accWeight)
-              .plus(voteTokenMinValue)
-              .plus(api.BigNumber(role.totalApprovalWeight.$numberDecimal)
-                .minus(accWeight)
-                .times(random))
-              .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
-          }
-
-          accWeight = api.BigNumber(accWeight)
-            .plus(candidate.approvalWeight.$numberDecimal)
-            .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
-
-          if (candidate.active === true) {
-            if (funded.length < role.mainSlots || api.BigNumber(backupWeight).lte(accWeight)) {
-              funded.push({
-                candidate: candidate._id,
-                account: candidate.account,
-              });
+        let accWeight = 0;
+        let backupWeight = null;
+        do {
+          for (let j = 0; j < candidates.length; j += 1) {
+            const candidate = candidates[j];
+            if (funded.length >= role.mainSlots && backupWeight === null) {
+              backupWeight = api.BigNumber(accWeight)
+                .plus(voteTokenMinValue)
+                .plus(api.BigNumber(role.totalApprovalWeight.$numberDecimal)
+                  .minus(accWeight)
+                  .times(random))
+                .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
             }
+
+            accWeight = api.BigNumber(accWeight)
+              .plus(candidate.approvalWeight.$numberDecimal)
+              .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
+
+            if (candidate.active === true) {
+              if (funded.length < role.mainSlots || api.BigNumber(backupWeight).lte(accWeight)) {
+                funded.push({
+                  candidate: candidate._id,
+                  account: candidate.account,
+                });
+              }
+            }
+            if (funded.length >= totalSlots) break;
           }
-          if (funded.length >= totalSlots) break;
-        }
 
-        if (funded.length < totalSlots) {
-          offset += params.processQueryLimit;
-          candidates = await api.db.find('candidates',
-            {
-              roleId: role._id,
-              active: true,
-              approvalWeight: { $gt: { $numberDecimal: api.BigNumber(role.voteThreshold) } },
-            },
-            params.processQueryLimit,
-            offset,
-            [{ index: 'byApprovalWeight', descending: true }, { index: '_id', descending: false }]);
-        }
-      } while (candidates.length > 0 && funded.length < totalSlots);
-
-      for (let l = 0; l < payTokens.length; l += 1) {
-        const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[l].symbol });
-        const payoutQty = api.BigNumber(payTokens[l].quantity)
-          .dividedBy(totalSlots)
-          .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-        if (api.BigNumber(payoutQty).gt(0)) {
-          for (let k = 0; k < funded.length; k += 1) {
-            const fund = funded[k];
-            const payResult = await payRecipient(fund.account, payTokens[l].symbol, payoutQty);
-            if (payResult) {
-              const tbIndex = role.tokenBalances.findIndex(b => b.symbol === payTokens[l].symbol);
-              role.tokenBalances[tbIndex].quantity = api.BigNumber(role.tokenBalances[tbIndex].quantity)
-                .minus(payoutQty)
-                .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-              api.emit('rolePayment', {
+          if (funded.length < totalSlots) {
+            offset += params.processQueryLimit;
+            candidates = await api.db.find('candidates',
+              {
                 roleId: role._id,
-                account: fund.account,
-                symbol: payTokens[l].symbol,
-                quantity: payoutQty,
-              });
+                active: true,
+                approvalWeight: { $gt: { $numberDecimal: api.BigNumber(role.voteThreshold) } },
+              },
+              params.processQueryLimit,
+              offset,
+              [{ index: 'byApprovalWeight', descending: true }, { index: '_id', descending: false }]);
+          }
+        } while (candidates.length > 0 && funded.length < totalSlots);
+
+        for (let l = 0; l < payTokens.length; l += 1) {
+          const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[l].symbol });
+          const payoutQty = api.BigNumber(payTokens[l].quantity)
+            .dividedBy(totalSlots)
+            .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+          if (api.BigNumber(payoutQty).gt(0)) {
+            for (let k = 0; k < funded.length; k += 1) {
+              const fund = funded[k];
+              const payResult = await payRecipient(fund.account, payTokens[l].symbol, payoutQty);
+              if (payResult) {
+                const tbIndex = role.tokenBalances.findIndex(b => b.symbol === payTokens[l].symbol);
+                role.tokenBalances[tbIndex].quantity = api.BigNumber(role.tokenBalances[tbIndex].quantity)
+                  .minus(payoutQty)
+                  .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+                api.emit('rolePayment', {
+                  roleId: role._id,
+                  account: fund.account,
+                  symbol: payTokens[l].symbol,
+                  quantity: payoutQty,
+                });
+              }
             }
           }
         }
       }
+      const upRole = JSON.parse(JSON.stringify(role));
+      upRole.lastTickTime = blockDate.getTime();
+      await api.db.update('roles', upRole);
     }
   }
-
   upInst.lastTickTime = blockDate.getTime();
   await api.db.update('instances', upInst);
 }

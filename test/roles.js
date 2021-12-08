@@ -210,7 +210,7 @@ describe('roles tests', function () {
       let txs = res.transactions;
 
       assertError(txs[1], 'you must use a transaction signed with your active key');
-      assertError(txs[2], 'invalid candidateFee object');
+      assertError(txs[2], 'invalid candidateFee properties');
       assertError(txs[3], 'invalid candidateFee token or precision');
       assertError(txs[4], 'voteToken must have staking enabled');
 
@@ -504,14 +504,13 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 2, "roleId": 1, "name": "123", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buffet', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "mainSlots": "5", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "name": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "voteThreshold": "-1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "mainSlots": "0", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "backupSlots": "36", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "tickHours": "6", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buffet', 'roles', 'updateRole', '{ "roleId": 1, "mainSlots": "5", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "name": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "voteThreshold": "-1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "mainSlots": "0", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "backupSlots": "36", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "tickHours": "6", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -528,13 +527,12 @@ describe('roles tests', function () {
       let txs = res.transactions;
 
       assertError(txs[4], 'specify at least one field to update');
-      assertError(txs[5], 'instance not found');
-      assertError(txs[6], 'must be instance creator');
-      assertError(txs[7], 'name must be a string less than 50 characters');
-      assertError(txs[8], 'voteThreshold must be greater than or equal to 0, precision matching voteToken');
-      assertError(txs[9], 'mainSlots must be a integer between 1 - 40');
-      assertError(txs[10], 'backupSlots must be an integer between 0 - 35');
-      assertError(txs[11], 'tickHours must be an integer greater than or equal to 24');
+      assertError(txs[5], 'must be instance creator');
+      assertError(txs[6], 'name must be a string less than 50 characters');
+      assertError(txs[7], 'voteThreshold must be greater than or equal to 0, precision matching voteToken');
+      assertError(txs[8], 'mainSlots must be a integer between 1 - 40');
+      assertError(txs[9], 'backupSlots must be an integer between 0 - 35');
+      assertError(txs[10], 'tickHours must be an integer greater than or equal to 24');
     
       res = await fixture.database.findOne({
         contract: 'roles',
@@ -552,7 +550,7 @@ describe('roles tests', function () {
         tickHours: '24',
         active: true,
         lastTickTime: 0,
-        totalApprovalWeight: 0
+        totalApprovalWeight: { $numberDecimal: '0' }
       };
       assert.deepEqual(res, original, 'role has changed');
       resolve();
@@ -606,7 +604,7 @@ describe('roles tests', function () {
         tickHours: '24',
         active: true,
         lastTickTime: 0,
-        totalApprovalWeight: 0
+        totalApprovalWeight: { $numberDecimal: '0' }
       };
 
       assert.deepEqual(resx, updated, 'updates not found in role');
@@ -754,7 +752,7 @@ describe('roles tests', function () {
       await assertWeightConsistency(4, 'PRO');
 
       res = (await fixture.database.getLatestBlockInfo());
-      console.log(res);
+      // console.log(res);
       assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
       let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
       let e = virtualEventLog.events.find(x => x.event === 'rolePayment');

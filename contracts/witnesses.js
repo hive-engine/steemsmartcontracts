@@ -712,7 +712,7 @@ actions.proposeRound = async (payload) => {
     lastBlockRound,
     currentWitness,
   } = params;
-  const schedules = await api.db.find('schedules', { round });
+  const schedules = await api.db.find('schedules', { round }, 1000, 0, [{ index: '_id', descending: false }]);
 
   const numberOfWitnessSlots = schedules.length;
   const { witnessSignaturesRequired } = params;

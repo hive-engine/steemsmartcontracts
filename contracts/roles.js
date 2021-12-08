@@ -15,8 +15,10 @@ actions.createSSC = async () => {
       { name: 'byLastTickTime', index: { instanceId: 1, active: 1, lastTickTime: 1 } },
     ]);
     await api.db.createTable('candidates', [
+      'account',
+      { name: 'byAccountRole', index: { roleId: 1, account: 1 } },
       { name: 'byApprovalWeight', index: { roleId: 1, approvalWeight: 1, active: 1 } },
-    ], { primaryKey: ['account', 'roleId'] });
+    ]);
     await api.db.createTable('approvals', ['from', 'to']);
     await api.db.createTable('accounts', [], { primaryKey: ['account'] });
     await api.db.createTable('params');
@@ -99,7 +101,8 @@ async function updateCandidateWeight(id, deltaApprovalWeight, deltaToken = null)
   const candidate = await api.db.findOne('candidates', { _id: id });
   if (candidate) {
     if (deltaToken) {
-      const inst = await api.db.findOne('instances', { id: candidate.instanceId });
+      const role = await api.db.findOne('roles', { _id: candidate.roleId });
+      const inst = await api.db.findOne('instances', { _id: role.instanceId });
       if (inst.voteToken !== deltaToken.symbol) return true;
     }
     candidate.approvalWeight = {
@@ -110,7 +113,7 @@ async function updateCandidateWeight(id, deltaApprovalWeight, deltaToken = null)
 
     const role = await api.db.findOne('roles', { _id: candidate.roleId });
     role.totalApprovalWeight = {
-      $numberDecimal: api.BigNumber(candidate.approvalWeight.$numberDecimal)
+      $numberDecimal: api.BigNumber(role.totalApprovalWeight.$numberDecimal)
         .plus(deltaApprovalWeight),
     };
     await api.db.update('roles', role);
@@ -136,13 +139,16 @@ actions.createInstance = async (payload) => {
     : utilityTokenBalance && api.BigNumber(utilityTokenBalance.balance).gte(instanceCreationFee);
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
-    && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    && api.assert(typeof candidateFee === 'object', 'invalid candidateFee object')) {
-    if (!api.assert(typeof candidateFee.method === 'string' && FeeMethod.indexOf(candidateFee.method) !== -1
-      && typeof candidateFee.symbol === 'string'
-      && typeof candidateFee.amount === 'string' && api.BigNumber(candidateFee.amount).gte(0), 'invalid candidateFee properties')) return;
-    const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: candidateFee.symbol });
-    if (!api.assert(feeTokenObj && api.BigNumber(candidateFee.amount).dp() <= feeTokenObj.precision, 'invalid candidateFee token or precision')) return;
+    && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
+    if (candidateFee) {
+      if (!api.assert(typeof candidateFee === 'object'
+        && typeof candidateFee.method === 'string'
+        && FeeMethod.indexOf(candidateFee.method) !== -1
+        && typeof candidateFee.symbol === 'string'
+        && typeof candidateFee.amount === 'string' && api.BigNumber(candidateFee.amount).gte(0), 'invalid candidateFee properties')) return;
+      const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: candidateFee.symbol });
+      if (!api.assert(feeTokenObj && api.BigNumber(candidateFee.amount).dp() <= feeTokenObj.precision, 'invalid candidateFee token or precision')) return;
+    }
 
     const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: voteToken });
     if (!api.assert(voteTokenObj && voteTokenObj.stakingEnabled, 'voteToken must have staking enabled')) return;
@@ -193,7 +199,8 @@ actions.updateInstance = async (payload) => {
 
     if (candidateFee) {
       if (!api.assert(typeof candidateFee === 'object'
-        && typeof candidateFee.method === 'string' && FeeMethod.indexOf(candidateFee.method) !== -1
+        && typeof candidateFee.method === 'string'
+        && FeeMethod.indexOf(candidateFee.method) !== -1
         && typeof candidateFee.symbol === 'string'
         && typeof candidateFee.amount === 'string' && api.BigNumber(candidateFee.amount).gte(0), 'invalid candidateFee object')) return;
       const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: candidateFee.symbol });
@@ -256,7 +263,7 @@ actions.createRoles = async (payload) => {
         ...roles[i],
         active: true,
         lastTickTime: 0,
-        totalApprovalWeight: 0,
+        totalApprovalWeight: { $numberDecimal: '0' },
       };
       const insertedRole = await api.db.insert('roles', newRole);
       insertedRoles.push({ instanceId: insertedRole.instanceId, roleId: insertedRole._id, name: insertedRole.name });
@@ -276,7 +283,7 @@ actions.createRoles = async (payload) => {
 
 actions.updateRole = async (payload) => {
   const {
-    instanceId, roleId,
+    roleId,
     active, name, voteThreshold,
     mainSlots, backupSlots, tickHours,
     isSignedWithActiveKey,
@@ -294,9 +301,9 @@ actions.updateRole = async (payload) => {
 
   if (api.assert(authorizedUpdate, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    && api.assert(active || name || voteThreshold || mainSlots || backupSlots || tickHours, 'specify at least one field to update')) {
+    && api.assert(typeof active !== 'undefined' || name || voteThreshold || mainSlots || backupSlots || tickHours, 'specify at least one field to update')) {
     const existingRole = await api.db.findOne('roles', { _id: roleId });
-    const existingInst = await api.db.findOne('instances', { _id: instanceId });
+    const existingInst = await api.db.findOne('instances', { _id: existingRole.instanceId });
     if (!api.assert(existingRole, 'role not found') || !api.assert(existingInst, 'instance not found')
       || !api.assert(existingInst.creator === api.sender || api.owner === api.sender, 'must be instance creator')) return;
 
@@ -381,17 +388,42 @@ actions.applyForRole = async (payload) => {
     return;
   }
   const role = await api.db.findOne('roles', { _id: roleId });
+  if (!api.assert(role, 'role does not exist')) return;
+  const inst = await api.db.findOne('instances', { _id: role.instanceId });
+
+  let authorizedCreation = true;
+  if (inst.candidateFee) {
+    const feeTokenBalance = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: inst.candidateFee.symbol });
+    authorizedCreation = api.BigNumber(inst.candidateFee.amount).lte(0) || api.sender === api.owner
+      ? true
+      : feeTokenBalance && api.BigNumber(feeTokenBalance.balance).gte(inst.candidateFee.amount);
+  }
+
   const existingApply = await api.db.findOne('candidates', { roleId, account: api.sender });
-  if (api.assert(role, 'role does not exist')
+  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && api.assert(!existingApply, 'sender already applied for role')) {
     const newCandidate = {
       roleId,
       account: api.sender,
       active: true,
-      approvalWeight: 0,
+      approvalWeight: { $numberDecimal: '0' },
     };
     const insertedId = await api.db.insert('candidates', newCandidate);
-    api.emit('applyForRole', { id: roleId, candidateId: insertedId });
+
+    if (api.sender !== api.owner && inst.candidateFee) {
+      if (inst.candidateFee.method === 'burn') {
+        await api.executeSmartContract('tokens', 'transfer', {
+          to: 'null', symbol: inst.candidateFee.symbol, quantity: inst.candidateFee.amount,
+        });
+      } else if (inst.candidateFee.method === 'issuer') {
+        const feeTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: inst.candidateFee.symbol });
+        await api.executeSmartContract('tokens', 'transfer', {
+          to: feeTokenObj.issuer, symbol: inst.candidateFee.symbol, quantity: inst.candidateFee.amount,
+        });
+      }
+    }
+
+    api.emit('applyForRole', { roleId, candidateId: insertedId._id });
   }
 };
 
@@ -435,7 +467,7 @@ async function updateTokenBalances(role, token, quantity) {
       { symbol: token.symbol, quantity },
     ];
   }
-  return api.db.update('roles', upRole);
+  await api.db.update('roles', upRole);
 }
 
 actions.deposit = async (payload) => {
@@ -456,12 +488,11 @@ actions.deposit = async (payload) => {
     const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: ContractName });
     if (res.errors === undefined
       && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === ContractName && el.data.quantity === quantity) !== undefined) {
-      const result = await updateTokenBalances(role, depToken, quantity);
+      await updateTokenBalances(role, depToken, quantity);
       api.emit('deposit', {
         roleId,
         symbol,
         quantity,
-        status: !!result,
       });
     }
   }
@@ -482,12 +513,11 @@ actions.receiveDtfTokens = async (payload) => {
   const role = await api.db.findOne('roles', { _id: api.BigNumber(data.roleId).toNumber() });
   if (api.assert(role, 'role not found') && api.assert(role.active, 'role must be active to deposit')) {
     const depToken = await api.db.findOneInTable('tokens', 'tokens', { symbol });
-    const result = await updateTokenBalances(role, depToken, quantity);
+    await updateTokenBalances(role, depToken, quantity);
     api.emit('receiveDtfTokens', {
       roleId: data.roleId,
       symbol,
       quantity,
-      status: !!result,
     });
   }
 };
@@ -507,12 +537,11 @@ actions.receiveDistTokens = async (payload) => {
   const role = await api.db.findOne('roles', { _id: api.BigNumber(data.roleId).toNumber() });
   if (api.assert(role, 'role not found') && api.assert(role.active, 'role must be active to deposit')) {
     const depToken = await api.db.findOneInTable('tokens', 'tokens', { symbol });
-    const result = await updateTokenBalances(role, depToken, quantity);
+    await updateTokenBalances(role, depToken, quantity);
     api.emit('receiveDistTokens', {
       roleId: data.roleId,
       symbol,
       quantity,
-      status: !!result,
     });
   }
 };
@@ -528,10 +557,10 @@ actions.approveCandidate = async (payload) => {
 
     if (api.assert(candidate, 'candidate does not exist')
       && api.assert(candidate.active, 'candidate is not active')) {
-      const role = await api.db.findOne('roles', { id: candidate.roleId });
+      const role = await api.db.findOne('roles', { _id: candidate.roleId });
       if (!api.assert(role.active, 'role must be active to approve')) return;
 
-      const inst = await api.db.findOne('instances', { id: role.instanceId });
+      const inst = await api.db.findOne('instances', { _id: role.instanceId });
       const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: inst.voteToken });
       let acct = await api.db.findOne('accounts', { account: api.sender });
       if (acct === null) {
@@ -726,6 +755,7 @@ async function checkPendingCandidates(inst, params) {
     {
       instanceId: inst.id,
       active: true,
+      'tokenBalances.0': { $exists: true },
       lastTickTime: {
         $lte: tickTime,
       },
@@ -735,8 +765,8 @@ async function checkPendingCandidates(inst, params) {
     [{ index: 'byLastTickTime', descending: false }, { index: '_id', descending: false }]);
 
   for (let i = 0; i < pendingRoles.length; i += 1) {
-    const funded = [];
     const role = pendingRoles[i];
+    const funded = [];
     const payTokens = role.tokenBalances.filter(t => api.BigNumber(t.quantity).gt(0));
     const totalSlots = api.BigNumber(role.mainSlots).plus(role.backupSlots).toNumber();
 
@@ -753,18 +783,17 @@ async function checkPendingCandidates(inst, params) {
         [{ index: 'byApprovalWeight', descending: true }, { index: '_id', descending: false }]);
 
       let accWeight = 0;
-      let backupWeight;
+      let backupWeight = null;
       do {
         for (let j = 0; j < candidates.length; j += 1) {
           const candidate = candidates[j];
           if (funded.length >= role.mainSlots && backupWeight === null) {
             backupWeight = api.BigNumber(accWeight)
               .plus(voteTokenMinValue)
-              .plus(api.BigNumber(role.totalApprovalWeight)
+              .plus(api.BigNumber(role.totalApprovalWeight.$numberDecimal)
                 .minus(accWeight)
-                .times(random)
-                .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP))
-              .toFixed(voteTokenObj.precision);
+                .times(random))
+              .toFixed(voteTokenObj.precision, api.BigNumber.ROUND_HALF_UP);
           }
 
           accWeight = api.BigNumber(accWeight)
@@ -779,7 +808,6 @@ async function checkPendingCandidates(inst, params) {
               });
             }
           }
-
           if (funded.length >= totalSlots) break;
         }
 
@@ -797,14 +825,14 @@ async function checkPendingCandidates(inst, params) {
         }
       } while (candidates.length > 0 && funded.length < totalSlots);
 
-      for (let k = 0; k < funded.length; k += 1) {
-        const fund = funded[k];
-        for (let l = 0; l < payTokens.length; l += 1) {
-          const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[l].symbol });
-          const payoutQty = api.BigNumber(payTokens[l].quantity)
-            .dividedBy(totalSlots)
-            .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
-          if (api.BigNumber(payoutQty).gt(0)) {
+      for (let l = 0; l < payTokens.length; l += 1) {
+        const payToken = await api.db.findOneInTable('tokens', 'tokens', { symbol: payTokens[l].symbol });
+        const payoutQty = api.BigNumber(payTokens[l].quantity)
+          .dividedBy(totalSlots)
+          .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
+        if (api.BigNumber(payoutQty).gt(0)) {
+          for (let k = 0; k < funded.length; k += 1) {
+            const fund = funded[k];
             const payResult = await payRecipient(fund.account, payTokens[l].symbol, payoutQty);
             if (payResult) {
               const tbIndex = role.tokenBalances.findIndex(b => b.symbol === payTokens[l].symbol);

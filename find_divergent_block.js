@@ -122,15 +122,12 @@ async function findDivergentBlock() {
 
   if (high === headBlock && high - low <= 0) {
     console.log('ok');
+  } else if (high !== low) {
+    console.log('not caught up or error fetching block');
   } else {
     console.log('### high block');
     printBlockDiff(block, mainBlock);
     console.log(`divergent block id at ${high}`);
-    console.log('sampling for divergent blocks');
-    for (let i = low; i < low + 1000; i += 1) {
-      console.log(`${i}: ${compareBlocks(await getBlock(i), await chain.findOne({ _id: i }))}`);
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
   }
   database.close();
 }

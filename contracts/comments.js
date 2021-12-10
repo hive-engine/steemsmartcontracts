@@ -181,7 +181,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
     done: false,
     votesProcessed: 0,
   };
-  const votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
+  const votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }, { index: '_id', descending: false }]);
   if (votesToPayout.length === 0) {
     response.done = true;
   } else {
@@ -1066,7 +1066,7 @@ actions.vote = async (payload) => {
   const timestamp = blockDate.getTime();
   const authorperm = `@${author}/${permlink}`;
   // Can only return params.maxPoolsPerPost (<1000) posts
-  const posts = await api.db.find('posts', { authorperm });
+  const posts = await api.db.find('posts', { authorperm }, 1000, 0, [{ index: '_id', descending: false }]);
 
   if (!posts) return;
   for (let i = 0; i < posts.length; i += 1) {

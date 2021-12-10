@@ -181,7 +181,7 @@ async function payOutCurators(rewardPool, token, post, curatorPortion, params) {
     done: false,
     votesProcessed: 0,
   };
-  const votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }]);
+  const votesToPayout = await api.db.find('votes', { rewardPoolId, authorperm }, voteQueryLimit, 0, [{ index: 'byTimestamp', descending: false }, { index: '_id', descending: false }]);
   if (votesToPayout.length === 0) {
     response.done = true;
   } else {
@@ -513,6 +513,8 @@ actions.createRewardPool = async (payload) => {
     votePowerConsumption,
     downvotePowerConsumption,
     tags,
+    disableDownvote,
+    ignoreDeclinePayout,
   } = config;
 
   if (!api.assert(postRewardCurve && postRewardCurve === 'power', 'postRewardCurve should be one of: [power]')) return;
@@ -540,6 +542,9 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(downvotePowerConsumption && Number.isInteger(downvotePowerConsumption) && downvotePowerConsumption >= 1 && downvotePowerConsumption <= 10000, 'downvotePowerConsumption should be an integer between 1 and 10000')) return;
 
   if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
+
+  if (!api.assert(typeof disableDownvote === 'boolean', 'disableDownvote should be boolean')) return;
+  if (!api.assert(typeof ignoreDeclinePayout === 'boolean', 'ignoreDeclinePayout should be boolean')) return;
 
   // for now, restrict to 1 pool per symbol, and creator must be issuer.
   // eslint-disable-next-line no-template-curly-in-string
@@ -573,6 +578,8 @@ actions.createRewardPool = async (payload) => {
       votePowerConsumption,
       downvotePowerConsumption,
       tags,
+      disableDownvote,
+      ignoreDeclinePayout,
     },
     pendingClaims: '0',
     active: true,
@@ -627,6 +634,8 @@ actions.updateRewardPool = async (payload) => {
     votePowerConsumption,
     downvotePowerConsumption,
     tags,
+    disableDownvote,
+    ignoreDeclinePayout,
   } = config;
 
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
@@ -677,6 +686,11 @@ actions.updateRewardPool = async (payload) => {
 
   if (!api.assert(Array.isArray(tags) && tags.length >= 1 && tags.length <= maxTagsPerPool && tags.every(t => typeof t === 'string'), `tags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
   existingRewardPool.config.tags = tags;
+
+  if (!api.assert(typeof disableDownvote === 'boolean', 'disableDownvote should be boolean')) return;
+  existingRewardPool.config.disableDownvote = disableDownvote;
+  if (!api.assert(typeof ignoreDeclinePayout === 'boolean', 'ignoreDeclinePayout should be boolean')) return;
+  existingRewardPool.config.ignoreDeclinePayout = ignoreDeclinePayout;
 
   // eslint-disable-next-line no-template-curly-in-string
   if (!api.assert(api.sender === token.issuer || (api.sender === api.owner && token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"), 'must be issuer of token')) return;
@@ -892,7 +906,10 @@ actions.commentOptions = async (payload) => {
   const declinePayout = maxAcceptedPayout.startsWith('0.000');
   for (let i = 0; i < existingPosts.length; i += 1) {
     const post = existingPosts[i];
-    post.declinePayout = declinePayout;
+    const rewardPool = await api.db.findOne('rewardPools', { _id: post.rewardPoolId });
+    if (!rewardPool.config.ignoreDeclinePayout) {
+      post.declinePayout = declinePayout;
+    }
     post.beneficiaries = beneficiaries;
     await api.db.update('posts', post);
   }
@@ -966,7 +983,7 @@ async function processVote(post, voter, weight, timestamp) {
     ))
       .minus(calculateCurationWeightRshares(rewardPool, post.votePositiveRshareSum))
       .toFixed(SMT_PRECISION, api.BigNumber.ROUND_DOWN);
-  } else if (weight < 0) {
+  } else if (weight < 0 && !rewardPool.config.disableDownvote) {
     voteRshares = api.BigNumber(stake).multipliedBy(weight)
       .multipliedBy(votingPower.downvotingPower)
       .dividedBy(MAX_VOTING_POWER)
@@ -1066,7 +1083,7 @@ actions.vote = async (payload) => {
   const timestamp = blockDate.getTime();
   const authorperm = `@${author}/${permlink}`;
   // Can only return params.maxPoolsPerPost (<1000) posts
-  const posts = await api.db.find('posts', { authorperm });
+  const posts = await api.db.find('posts', { authorperm }, 1000, 0, [{ index: '_id', descending: false }]);
 
   if (!posts) return;
   for (let i = 0; i < posts.length; i += 1) {

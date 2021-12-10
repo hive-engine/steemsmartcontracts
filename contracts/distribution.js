@@ -564,9 +564,9 @@ async function runPendingPay(pendingPay, params) {
     }
   }
   if (pendingPay.accounts.length === 0) {
-    api.db.remove('pendingPayments', pendingPay);
+    await api.db.remove('pendingPayments', pendingPay);
   } else {
-    api.db.update('pendingPayments', pendingPay);
+    await api.db.update('pendingPayments', pendingPay);
   }
 }
 

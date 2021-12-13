@@ -2554,7 +2554,7 @@ describe('mining', function () {
       await assertNftInstance('satoshi', 'TSTNFT', 1, {'account': 'mining', 'ownedBy': 'c'});
       await assertNftInstance('satoshi', 'TSTNFT', 2, {'account': 'mining', 'ownedBy': 'c', 'undelegateAt': 1527897600000});
 
-      await assertMiningPower('satoshi', 'TKN::TSTNFT', '0', {'_miningPower': '0'});
+      await assertMiningPower('satoshi', 'TKN::TSTNFT', '0', {'0': 0, '1': 1, '_miningPower': '0'});
       await assertPool({id: 'TKN::TSTNFT', totalPower: '0'});
 
       refBlockNumber = fixture.getNextRefBlockNumber();
@@ -2577,7 +2577,7 @@ describe('mining', function () {
 
       await assertNftInstance('satoshi', 'TSTNFT', 3, {'account': 'mining', 'ownedBy': 'c'});
 
-      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {'_miningPower': '10000'}, {"1":{"type":"bull","extraMiningPower":"0"},"3":{"type":"bear","extraMiningPower":"10000"}});
+      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {"0":0,"1":1,"_miningPower":"10000"}, {"1":{"type":"bull","extraMiningPower":"0"},"3":{"type":"bear","extraMiningPower":"10000"}});
       await assertPool({id: 'TKN::TSTNFT', totalPower: '10000'});
 
       refBlockNumber = fixture.getNextRefBlockNumber();
@@ -2600,7 +2600,7 @@ describe('mining', function () {
 
       await assertNftInstance('satoshi2', 'TSTNFT', 4, {'account': 'satoshi', 'ownedBy': 'u'});
 
-      await assertMiningPower('satoshi', 'TKN::TSTNFT', '110000', {'_miningPower': '110000'});
+      await assertMiningPower('satoshi', 'TKN::TSTNFT', '110000', {"0":0,"1":1,"_miningPower":"110000"});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
       await assertPool({id: 'TKN::TSTNFT', totalPower: '110000'});
 
@@ -2622,7 +2622,7 @@ describe('mining', function () {
 
       await assertNftInstance('satoshi2', 'TSTNFT', 4, {'account': 'satoshi', 'ownedBy': 'u', "undelegateAt":1527897600000});
 
-      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {'_miningPower': '10000'});
+      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {"0":0,"1":1,"_miningPower":"10000"});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
       await assertPool({id: 'TKN::TSTNFT', totalPower: '10000'});
 
@@ -2642,7 +2642,7 @@ describe('mining', function () {
 
       await assertNftInstance('satoshi2', 'TSTNFT', 4, undefined);
 
-      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {'_miningPower': '10000'});
+      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {"0":0,"1":1,"_miningPower":"10000"});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
       await assertPool({id: 'TKN::TSTNFT', totalPower: '10000'});
 
@@ -2664,7 +2664,7 @@ describe('mining', function () {
 
       await assertNftInstance('satoshi', 'TSTNFT', 1, {"account":"mining","ownedBy":"c","undelegateAt":1527984000000});
 
-      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {'_miningPower': '10000'});
+      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {"0":0,"1":1,'_miningPower': '10000'});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
       await assertPool({id: 'TKN::TSTNFT', totalPower: '10000'});
 
@@ -2684,7 +2684,7 @@ describe('mining', function () {
 
       await assertNftInstance('satoshi', 'TSTNFT', 1, undefined);
 
-      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {'_miningPower': '10000'});
+      await assertMiningPower('satoshi', 'TKN::TSTNFT', '10000', {"0":0,"1":1,'_miningPower': '10000'});
       await assertMiningPower('satoshi2', 'TKN::TSTNFT', null);
       await assertPool({id: 'TKN::TSTNFT', totalPower: '10000'});
 

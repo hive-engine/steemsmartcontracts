@@ -1197,7 +1197,7 @@ actions.delegate = async (payload) => {
                     from: finalFrom, fromType: nftInstance.ownedBy, to: finalTo, toType: newOwnedBy, symbol, id,
                   });
 
-                  await api.executeSmartContract('mining', 'handleNftChange', { symbol, nft: nftInstance, add: true });
+                  await api.executeSmartContract('mining', 'handleNftDelegationChange', { symbol, nft: nftInstance, add: true });
                 }
               }
             }
@@ -1262,7 +1262,7 @@ actions.undelegate = async (payload) => {
                 api.emit('undelegateStart', {
                   from: nftInstance.delegatedTo.account, fromType: nftInstance.delegatedTo.ownedBy, symbol, id,
                 });
-                await api.executeSmartContract('mining', 'handleNftChange', { symbol, nft: nftInstance, add: false });
+                await api.executeSmartContract('mining', 'handleNftDelegationChange', { symbol, nft: nftInstance, add: false });
               }
             }
           }

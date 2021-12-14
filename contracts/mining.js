@@ -375,16 +375,18 @@ async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, account
     const nftBalances = {};
     const equippedNft = { type: nftType };
 
-    if (typeProperties) {
-      for (let i = 0; i < properties.length; i += 1) {
-        const property = properties[i];
-        const opInfo = PROPERTY_OPS[property.op];
-        if (add) {
+    for (let i = 0; i < properties.length; i += 1) {
+      const property = properties[i];
+      const opInfo = PROPERTY_OPS[property.op];
+      if (add) {
+        if (typeProperties) {
           nftBalances[i] = opInfo.add(opInfo.defaultValue, typeProperties[i]);
         } else {
-          api.assert(false, 'unexpected condition: remove without previous miningPower');
-          return api.BigNumber(0);
+          nftBalances[i] = opInfo.defaultValue;
         }
+      } else {
+        api.assert(false, 'unexpected condition: remove without previous miningPower');
+        return api.BigNumber(0);
       }
     }
     if (miningPowerField) {
@@ -422,13 +424,11 @@ async function updateNftMiningPower(pool, nft, add, updatePoolTimestamp, account
       miningPower.equippedNfts[nft._id] = equippedNft;
     }
     const { nftBalances } = miningPower;
-    if (typeProperties) {
-      for (let i = 0; i < properties.length; i += 1) {
-        const property = properties[i];
-        const opInfo = PROPERTY_OPS[property.op];
-        if (!nftBalances[i] || miningPower.updatePoolTimestamp !== updatePoolTimestamp) {
-          nftBalances[i] = opInfo.defaultValue;
-        }
+    for (let i = 0; i < properties.length; i += 1) {
+      const property = properties[i];
+      const opInfo = PROPERTY_OPS[property.op];
+      if (!nftBalances[i] || miningPower.updatePoolTimestamp !== updatePoolTimestamp) {
+        nftBalances[i] = opInfo.defaultValue;
       }
     }
     if (miningPowerField && miningPower.updatePoolTimestamp !== updatePoolTimestamp) {

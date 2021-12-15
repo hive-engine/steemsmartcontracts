@@ -144,13 +144,32 @@ async function payOutBeneficiaries(rewardPool, token, post, authorBenePortion) {
     rewardPoolId,
     beneficiaries,
   } = post;
+  let totalBenePay = api.BigNumber(0);
+  let postTaxAuthorBenePortion = authorBenePortion;
+  if (rewardPool.config.appTaxConfig) {
+    const {
+      app,
+      percent,
+      beneficiary,
+    } = rewardPool.config.appTaxConfig;
+    if (app !== post.app) {
+      const appTaxPortion = api.BigNumber(authorBenePortion).multipliedBy(percent).dividedBy(100)
+        .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+      postTaxAuthorBenePortion = api.BigNumber(postTaxAuthorBenePortion).minus(appTaxPortion);
+      const rewardLog = {
+        rewardPoolId, authorperm, symbol, account: beneficiary, quantity: appTaxPortion,
+      };
+      api.emit('appTax', rewardLog);
+      await payUser(symbol, appTaxPortion, beneficiary, 0);
+      totalBenePay = api.BigNumber(totalBenePay).plus(appTaxPortion);
+    }
+  }
   if (!beneficiaries || beneficiaries.length === 0) {
     return api.BigNumber(0);
   }
-  let totalBenePay = api.BigNumber(0);
   for (let i = 0; i < beneficiaries.length; i += 1) {
     const beneficiary = beneficiaries[i];
-    const benePay = api.BigNumber(authorBenePortion).multipliedBy(beneficiary.weight)
+    const benePay = api.BigNumber(postTaxAuthorBenePortion).multipliedBy(beneficiary.weight)
       .dividedBy(10000)
       .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
     const mute = await getMute(rewardPoolId, beneficiary.account);
@@ -470,6 +489,21 @@ async function tokenMaintenance() {
   await api.db.update('params', params);
 }
 
+function assertAppTaxConfigValid(appTaxConfig) {
+  if (!api.assert(!appTaxConfig || typeof appTaxConfig === 'object', 'appTaxConfig invalid')) return false;
+  if (appTaxConfig) {
+    const {
+      app,
+      percent,
+      beneficiary,
+    } = appTaxConfig;
+    if (!api.assert(app && typeof app === 'string', 'appTaxConfig app invalid')) return false;
+    if (!api.assert(percent && Number.isInteger(percent) && percent >= 1 && percent <= 100, 'appTaxConfig percent should be an integer between 1 and 100')) return false;
+    if (!api.assert(beneficiary && api.isValidAccountName(beneficiary), 'appTaxConfig beneficiary invalid')) return false;
+  }
+  return true;
+}
+
 actions.createRewardPool = async (payload) => {
   const {
     symbol,
@@ -515,6 +549,7 @@ actions.createRewardPool = async (payload) => {
     tags,
     disableDownvote,
     ignoreDeclinePayout,
+    appTaxConfig,
   } = config;
 
   if (!api.assert(postRewardCurve && postRewardCurve === 'power', 'postRewardCurve should be one of: [power]')) return;
@@ -545,6 +580,8 @@ actions.createRewardPool = async (payload) => {
 
   if (!api.assert(typeof disableDownvote === 'boolean', 'disableDownvote should be boolean')) return;
   if (!api.assert(typeof ignoreDeclinePayout === 'boolean', 'ignoreDeclinePayout should be boolean')) return;
+
+  if (!assertAppTaxConfigValid(appTaxConfig)) return;
 
   // for now, restrict to 1 pool per symbol, and creator must be issuer.
   // eslint-disable-next-line no-template-curly-in-string
@@ -580,6 +617,7 @@ actions.createRewardPool = async (payload) => {
       tags,
       disableDownvote,
       ignoreDeclinePayout,
+      appTaxConfig,
     },
     pendingClaims: '0',
     active: true,
@@ -636,6 +674,7 @@ actions.updateRewardPool = async (payload) => {
     tags,
     disableDownvote,
     ignoreDeclinePayout,
+    appTaxConfig,
   } = config;
 
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
@@ -691,6 +730,9 @@ actions.updateRewardPool = async (payload) => {
   existingRewardPool.config.disableDownvote = disableDownvote;
   if (!api.assert(typeof ignoreDeclinePayout === 'boolean', 'ignoreDeclinePayout should be boolean')) return;
   existingRewardPool.config.ignoreDeclinePayout = ignoreDeclinePayout;
+
+  if (!assertAppTaxConfigValid(appTaxConfig)) return;
+  existingRewardPool.config.appTaxConfig = appTaxConfig;
 
   // eslint-disable-next-line no-template-curly-in-string
   if (!api.assert(api.sender === token.issuer || (api.sender === api.owner && token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"), 'must be issuer of token')) return;
@@ -880,6 +922,14 @@ actions.comment = async (payload) => {
         votePositiveRshareSum: '0',
         voteRshareSum: '0',
       };
+
+      if (payload.jsonMetadata && payload.jsonMetadata.app) {
+        const appString = payload.jsonMetadata.app;
+        if (typeof appString === 'string') {
+          post.app = appString.split('/')[0].toLowerCase();
+        }
+      }
+
       await api.db.insert('posts', post);
       api.emit('newComment', { rewardPoolId, symbol: rewardPool.symbol });
     }

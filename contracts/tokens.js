@@ -781,6 +781,9 @@ actions.checkPendingUnstakes = async () => {
           $lte: timestamp,
         },
       },
+      1000,
+      0,
+      [{ 'index': '_id', 'descending': false }],
     );
 
     let nbPendingUnstakes = pendingUnstakes.length;
@@ -797,6 +800,9 @@ actions.checkPendingUnstakes = async () => {
             $lte: timestamp,
           },
         },
+        1000,
+        0,
+        [{ 'index': '_id', 'descending': false }],
       );
 
       nbPendingUnstakes = pendingUnstakes.length;
@@ -1509,6 +1515,9 @@ actions.checkPendingUndelegations = async () => {
           $lte: timestamp,
         },
       },
+      1000,
+      0,
+      [{ 'index': '_id', 'descending': false }],
     );
 
     let nbPendingUndelegations = pendingUndelegations.length;
@@ -1525,6 +1534,9 @@ actions.checkPendingUndelegations = async () => {
             $lte: timestamp,
           },
         },
+        1000,
+        0,
+        [{ 'index': '_id', 'descending': false }],
       );
 
       nbPendingUndelegations = pendingUndelegations.length;

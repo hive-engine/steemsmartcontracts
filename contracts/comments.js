@@ -550,6 +550,7 @@ actions.createRewardPool = async (payload) => {
     disableDownvote,
     ignoreDeclinePayout,
     appTaxConfig,
+    excludeTags,
   } = config;
 
   if (!api.assert(postRewardCurve && postRewardCurve === 'power', 'postRewardCurve should be one of: [power]')) return;
@@ -582,6 +583,9 @@ actions.createRewardPool = async (payload) => {
   if (!api.assert(typeof ignoreDeclinePayout === 'boolean', 'ignoreDeclinePayout should be boolean')) return;
 
   if (!assertAppTaxConfigValid(appTaxConfig)) return;
+
+  if (!api.assert(!excludeTags || (Array.isArray(excludeTags) && excludeTags.length >= 1 && excludeTags.length <= maxTagsPerPool && excludeTags.every(t => typeof t === 'string')), `excludeTags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
+
 
   // for now, restrict to 1 pool per symbol, and creator must be issuer.
   // eslint-disable-next-line no-template-curly-in-string
@@ -618,6 +622,7 @@ actions.createRewardPool = async (payload) => {
       disableDownvote,
       ignoreDeclinePayout,
       appTaxConfig,
+      excludeTags,
     },
     pendingClaims: '0',
     active: true,
@@ -675,6 +680,7 @@ actions.updateRewardPool = async (payload) => {
     disableDownvote,
     ignoreDeclinePayout,
     appTaxConfig,
+    excludeTags,
   } = config;
 
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
@@ -733,6 +739,9 @@ actions.updateRewardPool = async (payload) => {
 
   if (!assertAppTaxConfigValid(appTaxConfig)) return;
   existingRewardPool.config.appTaxConfig = appTaxConfig;
+
+  if (!api.assert(!excludeTags || (Array.isArray(excludeTags) && excludeTags.length >= 1 && excludeTags.length <= maxTagsPerPool && excludeTags.every(t => typeof t === 'string')), `excludeTags should be a non-empty array of strings of length at most ${maxTagsPerPool}`)) return;
+  existingRewardPool.config.excludeTags = excludeTags;
 
   // eslint-disable-next-line no-template-curly-in-string
   if (!api.assert(api.sender === token.issuer || (api.sender === api.owner && token.symbol === "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'"), 'must be issuer of token')) return;
@@ -862,8 +871,12 @@ async function getRewardPoolIds(payload) {
       && jsonMetadata.tags.every(t => typeof t === 'string')) {
     const searchTags = parentPermlink ? jsonMetadata.tags.concat([parentPermlink])
       : jsonMetadata.tags;
+    const poolQuery = {
+      'config.tags': { $in: searchTags },
+      'config.excludeTags': { $not: { $in: searchTags } },
+    };
     const tagRewardPools = await api.db.find('rewardPools',
-      { 'config.tags': { $in: searchTags } },
+      poolQuery,
       params.maxPoolsPerPost, 0, [{ index: '_id', descending: false }]);
     if (tagRewardPools && tagRewardPools.length > 0) {
       return tagRewardPools.map(r => r._id);

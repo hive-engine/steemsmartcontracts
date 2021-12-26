@@ -13,7 +13,7 @@
         "https://api.hive.blog",
         "https://api.openhive.network"
     ],
-    "startHiveBlock": 0,
+    "startHiveBlock": 60363033,
     "genesisHiveBlock": 41967000,
     "witnessEnabled": true,
     "enableHashVerification": true,

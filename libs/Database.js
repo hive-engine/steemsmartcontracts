@@ -610,7 +610,7 @@ class Database {
           if (ind.length > 0) {
             const tableIndexes = await indexInformation(tableData);
 
-            const sort;
+            const sort = [];
             if (ind.every(el => tableIndexes[`${el.index}_1`] !== undefined || el.index === '$loki' || el.index === '_id' || tableIndexes[el.index] !== undefined)) {
               ind.forEach((el) => {
                 if (tableIndexes[el.index] !== undefined) {

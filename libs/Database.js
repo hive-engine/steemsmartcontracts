@@ -648,6 +648,7 @@ class Database {
             result = await tableData.find(EJSON.deserialize(query), {
               limit: lim,
               skip: off,
+              sort: ['_id', 'asc'],
               session: this.session,
             }).toArray();
             result = EJSON.serialize(result);

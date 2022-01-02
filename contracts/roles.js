@@ -29,9 +29,9 @@ actions.createSSC = async () => {
     params.instanceTickHours = '24';
     params.roleCreationFee = '50';
     params.roleUpdateFee = '25';
-    params.maxSlots = 40;
-    params.maxInstancePerBlock = 1;
-    params.maxTxPerBlock = 40;
+    params.maxSlots = 10;
+    params.maxInstancesPerBlock = 1;
+    params.maxRolesPerBlock = 4;
     params.maxAccountApprovals = 50;
     params.processQueryLimit = 1000;
     await api.db.insert('params', params);
@@ -46,8 +46,8 @@ actions.updateParams = async (payload) => {
     roleCreationFee,
     roleUpdateFee,
     maxSlots,
-    maxInstancePerBlock,
-    maxTxPerBlock,
+    maxInstancesPerBlock,
+    maxRolesPerBlock,
     maxAccountApprovals,
     processQueryLimit,
   } = payload;
@@ -78,16 +78,16 @@ actions.updateParams = async (payload) => {
     if (!api.assert(typeof maxSlots === 'string' && api.BigNumber(maxSlots).isInteger() && api.BigNumber(maxSlots).gte(1), 'invalid maxSlots')) return;
     params.maxSlots = api.BigNumber(maxSlots).toNumber();
   }
-  if (maxInstancePerBlock) {
-    if (!api.assert(typeof maxInstancePerBlock === 'string' && api.BigNumber(maxInstancePerBlock).isInteger() && api.BigNumber(maxInstancePerBlock).gte(1), 'invalid maxInstancePerBlock')) return;
-    params.maxInstancePerBlock = api.BigNumber(maxInstancePerBlock).toNumber();
+  if (maxInstancesPerBlock) {
+    if (!api.assert(typeof maxInstancesPerBlock === 'string' && api.BigNumber(maxInstancesPerBlock).isInteger() && api.BigNumber(maxInstancesPerBlock).gte(1), 'invalid maxInstancesPerBlock')) return;
+    params.maxInstancesPerBlock = api.BigNumber(maxInstancesPerBlock).toNumber();
   }
-  if (maxTxPerBlock) {
-    if (!api.assert(typeof maxTxPerBlock === 'string' && api.BigNumber(maxTxPerBlock).isInteger() && api.BigNumber(maxTxPerBlock).gte(1), 'invalid maxTxPerBlock')) return;
-    params.maxTxPerBlock = api.BigNumber(maxTxPerBlock).toNumber();
+  if (maxRolesPerBlock) {
+    if (!api.assert(typeof maxRolesPerBlock === 'string' && api.BigNumber(maxRolesPerBlock).isInteger() && api.BigNumber(maxRolesPerBlock).gte(1), 'invalid maxRolesPerBlock')) return;
+    params.maxRolesPerBlock = api.BigNumber(maxRolesPerBlock).toNumber();
   }
   if (maxAccountApprovals) {
-    if (!api.assert(typeof maxAccountApprovals === 'string' && api.BigNumber(maxAccountApprovals).isInteger() && api.BigNumber(maxAccountApprovals).gte(1), 'invalid maxTxPerBlock')) return;
+    if (!api.assert(typeof maxAccountApprovals === 'string' && api.BigNumber(maxAccountApprovals).isInteger() && api.BigNumber(maxAccountApprovals).gte(1), 'invalid maxAccountApprovals')) return;
     params.maxAccountApprovals = api.BigNumber(maxAccountApprovals).toNumber();
   }
   if (processQueryLimit) {
@@ -253,7 +253,7 @@ actions.createRoles = async (payload) => {
         && typeof role.voteThreshold === 'string' && api.BigNumber(role.voteThreshold).gte(0) && api.BigNumber(role.voteThreshold).dp() <= voteTokenObj.precision
         && typeof role.mainSlots === 'string' && api.BigNumber(role.mainSlots).isInteger() && api.BigNumber(role.mainSlots).gt(0) && api.BigNumber(role.mainSlots).lte(params.maxSlots)
         && typeof role.backupSlots === 'string' && api.BigNumber(role.backupSlots).isInteger() && api.BigNumber(role.backupSlots).gte(0) && api.BigNumber(role.backupSlots).lte(api.BigNumber(params.maxSlots).minus(role.mainSlots))
-        && typeof role.tickHours === 'string' && api.BigNumber(role.tickHours).isInteger() && api.BigNumber(role.tickHours).gte(params.instanceTickHours), 'invalid roles properties')) return;
+        && typeof role.tickHours === 'string' && api.BigNumber(role.tickHours).isInteger() && api.BigNumber(role.tickHours).gte(params.instanceTickHours) && api.BigNumber(role.tickHours).mod(params.instanceTickHours).eq(0), 'invalid roles properties')) return;
     }
 
     const insertedRoles = [];
@@ -325,7 +325,7 @@ actions.updateRole = async (payload) => {
       if (!api.assert(typeof mainSlots === 'string'
         && api.BigNumber(mainSlots).isInteger()
         && api.BigNumber(mainSlots).gt(0)
-        && api.BigNumber(mainSlots).lte(params.maxTxPerBlock), `mainSlots must be a integer between 1 - ${params.maxSlots}`)) return;
+        && api.BigNumber(mainSlots).lte(params.maxSlots), 'mainSlots must be a integer between 1 - params.maxSlots')) return;
       existingRole.mainSlots = mainSlots;
     }
     if (backupSlots) {
@@ -333,13 +333,14 @@ actions.updateRole = async (payload) => {
       if (!api.assert(typeof backupSlots === 'string'
         && api.BigNumber(backupSlots).isInteger()
         && api.BigNumber(backupSlots).gte(0)
-        && api.BigNumber(backupSlots).lte(remainingSlots), `backupSlots must be an integer between 0 - ${remainingSlots}`)) return;
+        && api.BigNumber(backupSlots).lte(remainingSlots), 'backupSlots must be an integer between 0 - remainingSlots')) return;
       existingRole.backupSlots = backupSlots;
     }
     if (tickHours) {
       if (!api.assert(typeof tickHours === 'string'
         && api.BigNumber(tickHours).isInteger()
-        && api.BigNumber(tickHours).gte(params.instanceTickHours), `tickHours must be an integer greater than or equal to ${params.instanceTickHours}`)) return;
+        && api.BigNumber(tickHours).gte(params.instanceTickHours)
+        && api.BigNumber(tickHours).mod(params.instanceTickHours).eq(0), 'tickHours must be an integer greater than or equal to, and a multiple of params.instanceTickHours')) return;
       existingRole.tickHours = tickHours;
     }
 
@@ -387,7 +388,7 @@ actions.applyForRole = async (payload) => {
     && !api.assert(typeof roleId === 'string', 'invalid roleId')) {
     return;
   }
-  const role = await api.db.findOne('roles', { _id: roleId });
+  const role = await api.db.findOne('roles', { _id: api.BigNumber(roleId).toNumber() });
   if (!api.assert(role, 'role does not exist')) return;
   const inst = await api.db.findOne('instances', { _id: role.instanceId });
 
@@ -399,11 +400,11 @@ actions.applyForRole = async (payload) => {
       : feeTokenBalance && api.BigNumber(feeTokenBalance.balance).gte(inst.candidateFee.amount);
   }
 
-  const existingApply = await api.db.findOne('candidates', { roleId, account: api.sender });
-  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
+  const existingApply = await api.db.findOne('candidates', { roleId: role._id, account: api.sender });
+  if (api.assert(authorizedCreation, 'you must have enough tokens to cover the application fee')
     && api.assert(!existingApply, 'sender already applied for role')) {
     const newCandidate = {
-      roleId,
+      roleId: role._id,
       account: api.sender,
       active: true,
       approvalWeight: { $numberDecimal: '0' },
@@ -423,7 +424,7 @@ actions.applyForRole = async (payload) => {
       }
     }
 
-    api.emit('applyForRole', { roleId, candidateId: insertedId._id });
+    api.emit('applyForRole', { roleId: role._id, candidateId: insertedId._id });
   }
 };
 
@@ -439,17 +440,17 @@ actions.toggleApplyForRole = async (payload) => {
     && !api.assert(typeof active === 'string', 'invalid active')) {
     return;
   }
-  const role = await api.db.findOne('roles', { _id: roleId });
-  const existingApply = await api.db.findOne('candidates', { roleId, account: api.sender });
+  const role = await api.db.findOne('roles', { _id: api.BigNumber(roleId).toNumber() });
+  const existingApply = await api.db.findOne('candidates', { roleId: role._id, account: api.sender });
   if (api.assert(role, 'role does not exist')
-    && api.assert(existingApply, 'application does not exist for sender')) {
+    && api.assert(existingApply, 'candidate does not exist for sender')) {
     existingApply.active = !!active;
     await api.db.update('candidates', existingApply);
-    api.emit('toggleApplyForRole', { id: roleId, account: existingApply.account, active });
+    api.emit('toggleApplyForRole', { roleId: role._id, account: existingApply.account, active });
   }
 };
 
-// deposit actions
+// deposit
 
 async function updateTokenBalances(role, token, quantity) {
   const upRole = role;
@@ -742,20 +743,24 @@ async function payRecipient(account, symbol, quantity, type = 'user', contractPa
 }
 
 async function checkPendingCandidates(inst, params) {
+  const random = api.random();
   const blockDate = new Date(`${api.hiveBlockTimestamp}.000Z`);
   const upInst = JSON.parse(JSON.stringify(inst));
   const voteTokenObj = await api.db.findOneInTable('tokens', 'tokens', { symbol: inst.voteToken });
   const voteTokenMinValue = api.BigNumber(1)
     .dividedBy(api.BigNumber(10).pow(voteTokenObj.precision));
-  const random = api.random();
+  const instTickTime = api.BigNumber(blockDate.getTime())
+    .minus(params.instanceTickHours * 3600 * 1000).toNumber();
 
+  let rolesProcessed = 0;
   const pendingRoles = await api.db.find('roles',
     {
       instanceId: inst.id,
       active: true,
       'tokenBalances.0': { $exists: true },
+      lastTickTime: { $lte: instTickTime },
     },
-    params.maxTxPerBlock,
+    params.maxRolesPerBlock,
     0,
     [{ index: 'byLastTickTime', descending: false }, { index: '_id', descending: false }]);
 
@@ -764,10 +769,10 @@ async function checkPendingCandidates(inst, params) {
     const funded = [];
     const payTokens = role.tokenBalances.filter(t => api.BigNumber(t.quantity).gt(0));
     const totalSlots = api.BigNumber(role.mainSlots).plus(role.backupSlots).toNumber();
-
     const roleTickTime = api.BigNumber(blockDate.getTime())
       .minus(role.tickHours * 3600 * 1000).toNumber();
-    if (role.lastTickTime < roleTickTime) {
+
+    if (role.lastTickTime <= roleTickTime) {
       if (payTokens.length > 0) {
         let offset = 0;
         let candidates = await api.db.find('candidates',
@@ -848,13 +853,17 @@ async function checkPendingCandidates(inst, params) {
           }
         }
       }
+      rolesProcessed += 1;
       const upRole = JSON.parse(JSON.stringify(role));
       upRole.lastTickTime = blockDate.getTime();
       await api.db.update('roles', upRole);
     }
   }
-  upInst.lastTickTime = blockDate.getTime();
-  await api.db.update('instances', upInst);
+
+  if (rolesProcessed === 0) {
+    upInst.lastTickTime = blockDate.getTime();
+    await api.db.update('instances', upInst);
+  }
 }
 
 actions.checkPendingInstances = async () => {
@@ -871,7 +880,7 @@ actions.checkPendingInstances = async () => {
           $lte: tickTime,
         },
       },
-      params.maxInstancePerBlock,
+      params.maxInstancesPerBlock,
       0,
       [{ index: 'lastTickTime', descending: false }, { index: '_id', descending: false }]);
 

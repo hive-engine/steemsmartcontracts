@@ -2,6 +2,7 @@
 /* global actions, api */
 
 const TradeType = ['exactInput', 'exactOutput'];
+const TradeFeeMul = api.BigNumber('0.9975');
 
 actions.createSSC = async () => {
   const tableExists = await api.db.tableExists('pools');
@@ -66,7 +67,7 @@ function getAmountIn(amountOut, liquidityIn, liquidityOut) {
       && api.BigNumber(liquidityOut).gt(0)
       && api.BigNumber(amountOut).lt(liquidityOut), 'insufficient liquidity')) return false;
   const num = api.BigNumber(liquidityIn).times(amountOut);
-  const den = api.BigNumber(liquidityOut).minus(amountOut);
+  const den = api.BigNumber(liquidityOut).minus(amountOut).times(TradeFeeMul);
   return num.dividedBy(den);
 }
 
@@ -74,8 +75,9 @@ function getAmountOut(amountIn, liquidityIn, liquidityOut) {
   if (!api.assert(api.BigNumber(amountIn).gt(0), 'insufficient output amount')
     || !api.assert(api.BigNumber(liquidityIn).gt(0)
       && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
-  const num = api.BigNumber(amountIn).times(liquidityOut);
-  const den = api.BigNumber(liquidityIn).plus(amountIn);
+  const amountInWithFee = api.BigNumber(amountIn).times(TradeFeeMul);
+  const num = api.BigNumber(amountInWithFee).times(liquidityOut);
+  const den = api.BigNumber(liquidityIn).plus(amountInWithFee);
   const amountOut = num.dividedBy(den);
   if (!api.assert(api.BigNumber(amountOut).lt(liquidityOut), 'insufficient liquidity')) return false;
   return amountOut;

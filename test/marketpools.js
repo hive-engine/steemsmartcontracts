@@ -512,7 +512,7 @@ describe('marketpools tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1000", "quoteQuantity": "16000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "1", "quoteQuantity": "16", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1.234", "tradeType": "exactOutput", "maxPriceImpact": "0.5", "isSignedWithActiveKey": true}'));      
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'whale', 'marketpools', 'swapTokens', '{ "tokenPair": "GLD:SLV", "tokenSymbol": "SLV", "tokenAmount": "1.234", "tradeType": "exactOutput", "isSignedWithActiveKey": true}'));      
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'investor', 'marketpools', 'addLiquidity', '{ "tokenPair": "GLD:SLV", "baseQuantity": "0.03987654", "quoteQuantity": "0.62476567", "maxPriceImpact": "10", "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -538,9 +538,10 @@ describe('marketpools tests', function () {
       });
       await assertShareConsistency("GLD:SLV");
       assert.ok(lpos, 'newly created LP not found');
-      assert.ok(lpos.shares === '4004.15620344064407153095', `LP shares not as expected - ${lpos.shares}`);
-      assert.ok(lpool.basePrice === '15.99753702', `pool price not as expected - ${lpool.basePrice}`);
-      assert.ok(lpool.baseQuantity === '1002.11618481', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
+      assert.ok(lpos.shares === '4004.15620342579566159662', `LP shares not as expected - ${lpos.shares}`);
+      assert.ok(lpool.totalShares === '4008.15620342579566159662', `Pool total shares not as expected - ${lpool.totalShares}`);
+      assert.ok(lpool.basePrice === '15.99753393', `pool price not as expected - ${lpool.basePrice}`);
+      assert.ok(lpool.baseQuantity === '1002.11637812', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
       assert.ok(lpool.quoteQuantity === '16031.39076567', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
 
       resolve();
@@ -746,11 +747,13 @@ describe('marketpools tests', function () {
       await assertShareConsistency("GLD:SLV");
       assert.ok(lpos, 'active LP not found');
       assert.ok(!lpos2, 'supposed to be deleted LP found');
-      assert.ok(lpos.shares === '2000', `LP baseQuantity not as expected - ${lpos.shares}`);
-      assert.ok(lpool.basePrice === '16.00000099', `pool price not as expected - ${lpool.basePrice}`);
-      assert.ok(lpool.baseQuantity === '1499.99995320', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
-      assert.ok(lpool.quoteQuantity === '24000.00074906', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
-
+      assert.ok(lpos.shares === '2000', `LP shares not as expected - ${lpos.shares}`);
+      assert.ok(lpool.basePrice === '16.00003852', `pool price not as expected - ${lpool.basePrice}`);
+      assert.ok(lpool.baseQuantity === '1500.00018769', `pool baseQuantity not as expected - ${lpool.baseQuantity}`);
+      assert.ok(lpool.quoteQuantity === '24000.06079337', `pool quoteQuantity not as expected - ${lpool.quoteQuantity}`);
+      await tableAsserts.assertUserBalances({ account: 'investor', symbol: 'GLD', balance: '500.00006255'});
+      await tableAsserts.assertUserBalances({ account: 'whale', symbol: 'GLD', balance: '1000.00000012'});
+      
       resolve();
     })
       .then(() => {
@@ -886,19 +889,19 @@ describe('marketpools tests', function () {
       await tableAsserts.assertNoErrorInLastBlock();
 
       // verify swap execution
-      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: '999.99800108'});
-      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '1000.00018'});
-      await assertContractBalance('marketpools', 'SLV', 10000.00199892);
-      await assertContractBalance('marketpools', 'GLD', 999.99982);
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'SLV', balance: '999.94794080'});
+      await tableAsserts.assertUserBalances({ account: 'buyer', symbol: 'GLD', balance: '999.99969'});
+      await assertContractBalance('marketpools', 'SLV', 10000.05205920);
+      await assertContractBalance('marketpools', 'GLD', 1000.00031);
 
       // verify pool stats execution
       await assertPoolStats('GLD:SLV', {
-        baseQuantity: 999.99980011,
-        quoteQuantity: 10000.0019989,
-        baseVolume: 2.19982003,
-        quoteVolume: 22.01802111,
-        basePrice: 10.00000399,
-        quotePrice: 0.09999996,        
+        baseQuantity: 1000.00030048,
+        quoteQuantity: 10000.05205918,
+        baseVolume: 2.19981945,
+        quoteVolume: 22.01813631,
+        basePrice: 10.00004905,
+        quotePrice: 0.09999950,        
       });
       await assertShareConsistency("GLD:SLV");
      

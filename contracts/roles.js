@@ -453,7 +453,7 @@ actions.applyForRole = async (payload) => {
   }
 };
 
-actions.toggleApplyForRole = async (payload) => {
+actions.setApplyActive = async (payload) => {
   const {
     roleId,
     active,
@@ -461,8 +461,7 @@ actions.toggleApplyForRole = async (payload) => {
   } = payload;
 
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
-    && !api.assert(typeof roleId === 'string', 'invalid roleId')
-    && !api.assert(typeof active === 'string', 'invalid active')) {
+    && !api.assert(typeof roleId === 'string', 'invalid roleId')) {
     return;
   }
   const role = await api.db.findOne('roles', { _id: api.BigNumber(roleId).toNumber() });
@@ -471,7 +470,7 @@ actions.toggleApplyForRole = async (payload) => {
     && api.assert(existingApply, 'candidate does not exist for sender')) {
     existingApply.active = !!active;
     await api.db.update('candidates', existingApply);
-    api.emit('toggleApplyForRole', { roleId: role._id, account: existingApply.account, active });
+    api.emit('setApplyActive', { roleId: role._id, account: existingApply.account, active });
   }
 };
 

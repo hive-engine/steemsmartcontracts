@@ -736,7 +736,7 @@ describe('roles tests', function () {
       transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'tokens', 'stake', '{ "to": "voter4", "symbol": "PRO", "quantity": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'tokens', 'unstake', '{ "symbol": "PRO", "quantity": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'roles', 'toggleApplyForRole', '{ "roleId": "2", "active": false, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'roles', 'setApplyActive', '{ "roleId": "2", "active": false, "isSignedWithActiveKey": true }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,

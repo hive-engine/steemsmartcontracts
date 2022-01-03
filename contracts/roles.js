@@ -192,8 +192,9 @@ actions.updateInstance = async (payload) => {
 
   if (api.assert(authorizedUpdate, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    && api.assert(typeof instanceId === 'string' && api.BigNumber(instanceId).isInteger(), 'invalid instanceId')
     && api.assert(candidateFee, 'specify at least one field to update')) {
-    const existingInst = await api.db.findOne('instances', { _id: instanceId });
+    const existingInst = await api.db.findOne('instances', { _id: api.BigNumber(instanceId).toNumber() });
     if (!api.assert(existingInst, 'instance not found')
       || !api.assert(existingInst.creator === api.sender || api.owner === api.sender, 'must be instance creator')) return;
 
@@ -240,8 +241,9 @@ actions.createRoles = async (payload) => {
 
   if (api.assert(authorizedCreation, 'you must have enough tokens to cover the creation fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    && api.assert(typeof instanceId === 'string' && api.BigNumber(instanceId).isInteger(), 'invalid instanceId')
     && api.assert(typeof roles === 'object' && Array.isArray(roles) && roles.length > 0 && roles.length <= 50, 'invalid roles object')) {
-    const existingInst = await api.db.findOne('instances', { _id: instanceId });
+    const existingInst = await api.db.findOne('instances', { _id: api.BigNumber(instanceId).toNumber() });
     if (!api.assert(existingInst, 'instance not found')
       || !api.assert(existingInst.creator === api.sender || api.owner === api.sender, 'must be instance creator')) return;
 
@@ -301,13 +303,14 @@ actions.updateRole = async (payload) => {
 
   if (api.assert(authorizedUpdate, 'you must have enough tokens to cover the update fee')
     && api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    && api.assert(typeof roleId === 'string' && api.BigNumber(roleId).isInteger(), 'invalid roleId')
     && api.assert(typeof active !== 'undefined' || name || voteThreshold || mainSlots || backupSlots || tickHours, 'specify at least one field to update')) {
-    const existingRole = await api.db.findOne('roles', { _id: roleId });
+    const existingRole = await api.db.findOne('roles', { _id: api.BigNumber(roleId).toNumber() });
     const existingInst = await api.db.findOne('instances', { _id: existingRole.instanceId });
     if (!api.assert(existingRole, 'role not found') || !api.assert(existingInst, 'instance not found')
       || !api.assert(existingInst.creator === api.sender || api.owner === api.sender, 'must be instance creator')) return;
 
-    if (active) {
+    if (typeof active !== 'undefined') {
       existingRole.active = !!active;
     }
     if (name) {
@@ -355,7 +358,7 @@ actions.updateRole = async (payload) => {
         to: 'null', symbol: "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'", quantity: roleUpdateFee, isSignedWithActiveKey,
       });
     }
-    api.emit('updateRole', { id: existingRole._id });
+    api.emit('updateRole', { roleId: existingRole._id });
   }
 };
 
@@ -366,15 +369,37 @@ actions.setInstanceActive = async (payload) => {
     isSignedWithActiveKey,
   } = payload;
 
-  if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')) {
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    || !api.assert(typeof instanceId === 'string' && api.BigNumber(instanceId).isInteger(), 'invalid instanceId')) {
     return;
   }
-  const inst = await api.db.findOne('instances', { _id: instanceId });
+  const inst = await api.db.findOne('instances', { _id: api.BigNumber(instanceId).toNumber() });
   if (api.assert(inst, 'instance does not exist')
     && api.assert(inst.creator === api.sender || api.owner === api.sender, 'must be instance creator')) {
     inst.active = !!active;
     await api.db.update('instances', inst);
-    api.emit('setInstanceActive', { id: inst.id, active: inst.active });
+    api.emit('setInstanceActive', { instanceId: inst._id, active: inst.active });
+  }
+};
+
+actions.setRoleActive = async (payload) => {
+  const {
+    roleId,
+    active,
+    isSignedWithActiveKey,
+  } = payload;
+
+  if (!api.assert(isSignedWithActiveKey === true, 'you must use a transaction signed with your active key')
+    || !api.assert(typeof roleId === 'string' && api.BigNumber(roleId).isInteger(), 'invalid roleId')) {
+    return;
+  }
+  const existingRole = await api.db.findOne('roles', { _id: api.BigNumber(roleId).toNumber() });
+  const existingInst = await api.db.findOne('instances', { _id: existingRole.instanceId });
+  if (api.assert(existingRole, 'role does not exist')
+    && api.assert(existingInst.creator === api.sender || api.owner === api.sender, 'must be instance creator')) {
+    existingRole.active = !!active;
+    await api.db.update('roles', existingRole);
+    api.emit('setRoleActive', { roleId: existingRole._id, active: existingRole.active });
   }
 };
 
@@ -479,12 +504,13 @@ actions.deposit = async (payload) => {
 
   const depToken = await api.db.findOneInTable('tokens', 'tokens', { symbol });
   if (!api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')
+    || !api.assert(typeof roleId === 'string' && api.BigNumber(roleId).isInteger(), 'invalid roleId')
     || !api.assert(typeof quantity === 'string' && api.BigNumber(quantity).gt(0), 'invalid quantity')
     || !api.assert(api.BigNumber(quantity).dp() <= depToken.precision, 'quantity precision mismatch')) {
     return;
   }
 
-  const role = await api.db.findOne('roles', { _id: roleId });
+  const role = await api.db.findOne('roles', { _id: api.BigNumber(roleId).toNumber() });
   if (api.assert(role, 'role not found') && api.assert(role.active, 'role must be active to deposit')) {
     const res = await api.executeSmartContract('tokens', 'transferToContract', { symbol, quantity, to: ContractName });
     if (res.errors === undefined
@@ -843,6 +869,7 @@ async function checkPendingCandidates(inst, params) {
                   .minus(payoutQty)
                   .toFixed(payToken.precision, api.BigNumber.ROUND_DOWN);
                 api.emit('rolePayment', {
+                  instanceId: inst.id,
                   roleId: role._id,
                   account: fund.account,
                   symbol: payTokens[l].symbol,

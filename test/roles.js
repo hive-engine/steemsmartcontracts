@@ -278,9 +278,9 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));      
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": 1, "candidateFee": { "method": "burn", "symbol": "PRO", "amount": "1" }, "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": 1, "candidateFee": "1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": 1, "candidateFee": { "method": "burn", "symbol": "ABC", "amount": "1" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": "1", "candidateFee": { "method": "burn", "symbol": "PRO", "amount": "1" }, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": "1", "candidateFee": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": "1", "candidateFee": { "method": "burn", "symbol": "ABC", "amount": "1" }, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -317,7 +317,7 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));      
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": 1, "candidateFee": { "method": "issuer", "symbol": "PRO", "amount": "10" }, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateInstance', '{ "instanceId": "1", "candidateFee": { "method": "issuer", "symbol": "PRO", "amount": "10" }, "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -412,11 +412,11 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [], "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 2, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buffet', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker X", "voteThreshold": "-1", "mainSlots": "0", "backupSlots": "5", "tickHours": "12"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [], "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "2", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buffet', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker X", "voteThreshold": "-1", "mainSlots": "0", "backupSlots": "5", "tickHours": "12"}], "isSignedWithActiveKey": true }'));
       
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -464,7 +464,7 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -503,14 +503,14 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buffet', 'roles', 'updateRole', '{ "roleId": 1, "mainSlots": "5", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "name": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "voteThreshold": "-1", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "mainSlots": "0", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "backupSlots": "36", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": 1, "tickHours": "6", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'buffet', 'roles', 'updateRole', '{ "roleId": "1", "mainSlots": "5", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": "1", "name": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": "1", "voteThreshold": "-1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": "1", "mainSlots": "0", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": "1", "backupSlots": "36", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": "1", "tickHours": "6", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -571,8 +571,8 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "name": "Worker 1A", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "roleId": "1", "name": "Worker 1A", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -626,10 +626,10 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "1000" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "candidateFee": { "method": "burn", "symbol": "BEE", "amount": "0" }, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'setInstanceActive', '{ "instanceId": 1, "active": true, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "active": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'deposit', '{ "roleId": 2, "symbol": "BEE", "quantity": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'setInstanceActive', '{ "instanceId": "1", "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": "1", "roleId": 1, "active": false, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'deposit', '{ "roleId": "2", "symbol": "BEE", "quantity": "1", "isSignedWithActiveKey": true }'));
 
       let block = {
         refHiveBlockNumber: refBlockNumber,
@@ -688,10 +688,10 @@ describe('roles tests', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'tokens', 'stake', '{ "to":"voter3", "symbol": "PRO", "quantity": "100000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'tokens', 'stake', '{ "to":"voter4", "symbol": "PRO", "quantity": "1000000", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'setInstanceActive', '{ "instanceId": 1, "active": true, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": 1, "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'updateRole', '{ "instanceId": 1, "roleId": 1, "active": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'deposit', '{ "roleId": 2, "symbol": "BEE", "quantity": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'setInstanceActive', '{ "instanceId": "1", "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "5", "backupSlots": "2", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "1", "backupSlots": "1", "tickHours": "168"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'setRoleActive', '{ "roleId": "1", "active": false, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'deposit', '{ "roleId": "2", "symbol": "BEE", "quantity": "1", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'organizer', 'roles', 'applyForRole', '{ "roleId": "2", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'roles', 'applyForRole', '{ "roleId": "2", "isSignedWithActiveKey": true }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'roles', 'applyForRole', '{ "roleId": "2", "isSignedWithActiveKey": true }'));
@@ -773,6 +773,170 @@ describe('roles tests', function () {
         done();
       });
   });
+
+  it('should run roles over several blocks', (done) => {
+    new Promise(async (resolve) => {
+
+      await fixture.setUp(); await setUpEnv();
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'roles', 'updateParams', '{ "maxInstancesPerBlock": "1", "maxRolesPerBlock": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'create', '{ "isSignedWithActiveKey": true,  "name": "token", "symbol": "PRO", "precision": 8, "maxSupply": "10000000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'enableStaking', '{ "symbol": "PRO", "unstakingCooldown": 3, "numberTransactions": 1, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "PRO", "quantity": "1000", "to": "organizer", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "PRO", "quantity": "1000", "to": "voter1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "PRO", "quantity": "10000", "to": "voter2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "PRO", "quantity": "100000", "to": "voter3", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'tokens', 'issue', '{ "symbol": "PRO", "quantity": "1000001", "to": "voter4", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'tokens', 'stake', '{ "to":"voter1", "symbol": "PRO", "quantity": "1000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'tokens', 'stake', '{ "to":"voter2", "symbol": "PRO", "quantity": "10000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'tokens', 'stake', '{ "to":"voter3", "symbol": "PRO", "quantity": "100000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'tokens', 'stake', '{ "to":"voter4", "symbol": "PRO", "quantity": "1000000", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createInstance', '{ "voteToken": "PRO", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'setInstanceActive', '{ "instanceId": "1", "active": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'createRoles', '{ "instanceId": "1", "roles": [{ "name": "Worker 1", "voteThreshold": "0", "mainSlots": "3", "backupSlots": "1", "tickHours": "24"},{ "name": "Worker 2", "voteThreshold": "0", "mainSlots": "4", "backupSlots": "0", "tickHours": "24"}], "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'deposit', '{ "roleId": "1", "symbol": "BEE", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'donchate', 'roles', 'deposit', '{ "roleId": "2", "symbol": "BEE", "quantity": "100", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'organizer', 'roles', 'applyForRole', '{ "roleId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'roles', 'applyForRole', '{ "roleId": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'roles', 'applyForRole', '{ "roleId": "1", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'roles', 'applyForRole', '{ "roleId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'roles', 'applyForRole', '{ "roleId": "2", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'roles', 'approveCandidate', '{ "id": "1" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'roles', 'approveCandidate', '{ "id": "1" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'roles', 'approveCandidate', '{ "id": "1" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'roles', 'approveCandidate', '{ "id": "2" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'roles', 'approveCandidate', '{ "id": "1" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'roles', 'approveCandidate', '{ "id": "2" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'roles', 'approveCandidate', '{ "id": "3" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'roles', 'approveCandidate', '{ "id": "3" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter3', 'roles', 'approveCandidate', '{ "id": "3" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter4', 'roles', 'approveCandidate', '{ "id": "3" }'));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-12T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      
+      let res = await fixture.database.getLatestBlockInfo();
+      // console.log(res);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      // weight asserts
+      await assertUserWeight('voter1', 'PRO', '1000.00000000');
+      await assertUserWeight('voter2', 'PRO', '10000.00000000');
+      await assertUserWeight('voter3', 'PRO', '100000.00000000');
+      await assertUserWeight('voter4', 'PRO', '1000000.00000000');
+      await assertUserApproval('voter1', 1);
+      await assertUserApproval('voter2', 1);
+      await assertUserApproval('voter3', 1);
+      await assertUserApproval('voter4', 1);
+      await assertWeightConsistency(1, 'PRO');
+      await assertWeightConsistency(2, 'PRO');
+      await assertWeightConsistency(3, 'PRO');
+      await assertWeightConsistency(4, 'PRO');
+
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'roles', 'approveCandidate', '{ "id": "2" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-13T00:00:00',
+        transactions,
+      };
+      await fixture.sendBlock(block);
+
+      res = (await fixture.database.getLatestBlockInfo());
+      // console.log(res);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await assertWeightConsistency(1, 'PRO');
+      await assertWeightConsistency(2, 'PRO');
+      await assertWeightConsistency(3, 'PRO');
+      await assertWeightConsistency(4, 'PRO');
+
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+      let virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      let e = virtualEventLog.events.find(x => x.event === 'rolePayment');
+      assert.ok(e, 'Expected to find rolePayment event');
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'roles', 'disapproveCandidate', '{ "id": "2" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-13T00:00:03',
+        transactions,
+      };
+      await fixture.sendBlock(block);
+
+      res = (await fixture.database.getLatestBlockInfo());
+      // console.log(res);
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      await assertWeightConsistency(1, 'PRO');
+      await assertWeightConsistency(2, 'PRO');
+      await assertWeightConsistency(3, 'PRO');
+      await assertWeightConsistency(4, 'PRO');
+
+      assert.ok(res.virtualTransactions.length > 0, 'Expected to find virtualTransactions');
+      virtualEventLog = JSON.parse(res.virtualTransactions[0].logs);
+      e = virtualEventLog.events.find(x => x.event === 'rolePayment');
+      assert.ok(e, 'Expected to find rolePayment event');
+
+      // balance asserts
+      await tableAsserts.assertUserBalances({ account: 'organizer', symbol: 'BEE', balance: '25.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'voter1', symbol: 'BEE', balance: '25.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'voter2', symbol: 'BEE', balance: '25.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'voter3', symbol: 'BEE'});
+      await tableAsserts.assertUserBalances({ account: 'voter4', symbol: 'BEE'});
+      await assertContractBalance('roles', 'BEE', '125.00000000');
+
+      // let roleState = await fixture.database.find({
+      //   contract: 'roles',
+      //   table: 'roles',
+      //   query: {}
+      // });
+      // console.log(JSON.stringify(roleState, null, 2));
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter2', 'roles', 'approveCandidate', '{ "id": "4" }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2021-03-13T00:00:06',
+        transactions,
+      };
+      await fixture.sendBlock(block);
+
+      res = (await fixture.database.getLatestBlockInfo());
+      // console.log(res);
+      await tableAsserts.assertNoErrorInLastBlock();
+      assert.ok(res.virtualTransactions.length == 0, 'Expected to not find virtualTransactions'); 
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });  
 
   // END TESTS
 });

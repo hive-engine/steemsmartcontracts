@@ -608,9 +608,8 @@ class Database {
           if (ind.length > 0) {
             const tableIndexes = await indexInformation(tableData);
 
-            let sort;
+            const sort = [];
             if (ind.every(el => tableIndexes[`${el.index}_1`] !== undefined || el.index === '$loki' || el.index === '_id' || tableIndexes[el.index] !== undefined)) {
-              sort = [];
               ind.forEach((el) => {
                 if (tableIndexes[el.index] !== undefined) {
                   tableIndexes[el.index].forEach((indexPart) => {
@@ -632,6 +631,9 @@ class Database {
               // not exist.
               console.log(`Index ${JSON.stringify(ind)} not available for ${finalTableName}`); // eslint-disable-line no-console
             }
+            if (sort.length === 0 || sort[sort.length - 1][0] !== '_id') {
+                sort.push(['_id', 'asc']);
+            }
             result = await tableData.find(EJSON.deserialize(query), {
               limit: lim,
               skip: off,
@@ -644,6 +646,7 @@ class Database {
             result = await tableData.find(EJSON.deserialize(query), {
               limit: lim,
               skip: off,
+              sort: ['_id', 'asc'],
               session: this.session,
             }).toArray();
             result = EJSON.serialize(result);

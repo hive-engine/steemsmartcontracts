@@ -1195,7 +1195,7 @@ describe('comments', function () {
       await tableAsserts.assertNoErrorInLastBlock();
 
       let posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
-      assert.equal(JSON.stringify(posts), '[{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"authorperm":"@author1/test1","rewardPoolId":1},{"_id":{"authorperm":"@author1/re-test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/re-test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"0","voteRshareSum":"0"}]');
+      assert.equal(JSON.stringify(posts), '[{"_id":{"authorperm":"@author1/re-test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/re-test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"0","voteRshareSum":"0"},{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"authorperm":"@author1/test1","rewardPoolId":1}]');
       let postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/test1" }});
       assert.equal(postMetadata, null);
       postMetadata = await fixture.database.findOne({ contract: 'comments', table: 'postMetadata', query: { authorperm: "@author1/re-test1" }});
@@ -1293,7 +1293,7 @@ describe('comments', function () {
       assert.equal(JSON.stringify(post), '{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"10.0000000000","voteRshareSum":"10.0000000000"}');
 
       let votes = await fixture.database.find({ contract: 'comments', table: 'votes', query: { rewardPoolId: 1, authorperm: "@author1/test1" }});
-      assert.equal(JSON.stringify(votes), '[{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"voter1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"10.0000000000","curationWeight":"3.1622776601","timestamp":1527811200000,"voter":"voter1"},{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"author1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"0.0000000000","curationWeight":"0.0000000000","timestamp":1527811200000,"voter":"author1"}]');
+      assert.equal(JSON.stringify(votes), '[{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"author1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"0.0000000000","curationWeight":"0.0000000000","timestamp":1527811200000,"voter":"author1"},{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"voter1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"10.0000000000","curationWeight":"3.1622776601","timestamp":1527811200000,"voter":"voter1"}]');
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
@@ -1415,7 +1415,7 @@ describe('comments', function () {
       assert.equal(JSON.stringify(post), '{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"10.0000000000","voteRshareSum":"10.0000000000"}');
 
       let votes = await fixture.database.find({ contract: 'comments', table: 'votes', query: { rewardPoolId: 1, authorperm: "@author1/test1" }});
-      assert.equal(JSON.stringify(votes), '[{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"voter1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"10.0000000000","curationWeight":"5.0118723362","timestamp":1527811200000,"voter":"voter1"},{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"author1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"0.0000000000","curationWeight":"0.0000000000","timestamp":1527811200000,"voter":"author1"}]');
+      assert.equal(JSON.stringify(votes), '[{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"author1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"0.0000000000","curationWeight":"0.0000000000","timestamp":1527811200000,"voter":"author1"},{"_id":{"rewardPoolId":1,"authorperm":"@author1/test1","voter":"voter1"},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","weight":10000,"rshares":"10.0000000000","curationWeight":"5.0118723362","timestamp":1527811200000,"voter":"voter1"}]');
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();

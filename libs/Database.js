@@ -631,7 +631,7 @@ class Database {
               // not exist.
               console.log(`Index ${JSON.stringify(ind)} not available for ${finalTableName}`); // eslint-disable-line no-console
             }
-            if (sort.length === 0 || sort[sort.length - 1][0] !== '_id') {
+            if (sort.findIndex(el => el[0] === '_id') < 0) {
                 sort.push(['_id', 'asc']);
             }
             result = await tableData.find(EJSON.deserialize(query), {

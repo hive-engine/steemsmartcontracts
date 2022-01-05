@@ -781,12 +781,8 @@ actions.setMute = async (payload) => {
     rewardPoolId,
     account,
     mute,
-    isSignedWithActiveKey,
   } = payload;
 
-  if (!api.assert(isSignedWithActiveKey === true, 'operation must be signed with your active key')) {
-    return;
-  }
   const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
   if (!api.assert(existingRewardPool, 'reward pool not found')) return;
   const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingRewardPool.symbol });

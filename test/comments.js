@@ -799,7 +799,7 @@ describe('comments', function () {
       await fixture.sendBlock(block);
       let res = await fixture.database.getLatestBlockInfo();
       let txs = res.transactions;
-      assertError(txs[0], 'operation must be signed with your active key');
+      // assertError(txs[0], 'operation must be signed with your active key');
       assertError(txs[1], 'reward pool not found');
       assertError(txs[2], 'invalid account');
       assertError(txs[3], 'mute must be a boolean');
@@ -822,7 +822,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": true, "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": true, "isSignedWithActiveKey": false }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,

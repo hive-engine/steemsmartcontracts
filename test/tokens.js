@@ -168,20 +168,8 @@ describe('Tokens smart contract', function () {
       assert.equal(token.maxSupply, 1000);
       assert.equal(token.supply, 0);
 
-      res = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: { "account": { "$in" : ["harpagon","swap-eth","null"] }}
-      });
-
-      console.log(res);
-      assert.equal(res[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(res[0].balance, '0.00000000');
-      assert.equal(res[0].account, 'harpagon');
-      assert.equal(res[1].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(res[1].balance, '200.00000000');
-      assert.equal(res[1].account, 'null');
-      assert.equal(res.length, 2);
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '0.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'null', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '200.00000000'});
 
       resolve();
     })

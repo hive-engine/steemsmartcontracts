@@ -230,37 +230,88 @@ async function runBeneficiaryTest(options) {
       return JSON.stringify(rewardLog);
   };
   const hasAppTax = options.appTaxConfig && !options.appTaxExempt;
-  assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'authorReward' && ev.data.authorperm === '@author1/test1')), addMute({"contract":"comments","event":"authorReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"author1","quantity":(hasAppTax ? "18896.46057765" : "37792.92115529")}}));
-  assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene1')), addMute({"contract":"comments","event":"beneficiaryReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"bene1","quantity":(hasAppTax ? "18900.24062577": "37800.48125153")}}));
-  assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene2')), JSON.stringify({"contract":"comments","event":"beneficiaryReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"bene2","quantity":(hasAppTax ? "3.78004812" : "7.56009625")}}));
+  let expectedReward = {
+    "author1": "37792.92115529",
+    "bene1": "37800.48125153",
+    "bene2": "7.56009625",
+    "voter1": "75600.96250306",
+  };
+  if (hasAppTax && options.appTaxConfig.percent === 50) {
+    expectedReward = {
+      "author1": "18896.46057765",
+      "bene1": "18900.24062577",
+      "bene2": "3.78004812",
+      "appTax": "37800.48125153",
+    };
+  } else if (hasAppTax && options.appTaxConfig.percent === 100) {
+    expectedReward = {
+      "author1": "0.00000000",
+      "bene1": "0.00000000",
+      "bene2": "0.00000000",
+      "appTax": "75600.96250307",
+    };
+  }
+  assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'authorReward' && ev.data.authorperm === '@author1/test1')), addMute({"contract":"comments","event":"authorReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"author1","quantity":expectedReward["author1"]}}));
+  assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene1')), addMute({"contract":"comments","event":"beneficiaryReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"bene1","quantity":expectedReward["bene1"]}}));
+  assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene2')), JSON.stringify({"contract":"comments","event":"beneficiaryReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"bene2","quantity":expectedReward["bene2"]}}));
   assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'curationReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'voter1')), addMute({"contract":"comments","event":"curationReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"voter1","quantity":"75600.96250306"}}));
   assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'curationReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'voter2'), undefined);
   if (hasAppTax) {
-    assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'appTax' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'neoxianburn')), JSON.stringify({"contract":"comments","event":"appTax","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"neoxianburn","quantity": "37800.48125153"}}));
+    assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'appTax' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'neoxianburn')), JSON.stringify({"contract":"comments","event":"appTax","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"neoxianburn","quantity": expectedReward["appTax"]}}));
   }
 
   post = await fixture.database.findOne({ contract: 'comments', table: 'posts', query: { rewardPoolId: 1, authorperm: "@author1/test1" }});
   assert.equal(post, null);
 
-  const balanceForMute = (bal) => {
+  const balanceForOptions = (bal) => {
+      if (hasAppTax && options.appTaxConfig.percent === 50) {
+          if (bal.account === 'author1') {
+              bal.balance = "9448.23028883";
+              bal.stake = "9448.23028882";
+          } else if (bal.account === 'bene1') {
+              bal.balance = "9450.12031289";
+              bal.stake = "9450.12031288";
+          } else if (bal.account === 'bene2') {
+              bal.balance = "1.89002406";
+              bal.stake = "1.89002406";
+          } else if (bal.account === 'neoxianburn') {
+              bal.balance = "37800.48125153";
+              bal.stake = 0;
+          }
+      } else if (hasAppTax && options.appTaxConfig.percent === 100) {
+          if (bal.account === 'author1') {
+              bal.balance = null;
+              bal.stake = null;
+          } else if (bal.account === 'bene1') {
+              bal.balance = null;
+              bal.stake = null;
+          } else if (bal.account === 'bene2') {
+              bal.balance = null;
+              bal.stake = null;
+          } else if (bal.account === 'neoxianburn') {
+              bal.balance = "75600.96250307";
+              bal.stake = 0;
+          }
+      }
       if (options.muteAll) {
           if (bal.account === 'voter1') {
               bal.balance = '0';
               bal.stake = '10.00000000';
-          } else {
+          } else if (bal.account !== 'bene2') {
               bal.balance = null;
               bal.stake = null;
           }
       }
+
       return bal;
   }
-  await tableAsserts.assertUserBalances(balanceForMute({account: "author1", symbol: "TKN", balance: (hasAppTax ? "9448.23028883" : "18896.46057765"), stake: (hasAppTax ? "9448.23028882" : "18896.46057764")}));
-  await tableAsserts.assertUserBalances(balanceForMute({account: "bene1", symbol: "TKN", balance: (hasAppTax ? "9450.12031289" : "18900.24062577"), stake: (hasAppTax ? "9450.12031288" : "18900.24062576")}));
-  await tableAsserts.assertUserBalances({account: "bene2", symbol: "TKN", balance: (hasAppTax ? "1.89002406" : "3.78004813"), stake: (hasAppTax ? "1.89002406" : "3.78004812")});
-  await tableAsserts.assertUserBalances(balanceForMute({account: "voter1", symbol: "TKN", balance: "37800.48125153", stake: "37810.48125153"}));
+  await tableAsserts.assertUserBalances(balanceForOptions({account: "author1", symbol: "TKN", balance: "18896.46057765", stake: "18896.46057764"}));
+  await tableAsserts.assertUserBalances(balanceForOptions({account: "bene1", symbol: "TKN", balance: "18900.24062577", stake: "18900.24062576"}));
+  await tableAsserts.assertUserBalances(balanceForOptions({account: "bene2", symbol: "TKN", balance: "3.78004813", stake: "3.78004812"}));
+  await tableAsserts.assertUserBalances(balanceForOptions({account: "voter1", symbol: "TKN", balance: "37800.48125153", stake: "37810.48125153"}));
   await tableAsserts.assertUserBalances({account: "voter2", symbol: "TKN", balance: '0', stake: '10.00000000'});
   if (hasAppTax) {
-    await tableAsserts.assertUserBalances(balanceForMute({account: "neoxianburn", symbol: "TKN", balance: "37800.48125153", stake: 0}));
+    await tableAsserts.assertUserBalances(balanceForOptions({account: "neoxianburn", symbol: "TKN", balance: "37800.48125153", stake: 0}));
   }
 }
 
@@ -2824,6 +2875,23 @@ describe('comments', function () {
       await runBeneficiaryTest({ appTaxConfig: {
           app: "neoxiancity",
           percent: 50,
+          beneficiary: "neoxianburn",
+      }});
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('pays beneficiary with 100% app tax', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await runBeneficiaryTest({ appTaxConfig: {
+          app: "neoxiancity",
+          percent: 100,
           beneficiary: "neoxianburn",
       }});
       resolve();

@@ -171,7 +171,7 @@ async function runBeneficiaryTest(options) {
 
   transactions = [];
   refBlockNumber = fixture.getNextRefBlockNumber();
-  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', JSON.stringify({ "author": "author1", "permlink": "test1", "rewardPools": [1], "jsonMetadata": { "app": (options.appTaxExempt ? "neoxiancity/v1.1" : "hive.blog/v1.0") }})));
+  transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', JSON.stringify({ "author": "author1", "permlink": "test1", "jsonMetadata": { "tags": ["scottest"], "app": (options.appTaxExempt ? "neoxiancity/v1.1" : "hive.blog/v1.0") }})));
   transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'commentOptions', '{ "author": "author1", "permlink": "test1", "maxAcceptedPayout": "1000000.000 HBD", "beneficiaries": [{"account": "bene1", "weight": 5000}, {"account": "bene2", "weight": 1}]}'));
   transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
   if (options.muteAll) {
@@ -832,12 +832,11 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": true, "isSignedWithActiveKey": false }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 2, "account": "author", "mute": true, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "-invalid", "mute": true, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "invalid", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'nobody', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "true", "isSignedWithActiveKey": true }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 2, "account": "author", "mute": true, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "-invalid", "mute": true, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "invalid", "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'nobody', 'comments', 'setMute', '{ "rewardPoolId": 1, "account": "author", "mute": "true", "isSignedWithActiveKey": false }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -850,12 +849,11 @@ describe('comments', function () {
       await fixture.sendBlock(block);
       let res = await fixture.database.getLatestBlockInfo();
       let txs = res.transactions;
-      // assertError(txs[0], 'operation must be signed with your active key');
-      assertError(txs[1], 'reward pool not found');
-      assertError(txs[2], 'invalid account');
+      assertError(txs[0], 'reward pool not found');
+      assertError(txs[1], 'invalid account');
+      assertError(txs[2], 'mute must be a boolean');
       assertError(txs[3], 'mute must be a boolean');
-      assertError(txs[4], 'mute must be a boolean');
-      assertError(txs[5], 'must be issuer of token');
+      assertError(txs[4], 'must be issuer of token');
 
       resolve();
     })
@@ -888,6 +886,125 @@ describe('comments', function () {
 
       const vp = await fixture.database.findOne({ contract: 'comments', table: 'votingPower', query: { account: 'author', rewardPoolId: 1}});
       assert(vp.mute);
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('should not setPostMute', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "0.5"});
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setPostMute', '{ "rewardPoolId": 2, "authorperm": "@author/test", "mute": true, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setPostMute', '{ "rewardPoolId": 1, "authorperm": {}, "mute": true, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setPostMute', '{ "rewardPoolId": 1, "authorperm": "@author/test", "mute": true, "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author", "permlink": "test", "jsonMetadata": {"tags": ["scottest"]} }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setPostMute', '{ "rewardPoolId": 1, "authorperm": "@author/test", "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setPostMute', '{ "rewardPoolId": 1, "authorperm": "@author/test", "mute": "true", "isSignedWithActiveKey": false }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'nobody', 'comments', 'setPostMute', '{ "rewardPoolId": 1, "authorperm": "@author/test", "mute": true, "isSignedWithActiveKey": false }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      let res = await fixture.database.getLatestBlockInfo();
+      let txs = res.transactions;
+      assertError(txs[0], 'reward pool not found');
+      assertError(txs[1], 'authorperm must be a string');
+      assertError(txs[2], 'post not found');
+      // tx 3 adds post
+      assertError(txs[4], 'mute must be a boolean');
+      assertError(txs[5], 'mute must be a boolean');
+      assertError(txs[6], 'must be issuer of token');
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
+        done();
+      });
+  });
+
+  it('does not pay for muted post', (done) => {
+    new Promise(async (resolve) => {
+      await fixture.setUp();
+
+      await setUpRewardPool({ postRewardCurveParameter: "1", curationRewardCurveParameter: "1"});
+
+      let transactions;
+      let refBlockNumber;
+      let block;
+
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setPostMute', '{ "rewardPoolId": 1, "authorperm": "@author1/test1", "mute": true, "isSignedWithActiveKey": false }'));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      await tableAsserts.assertNoErrorInLastBlock();
+      let res = await fixture.database.getLatestBlockInfo();
+      assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events[0]), '{"contract":"comments","event":"newComment","data":{"rewardPoolId":1,"symbol":"TKN"}}');
+      let post = await fixture.database.findOne({ contract: 'comments', table: 'posts', query: { rewardPoolId: 1, authorperm: "@author1/test1" }});
+      assert.equal(JSON.stringify(post), '{"_id":{"authorperm":"@author1/test1","rewardPoolId":1},"rewardPoolId":1,"symbol":"TKN","authorperm":"@author1/test1","author":"author1","created":1527811200000,"cashoutTime":1528416000000,"votePositiveRshareSum":"10.0000000000","voteRshareSum":"10.0000000000","mute":true}');
+
+      // catch up post maintenance
+      await forwardPostMaintenanceAndAssertIssue('2018-06-07T23:59:57', "302398.50000000");
+      await assertPool({"_id":1,"symbol":"TKN","rewardPool":"302398.50000000","lastRewardTimestamp":1528415997000,"lastClaimDecayTimestamp":1528415997000,"createdTimestamp":1527811200000,"config":{"postRewardCurve":"power","postRewardCurveParameter":"1","curationRewardCurve":"power","curationRewardCurveParameter":"1","curationRewardPercentage":50,"cashoutWindowDays":7,"rewardPerInterval":"1.5","rewardIntervalSeconds":3,"voteRegenerationDays":14,"downvoteRegenerationDays":14,"stakedRewardPercentage":50,"votePowerConsumption":200,"downvotePowerConsumption":2000,"tags":["scottest"]},"pendingClaims":"9.9997685205","active":true,"intervalPendingClaims":"9.9997685205","intervalRewardPool":"15.00000000"});
+
+      // forward clock past payout time
+      transactions = [];
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      // this transaction pays out with maintenance op
+      transactions.push(maintenanceOp(refBlockNumber));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD1',
+        prevRefHiveBlockId: 'ABCD2',
+        timestamp: '2018-06-08T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      res = await fixture.database.getLatestBlockInfo();
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      assert.equal(JSON.stringify(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'authorReward' && ev.data.authorperm === '@author1/test1')), '{"contract":"comments","event":"authorReward","data":{"rewardPoolId":1,"authorperm":"@author1/test1","symbol":"TKN","account":"author1","quantity":"0"}}');
+      assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene1'), undefined);
+      assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'beneficiaryReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'bene2'), undefined);
+      assert.equal(JSON.parse(res.transactions[0].logs).events.find(ev => ev.event === 'curationReward' && ev.data.authorperm === '@author1/test1' && ev.data.account === 'voter1'), undefined);
+
+      await tableAsserts.assertUserBalances({account: "author1", symbol: "TKN", balance: 0, stake: 0});
+      await tableAsserts.assertUserBalances({account: "bene1", symbol: "TKN", balance: 0, stake: 0});
+      await tableAsserts.assertUserBalances({account: "bene2", symbol: "TKN", balance: 0, stake: 0});
+      await tableAsserts.assertUserBalances({account: "voter1", symbol: "TKN", balance: "0", stake: "10.00000000"});
+
+      post = await fixture.database.findOne({ contract: 'comments', table: 'posts', query: { rewardPoolId: 1, authorperm: "@author1/test1" }});
+      assert.equal(post, null);
+
+      await assertPool({"_id":1,"symbol":"TKN","rewardPool":"302400.00000000","lastRewardTimestamp":1528416000000,"lastClaimDecayTimestamp":1528416000000,"createdTimestamp":1527811200000,"config":{"postRewardCurve":"power","postRewardCurveParameter":"1","curationRewardCurve":"power","curationRewardCurveParameter":"1","curationRewardPercentage":50,"cashoutWindowDays":7,"rewardPerInterval":"1.5","rewardIntervalSeconds":3,"voteRegenerationDays":14,"downvoteRegenerationDays":14,"stakedRewardPercentage":50,"votePowerConsumption":200,"downvotePowerConsumption":2000,"tags":["scottest"]},"pendingClaims":"19.9997453728","active":true,"intervalPendingClaims":"19.9997453728","intervalRewardPool":"302400.00000000"});
 
       resolve();
     })
@@ -940,7 +1057,8 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author", "permlink": "test", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -1084,7 +1202,7 @@ describe('comments', function () {
 
       let refBlockNumber = fixture.getNextRefBlockNumber();
       let transactions = [];
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": false, "isSignedWithActiveKey": true }'));
 
       let block = {
@@ -1104,7 +1222,7 @@ describe('comments', function () {
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'harpagon', 'comments', 'setActive', '{ "rewardPoolId": 1, "active": false, "isSignedWithActiveKey": true }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -1148,9 +1266,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'author1', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": 1 }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": ["2"] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'author1', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1164,8 +1280,6 @@ describe('comments', function () {
       let res = await fixture.database.getLatestBlockInfo();
       let txs = res.transactions;
       assertError(txs[0], 'action must use comment operation');
-      assertError(txs[1], 'rewardPools must be an array of integers');
-      assertError(txs[2], 'rewardPools must be an array of integers');
 
       const posts = await fixture.database.find({ contract: 'comments', table: 'posts', query: {}});
       assert.equal(posts.length, 0);
@@ -1190,7 +1304,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1232,7 +1346,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1270,7 +1384,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "re-test1", "parentAuthor": "author1", "parentPermlink": "test1" }'));
 
       block = {
@@ -1312,7 +1426,7 @@ describe('comments', function () {
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
       // allow comment to succeed
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'voter1', 'comments', 'vote', '{ "author": "author1", "permlink": "test1", "voter": "voter1", "weight": 10000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "author": "author1", "permlink": "test1", "voter": "voter1", "weight": "10" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "author": "author1", "permlink": "test1", "voter": "voter1", "weight": -10001 }'));
@@ -1358,7 +1472,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "author1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
@@ -1387,7 +1501,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test2", "weight": 10000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter2", "author": "author1", "permlink": "test2", "weight": 8000 }'));
 
@@ -1480,7 +1594,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "author1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
@@ -1509,7 +1623,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test2", "weight": 10000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter2", "author": "author1", "permlink": "test2", "weight": 8000 }'));
 
@@ -1603,7 +1717,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1668,7 +1782,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
 
       block = {
         refHiveBlockNumber: refBlockNumber,
@@ -1787,8 +1901,8 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 1000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test2", "weight": 2000 }'));
 
@@ -1938,8 +2052,8 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 1000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test2", "weight": 2000 }'));
 
@@ -2088,8 +2202,8 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -2226,7 +2340,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1,2] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -2385,7 +2499,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -2449,7 +2563,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -2477,7 +2591,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test2", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test2", "weight": 10000 }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter2", "author": "author1", "permlink": "test2", "weight": 8000 }'));
 
@@ -2682,7 +2796,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1,2] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
       block = {
@@ -2931,7 +3045,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'commentOptions', '{ "author": "author1", "permlink": "test1", "maxAcceptedPayout": "0.000 HBD", "beneficiaries": [{"account": "bene1", "weight": 5000}, {"account": "bene2", "weight": 1}]}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 
@@ -3007,7 +3121,7 @@ describe('comments', function () {
 
       transactions = [];
       refBlockNumber = fixture.getNextRefBlockNumber();
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "rewardPools": [1] }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'comment', '{ "author": "author1", "permlink": "test1", "jsonMetadata": {"tags": ["scottest"]} }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'commentOptions', '{ "author": "author1", "permlink": "test1", "maxAcceptedPayout": "0.000 HBD", "beneficiaries": [{"account": "bene1", "weight": 5000}, {"account": "bene2", "weight": 1}]}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'null', 'comments', 'vote', '{ "voter": "voter1", "author": "author1", "permlink": "test1", "weight": 10000 }'));
 

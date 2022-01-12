@@ -239,7 +239,7 @@ async function payOutPost(rewardPool, token, post, params) {
     votesProcessed: 0,
     done: false,
   };
-  if (post.declinePayout) {
+  if (post.declinePayout || post.mute) {
     api.emit('authorReward', {
       rewardPoolId: post.rewardPoolId,
       authorperm: post.authorperm,
@@ -809,6 +809,26 @@ actions.setMute = async (payload) => {
   }
 };
 
+actions.setPostMute = async (payload) => {
+  const {
+    rewardPoolId,
+    authorperm,
+    mute,
+  } = payload;
+
+  const existingRewardPool = await api.db.findOne('rewardPools', { _id: rewardPoolId });
+  if (!api.assert(existingRewardPool, 'reward pool not found')) return;
+  const token = await api.db.findOneInTable('tokens', 'tokens', { symbol: existingRewardPool.symbol });
+  if (!api.assert(api.sender === token.issuer || api.sender === api.owner, 'must be issuer of token')) return;
+  if (!api.assert(typeof authorperm === 'string', 'authorperm must be a string')) return;
+  const post = await api.db.findOne('posts', { rewardPoolId, authorperm });
+  if (!api.assert(post, 'post not found')) return;
+  if (!api.assert(typeof mute === 'boolean', 'mute must be a boolean')) return;
+
+  post.mute = mute;
+  await api.db.update('posts', post);
+};
+
 actions.resetPool = async (payload) => {
   const {
     rewardPoolId,
@@ -878,9 +898,6 @@ async function getRewardPoolIds(payload) {
       return tagRewardPools.map(r => r._id);
     }
   }
-  if (rewardPools && Array.isArray(rewardPools) && rewardPools.length > 0) {
-    return rewardPools.slice(0, params.maxPoolsPerPost);
-  }
   return [];
 }
 
@@ -888,14 +905,11 @@ actions.comment = async (payload) => {
   const {
     author,
     permlink,
-    rewardPools,
   } = payload;
 
   // Node enforces author / permlinks from Hive. Check that sender is null.
   if (!api.assert(api.sender === 'null', 'action must use comment operation')) return;
   await tokenMaintenance();
-
-  if (!api.assert(!rewardPools || (Array.isArray(rewardPools) && rewardPools.every(rp => Number.isInteger(rp))), 'rewardPools must be an array of integers')) return;
 
   const rewardPoolIds = await getRewardPoolIds(payload);
   const authorperm = `@${author}/${permlink}`;

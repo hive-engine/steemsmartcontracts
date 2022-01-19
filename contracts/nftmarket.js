@@ -521,7 +521,8 @@ actions.buy = async (payload) => {
     && isValidIdArray(nfts)
     && api.assert(tableExists, 'market not enabled for symbol')) {
     const finalMarketAccount = marketAccount.trim().toLowerCase();
-    if (api.assert(isValidHiveAccountLength(finalMarketAccount), 'invalid market account')) {
+    if (api.assert(isValidHiveAccountLength(finalMarketAccount), 'invalid market account')
+      && api.assert(finalMarketAccount !== api.sender, 'market account cannot be same as buyer')) {
       const nft = await api.db.findOneInTable('nft', 'nfts', { symbol });
       if (!api.assert(nft && nft.groupBy && nft.groupBy.length > 0, 'market grouping not set')) {
         return;
@@ -601,8 +602,13 @@ actions.buy = async (payload) => {
           sellerMap[key] = sellerInfo;
         }
 
-        // check if we have to split the fee into market & agent fees
         const params = await api.db.findOne('params', { symbol });
+        const officialMarketAccount = (params && params.officialMarket) ? params.officialMarket : finalMarketAccount;
+        if (!api.assert(officialMarketAccount !== api.sender, 'official market account cannot be same as buyer')) {
+          return;
+        }
+
+        // check if we have to split the fee into market & agent fees
         if (params && params.officialMarket && params.agentCut !== undefined && params.agentCut > 0 && feeTotal.gt(0)) {
           const agentFeePercent = params.agentCut / 10000;
           agentFeeTotal = feeTotal.multipliedBy(agentFeePercent).decimalPlaces(token.precision);
@@ -628,7 +634,6 @@ actions.buy = async (payload) => {
         paymentTotal = paymentTotal.toFixed(token.precision);
 
         // send fee to market account
-        const officialMarketAccount = (params && params.officialMarket) ? params.officialMarket : finalMarketAccount;
         let isMarketFeePaid = false;
         if (feeTotal.gt(0)) {
           isMarketFeePaid = true;

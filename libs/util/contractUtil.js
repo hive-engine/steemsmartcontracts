@@ -12,6 +12,7 @@ function setupContractPayload(name, file, additionalReplacements = null) {
   contractCode = contractCode.replace(/'\$\{CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE\}\$'/g, CONSTANTS.GOVERNANCE_TOKEN_MIN_VALUE);
   contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_PEGGED_SYMBOL\}\$'/g, CONSTANTS.HIVE_PEGGED_SYMBOL);
   contractCode = contractCode.replace(/'\$\{CONSTANTS.HIVE_ENGINE_ACCOUNT\}\$'/g, CONSTANTS.HIVE_ENGINE_ACCOUNT);
+  contractCode = contractCode.replace(/'\$\{CONSTANTS.ACCOUNT_RECEIVING_FEES\}\$'/g, CONSTANTS.ACCOUNT_RECEIVING_FEES);
   if (additionalReplacements) {
     contractCode = additionalReplacements(contractCode);
   }

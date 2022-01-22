@@ -25,7 +25,8 @@
     "test15": "./node_modules/mocha/bin/mocha ./test/tokenfunds.js",
     "test16": "./node_modules/mocha/bin/mocha ./test/nftauction.js",
     "test17": "./node_modules/mocha/bin/mocha ./test/comments.js",
-    "test18": "./node_modules/mocha/bin/mocha ./test/ticks.js"
+    "test18": "./node_modules/mocha/bin/mocha ./test/ticks.js",
+    "test19": "./node_modules/mocha/bin/mocha ./test/hivepegged.js"
   },
   "engines": {
     "node": ">=13.7.0",

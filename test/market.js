@@ -129,40 +129,12 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'aggroed');
-      assert.equal(balances[0].symbol,  'SWAP.HIVE');
-      assert.equal(balances[0].balance, 412.709);
-
-      assert.equal(balances[1].account, 'aggroed');
-      assert.equal(balances[1].symbol,  'TKN');
-      assert.equal(balances[1].balance, 40.001);
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol,  'TKN');
-      assert.equal(balances[2].balance, 443.455);
-
-      assert.equal(balances[3].account, 'satoshi');
-      assert.equal(balances[3].symbol,  'SWAP.HIVE');
-      assert.equal(balances[3].balance, 44.720434);
-
-      assert.equal(balances[4].account, 'vitalik');
-      assert.equal(balances[4].symbol,  'SWAP.HIVE');
-      assert.equal(balances[4].balance, 416.729);
-
-      assert.equal(balances[5].account, 'vitalik');
-      assert.equal(balances[5].symbol,  'TKN');
-      assert.equal(balances[5].balance, 40);
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'SWAP.HIVE', balance: '412.70900000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '44.72043400'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '416.72900000'});
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'TKN', balance: '40.001'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '443.455'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '40.000'});
 
       let buyOrders = await fixture.database.find({
         contract: 'market',
@@ -228,40 +200,12 @@ describe('Market', function() {
       await fixture.sendBlock(block);
 
       // check user balances are correct
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'aggroed');
-      assert.equal(balances[0].symbol,  'SWAP.HIVE');
-      assert.equal(balances[0].balance, 412.709);
-
-      assert.equal(balances[1].account, 'aggroed');
-      assert.equal(balances[1].symbol,  'TKN');
-      assert.equal(balances[1].balance, 120);
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol,  'TKN');
-      assert.equal(balances[2].balance, 313.456);
-
-      assert.equal(balances[3].account, 'satoshi');
-      assert.equal(balances[3].symbol,  'SWAP.HIVE');
-      assert.equal(balances[3].balance, 84.14);
-
-      assert.equal(balances[4].account, 'vitalik');
-      assert.equal(balances[4].symbol,  'SWAP.HIVE');
-      assert.equal(balances[4].balance, 416.729);
-
-      assert.equal(balances[5].account, 'vitalik');
-      assert.equal(balances[5].symbol,  'TKN');
-      assert.equal(balances[5].balance, 90);
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'SWAP.HIVE', balance: '412.70900000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '84.14000000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '416.72900000'});
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'TKN', balance: '120.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '313.456'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '90.000'});
 
       // check market contract has correct token amounts
       balances = await fixture.database.find({
@@ -381,40 +325,12 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'aggroed');
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].balance, 80);
-
-      assert.equal(balances[1].account, 'aggroed');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, 16.68);
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'SWAP.HIVE');
-      assert.equal(balances[2].balance, 424.749);
-
-      assert.equal(balances[3].account, 'satoshi');
-      assert.equal(balances[3].symbol, 'TKN');
-      assert.equal(balances[3].balance, 78.726);
-
-      assert.equal(balances[4].account, 'vitalik');
-      assert.equal(balances[4].symbol, 'TKN');
-      assert.equal(balances[4].balance, 433.456);
-
-      assert.equal(balances[5].account, 'vitalik');
-      assert.equal(balances[5].symbol, 'SWAP.HIVE');
-      assert.equal(balances[5].balance, 15.36);
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'SWAP.HIVE', balance: '16.68000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '424.74900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '15.36000000'});
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'TKN', balance: '80.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '78.726'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '433.456'});
 
       let sellOrders = await fixture.database.find({
         contract: 'market',
@@ -480,40 +396,12 @@ describe('Market', function() {
       await fixture.sendBlock(block);
 
       // check user balances are correct
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik', 'aggroed'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'aggroed');
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].balance, 80);
-
-      assert.equal(balances[1].account, 'aggroed');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, 72.080316);
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'SWAP.HIVE');
-      assert.equal(balances[2].balance, 337.648684);
-
-      assert.equal(balances[3].account, 'satoshi');
-      assert.equal(balances[3].symbol, 'TKN');
-      assert.equal(balances[3].balance, 210);
-
-      assert.equal(balances[4].account, 'vitalik');
-      assert.equal(balances[4].symbol, 'TKN');
-      assert.equal(balances[4].balance, 433.456);
-
-      assert.equal(balances[5].account, 'vitalik');
-      assert.equal(balances[5].symbol, 'SWAP.HIVE');
-      assert.equal(balances[5].balance, 47.06);
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'SWAP.HIVE', balance: '72.08031600'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '337.64868400'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '47.06000000'});
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'TKN', balance: '80.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '210.000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '433.456'});
 
       // check market contract has correct token amounts
       balances = await fixture.database.find({
@@ -597,24 +485,8 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 456.789);
-
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].balance, 23.456);
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '456.78900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '23.456'});
 
       let sellOrders = await fixture.database.find({
         contract: 'market',
@@ -669,32 +541,10 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 433.389);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].balance, 100);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'TKN');
-      assert.equal(balances[2].balance, 23.456);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, 23.4);
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '433.38900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '23.4'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '100.000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '23.456'});
 
       let sellOrders = await fixture.database.find({
         contract: 'market',
@@ -722,22 +572,8 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi'] }
-        }
-      });
-
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 433.389);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].balance, 100);
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '433.38900000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '100.000'});
 
       // test 3 - partially fill sell order
       refBlockNumber = fixture.getNextRefBlockNumber();
@@ -756,32 +592,10 @@ describe('Market', function() {
       await fixture.sendBlock(block);
 
       // check user balances are correct
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 429.389);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].balance, 117.094);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'TKN');
-      assert.equal(balances[2].balance, 0.456);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, 27.4);
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '429.38900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '27.40000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '117.094'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '0.456'});
 
       // check market contract has correct token amounts
       balances = await fixture.database.find({
@@ -869,32 +683,10 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 445.089);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].balance, 50);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'TKN');
-      assert.equal(balances[2].balance, 73.456);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, 11.7);
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '445.08900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '11.70000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '50.000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '73.456'});
 
       let buyOrders = await fixture.database.find({
         contract: 'market',
@@ -922,22 +714,8 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['vitalik'] }
-        }
-      });
-
-      assert.equal(balances[0].account, 'vitalik');
-      assert.equal(balances[0].symbol, 'TKN');
-      assert.equal(balances[0].balance, 73.456);
-
-      assert.equal(balances[1].account, 'vitalik');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, 11.7);
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '11.70000000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '73.456'});
 
       // test 3 - partially fill buy order
       refBlockNumber = fixture.getNextRefBlockNumber();
@@ -956,32 +734,10 @@ describe('Market', function() {
       await fixture.sendBlock(block);
 
       // check user balances are correct
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-
-      console.log(balances);
-
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 435.729);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].balance, 60);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'TKN');
-      assert.equal(balances[2].balance, 63.456);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, 14.04);
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '14.04000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '435.72900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN', balance: '63.456'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN', balance: '60.000'});
 
       // check market contract has correct token amounts
       balances = await fixture.database.find({
@@ -1066,17 +822,7 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: 'SWAP.HIVE',
-          account: 'satoshi'
-        }
-      });
-      assert.equal(balances[0].balance, '123.45599123');
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '123.45599123'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -1316,17 +1062,7 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: 'TKN.TEST',
-          account: 'satoshi',
-        }
-      });
-
-      assert.equal(balances[0].balance, 23.18);
-      assert.equal(balances[0].account, 'satoshi');
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '23.180'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -1425,17 +1161,7 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: 'SWAP.HIVE',
-          account: 'satoshi'
-        }
-      });
-
-      assert.equal(balances[0].balance, 122.456);
-      assert.equal(balances[0].account, 'satoshi');
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '122.45600000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -1484,20 +1210,7 @@ describe('Market', function() {
 
       console.log(transactionsBlock2[0].logs);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: 'SWAP.HIVE',
-          account: {
-            $in: ['satoshi']
-          }
-        }
-      });
-
-      assert.equal(balances[0].balance, 123.456);
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '123.45600000'});
 
       res = await fixture.database.findOne({
         contract: 'market',
@@ -1543,19 +1256,7 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: 'TKN.TEST',
-          account: {
-            $in: ['satoshi']
-          }
-        }
-      });
-
-      assert.equal(balances[0].balance, 23.456);
-      assert.equal(balances[0].account, 'satoshi');
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '23.456'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -1598,20 +1299,7 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: 'TKN.TEST',
-          account: {
-            $in: ['satoshi']
-          }
-        }
-      });
-
-      assert.equal(balances[0].balance, 123.456);
-      assert.equal(balances[0].account, 'satoshi');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '123.456'});
 
       res = await fixture.database.findOne({
         contract: 'market',
@@ -1659,31 +1347,10 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'vitalik');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
-      assert.equal(balances[0].balance, 23.456);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, 454.449);
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 10);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, 2.34);
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '2.34000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '454.44900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '23.456'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '10.000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -1751,47 +1418,14 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      const balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik', 'dan', 'harpagon'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'harpagon');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 477);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN.TEST');
-      assert.equal(balances[1].balance, 198);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 97);
-
-      assert.equal(balances[3].account, 'dan');
-      assert.equal(balances[3].symbol, 'TKN.TEST');
-      assert.equal(balances[3].balance, 295);
-
-      assert.equal(balances[4].account, 'harpagon');
-      assert.equal(balances[4].symbol, 'TKN.TEST');
-      assert.equal(balances[4].balance, 10);
-
-      assert.equal(balances[5].account, 'satoshi');
-      assert.equal(balances[5].symbol, 'SWAP.HIVE');
-      assert.equal(balances[5].balance, 2);
-
-      assert.equal(balances[6].account, 'vitalik');
-      assert.equal(balances[6].symbol, 'SWAP.HIVE');
-      assert.equal(balances[6].balance, 6);
-
-      assert.equal(balances[7].account, 'dan');
-      assert.equal(balances[7].symbol, 'SWAP.HIVE');
-      assert.equal(balances[7].balance, 15);
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '2.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '6.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'SWAP.HIVE', balance: '15.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'SWAP.HIVE', balance: '477.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '198.000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '97.000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'TKN.TEST', balance: '295.000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'TKN.TEST', balance: '10.000'});
 
       resolve();
     })
@@ -1832,47 +1466,14 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['null', 'satoshi', 'vitalik', 'dan', 'harpagon'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'harpagon');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 455);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN.TEST');
-      assert.equal(balances[1].balance, 198);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 97);
-
-      assert.equal(balances[3].account, 'dan');
-      assert.equal(balances[3].symbol, 'TKN.TEST');
-      assert.equal(balances[3].balance, 295);
-
-      assert.equal(balances[4].account, 'harpagon');
-      assert.equal(balances[4].symbol, 'TKN.TEST');
-      assert.equal(balances[4].balance, 10);
-
-      assert.equal(balances[5].account, 'satoshi');
-      assert.equal(balances[5].symbol, 'SWAP.HIVE');
-      assert.equal(balances[5].balance, 2);
-
-      assert.equal(balances[6].account, 'vitalik');
-      assert.equal(balances[6].symbol, 'SWAP.HIVE');
-      assert.equal(balances[6].balance, 6);
-
-      assert.equal(balances[7].account, 'dan');
-      assert.equal(balances[7].symbol, 'SWAP.HIVE');
-      assert.equal(balances[7].balance, 15);
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '2.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '6.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'SWAP.HIVE', balance: '15.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'SWAP.HIVE', balance: '455.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '198.000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '97.000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'TKN.TEST', balance: '295.000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'TKN.TEST', balance: '10.000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -1940,31 +1541,10 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-      
-      assert.equal(balances[0].account, 'vitalik');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
-      assert.equal(balances[0].balance, 113.456);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, 433.389);
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 10);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, 2.34);
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '2.34000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '433.38900000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '113.456'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '10.000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -2036,47 +1616,14 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      const balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik', 'dan', 'harpagon'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'harpagon');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
-      assert.equal(balances[0].balance, 490);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, 194);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'SWAP.HIVE');
-      assert.equal(balances[2].balance, 88);
-
-      assert.equal(balances[3].account, 'dan');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, 285);
-
-      assert.equal(balances[4].account, 'vitalik');
-      assert.equal(balances[4].symbol, 'TKN.TEST');
-      assert.equal(balances[4].balance, 3);
-
-      assert.equal(balances[5].account, 'harpagon');
-      assert.equal(balances[5].symbol, 'SWAP.HIVE');
-      assert.equal(balances[5].balance, 33);
-
-      assert.equal(balances[6].account, 'satoshi');
-      assert.equal(balances[6].symbol, 'TKN.TEST');
-      assert.equal(balances[6].balance, 2);
-
-      assert.equal(balances[7].account, 'dan');
-      assert.equal(balances[7].symbol, 'TKN.TEST');
-      assert.equal(balances[7].balance, 5);
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '88.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '194.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'SWAP.HIVE', balance: '285.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'SWAP.HIVE', balance: '33.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '3.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '2.000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'TKN.TEST', balance: '5.000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'TKN.TEST', balance: '490.000'});
 
       resolve();
     })
@@ -2121,47 +1668,14 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      const balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik', 'dan', 'harpagon'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'harpagon');
-      assert.equal(balances[0].symbol, 'SWAP.HIVE');
-      assert.equal(balances[0].balance, 470);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'TKN.TEST');
-      assert.equal(balances[1].balance, 198);
-
-      assert.equal(balances[2].account, 'vitalik');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 97);
-
-      assert.equal(balances[3].account, 'dan');
-      assert.equal(balances[3].symbol, 'TKN.TEST');
-      assert.equal(balances[3].balance, 295);
-
-      assert.equal(balances[4].account, 'harpagon');
-      assert.equal(balances[4].symbol, 'TKN.TEST');
-      assert.equal(balances[4].balance, 10);
-
-      assert.equal(balances[5].account, 'satoshi');
-      assert.equal(balances[5].symbol, 'SWAP.HIVE');
-      assert.equal(balances[5].balance, 6);
-
-      assert.equal(balances[6].account, 'vitalik');
-      assert.equal(balances[6].symbol, 'SWAP.HIVE');
-      assert.equal(balances[6].balance, 9);
-
-      assert.equal(balances[7].account, 'dan');
-      assert.equal(balances[7].symbol, 'SWAP.HIVE');
-      assert.equal(balances[7].balance, 15);
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '9.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '6.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'SWAP.HIVE', balance: '15.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'SWAP.HIVE', balance: '470.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '97.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '198.000'});
+      await tableAsserts.assertUserBalances({ account: 'dan', symbol: 'TKN.TEST', balance: '295.000'});
+      await tableAsserts.assertUserBalances({ account: 'harpagon', symbol: 'TKN.TEST', balance: '10.000'});
 
       resolve();
     })
@@ -2738,31 +2252,9 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'vitalik');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
-      assert.equal(balances[0].balance, 100);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, '109.99999999');
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 1);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, '0.00000001');
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '109.99999999'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '0.00000001'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '1.000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -2802,31 +2294,10 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'vitalik');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
-      assert.equal(balances[0].balance, 99);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, '109.99999998');
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 2);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, '0.00000002');
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '0.00000002'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '109.99999998'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '99.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '2.000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -2889,31 +2360,10 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      let balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'vitalik');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
-      assert.equal(balances[0].balance, 100);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, '109.99999999');
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 1);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, '0.00000001');
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '0.00000001'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '109.99999999'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '100.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '1.000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',
@@ -2953,31 +2403,10 @@ describe('Market', function() {
 
       await fixture.sendBlock(block);
 
-      balances = await fixture.database.find({
-        contract: 'tokens',
-        table: 'balances',
-        query: {
-          symbol: { $in: ['TKN.TEST', 'SWAP.HIVE'] },
-          account: { $in: ['satoshi', 'vitalik'] }
-        }
-      });
-      balances.sort((a, b) => a._id - b._id);
-
-      assert.equal(balances[0].account, 'vitalik');
-      assert.equal(balances[0].symbol, 'TKN.TEST');
-      assert.equal(balances[0].balance, 99);
-
-      assert.equal(balances[1].account, 'satoshi');
-      assert.equal(balances[1].symbol, 'SWAP.HIVE');
-      assert.equal(balances[1].balance, '109.99999998');
-
-      assert.equal(balances[2].account, 'satoshi');
-      assert.equal(balances[2].symbol, 'TKN.TEST');
-      assert.equal(balances[2].balance, 2);
-
-      assert.equal(balances[3].account, 'vitalik');
-      assert.equal(balances[3].symbol, 'SWAP.HIVE');
-      assert.equal(balances[3].balance, '0.00000002');
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'SWAP.HIVE', balance: '0.00000002'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'SWAP.HIVE', balance: '109.99999998'});
+      await tableAsserts.assertUserBalances({ account: 'vitalik', symbol: 'TKN.TEST', balance: '99.000'});
+      await tableAsserts.assertUserBalances({ account: 'satoshi', symbol: 'TKN.TEST', balance: '2.000'});
 
       balances = await fixture.database.find({
         contract: 'tokens',

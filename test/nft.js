@@ -391,23 +391,9 @@ describe('nft', function() {
       assert.equal(tokens[0].delegationEnabled, true);
       assert.equal(tokens[0].undelegationCooldown, 5);
 
-      res = await fixture.database.find({
-          contract: 'tokens',
-          table: 'balances',
-          query: { "account": { "$in" : ["cryptomancer","null"] }}
-        });
-
-      let balances = res;
-      
-
       // check fees were subtracted from account balance
-      assert.equal(balances[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(balances[0].balance, '0.00000000');
-      assert.equal(balances[0].account, 'cryptomancer');
-      assert.equal(balances[1].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(balances[1].balance, '60.00000000');
-      assert.equal(balances[1].account, 'null');
-      assert.equal(balances.length, 2);
+      await tableAsserts.assertUserBalances({ account: 'cryptomancer', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '0.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'null', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '60.00000000'});
 
       resolve();
     })
@@ -486,23 +472,9 @@ describe('nft', function() {
       assert.equal(tokens[0].delegationEnabled, false);
       assert.equal(tokens[0].undelegationCooldown, 0);
 
-      res = await fixture.database.find({
-          contract: 'tokens',
-          table: 'balances',
-          query: { "account": { "$in" : ["cryptomancer","null"] }}
-        });
-
-      let balances = res;
-      
-
       // check fees were subtracted from account balance
-      assert.equal(balances[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(balances[0].balance, '56.00000000');
-      assert.equal(balances[0].account, 'cryptomancer');
-      assert.equal(balances[1].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(balances[1].balance, '5.00000000');
-      assert.equal(balances[1].account, 'null');
-      assert.equal(balances.length, 2);
+      await tableAsserts.assertUserBalances({ account: 'cryptomancer', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '56.00000000'});
+      await tableAsserts.assertUserBalances({ account: 'null', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '5.00000000'});
 
       // test that delegation cannot be enabled twice
       refBlockNumber = fixture.getNextRefBlockNumber();
@@ -1668,19 +1640,10 @@ describe('nft', function() {
       
 
       // check issuance fees & locked tokens were subtracted from account balance
-      assert.equal(balances[0].account, 'aggroed');
-      assert.equal(balances[0].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(balances[0].balance, '25.00100000');
-      assert.equal(balances[1].account, 'aggroed');
-      assert.equal(balances[1].symbol, 'TKN');
-      assert.equal(balances[1].balance, '1.251');
-      assert.equal(balances[2].account, 'cryptomancer');
-      assert.equal(balances[2].symbol, `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`);
-      assert.equal(balances[2].balance, '167.89700000');
-      assert.equal(balances[3].account, 'cryptomancer');
-      assert.equal(balances[3].symbol, 'TKN');
-      assert.equal(balances[3].balance, '184.389');
-      assert.equal(balances.length, 4);
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '25.00100000'});
+      await tableAsserts.assertUserBalances({ account: 'cryptomancer', symbol: `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`, balance: '167.89700000'});
+      await tableAsserts.assertUserBalances({ account: 'aggroed', symbol: 'TKN', balance: '1.251'});
+      await tableAsserts.assertUserBalances({ account: 'cryptomancer', symbol: 'TKN', balance: '184.389'});
 
       res = await fixture.database.find({
           contract: 'tokens',

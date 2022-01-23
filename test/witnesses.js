@@ -1138,24 +1138,25 @@ describe('witnesses', function () {
         });
 
       let schedule = res;
+      console.log(schedule);
 
-      assert.equal(schedule[0].witness, "witness34");
+      assert.equal(schedule[0].witness, "witness5");
       assert.equal(schedule[0].blockNumber, 2);
       assert.equal(schedule[0].round, 1);
 
-      assert.equal(schedule[1].witness, "witness33");
+      assert.equal(schedule[1].witness, "witness6");
       assert.equal(schedule[1].blockNumber, 3);
       assert.equal(schedule[1].round, 1);
 
-      assert.equal(schedule[2].witness, "witness27");
+      assert.equal(schedule[2].witness, "witness12");
       assert.equal(schedule[2].blockNumber, 4);
       assert.equal(schedule[2].round, 1);
 
-      assert.equal(schedule[3].witness, "witness31");
+      assert.equal(schedule[3].witness, "witness8");
       assert.equal(schedule[3].blockNumber, 5);
       assert.equal(schedule[3].round, 1);
 
-      assert.equal(schedule[4].witness, "witness32");
+      assert.equal(schedule[4].witness, "witness7");
       assert.equal(schedule[4].blockNumber, 6);
       assert.equal(schedule[4].round, 1);
 
@@ -1172,8 +1173,8 @@ describe('witnesses', function () {
       assert.equal(params.totalApprovalWeight, '3000.00000');
       assert.equal(params.numberOfApprovedWitnesses, 30);
       assert.equal(params.lastVerifiedBlockNumber, 1);
-      assert.equal(params.currentWitness, 'witness32');
-      assert.equal(params.lastWitnesses.includes('witness32'), true);
+      assert.equal(params.currentWitness, 'witness7');
+      assert.equal(params.lastWitnesses.includes('witness7'), true);
       assert.equal(params.round, 1);
       assert.equal(params.lastBlockRound, 6);
 
@@ -1593,8 +1594,8 @@ describe('witnesses', function () {
       assert.equal(params.totalApprovalWeight, '3000.00000');
       assert.equal(params.numberOfApprovedWitnesses, 30);
       assert.equal(params.lastVerifiedBlockNumber, 1);
-      assert.equal(params.currentWitness, 'witness33');
-      assert.equal(params.lastWitnesses.includes('witness33'), true);
+      assert.equal(params.currentWitness, 'witness6');
+      assert.equal(params.lastWitnesses.includes('witness6'), true);
       assert.equal(params.round, 1);
       assert.equal(params.lastBlockRound, 6);
 
@@ -1624,7 +1625,7 @@ describe('witnesses', function () {
 
       params = res;
 
-      assert.equal(JSON.stringify(params), '{"_id":1,"totalApprovalWeight":"3000.00000","numberOfApprovedWitnesses":30,"lastVerifiedBlockNumber":1,"round":1,"lastBlockRound":6,"currentWitness":"witness29","blockNumberWitnessChange":42,"lastWitnesses":["witness33","witness29"],"numberOfApprovalsPerAccount":30,"numberOfTopWitnesses":4,"numberOfWitnessSlots":5,"witnessSignaturesRequired":3,"maxRoundsMissedInARow":3,"maxRoundPropositionWaitingPeriod":20}');
+      assert.equal(JSON.stringify(params), '{"_id":1,"totalApprovalWeight":"3000.00000","numberOfApprovedWitnesses":30,"lastVerifiedBlockNumber":1,"round":1,"lastBlockRound":6,"currentWitness":"witness10","blockNumberWitnessChange":42,"lastWitnesses":["witness6","witness10"],"numberOfApprovalsPerAccount":30,"numberOfTopWitnesses":4,"numberOfWitnessSlots":5,"witnessSignaturesRequired":3,"maxRoundsMissedInARow":3,"maxRoundPropositionWaitingPeriod":20}');
 
       let schedule = await fixture.database.find({
           contract: 'witnesses',
@@ -1632,7 +1633,7 @@ describe('witnesses', function () {
           query: {}
       });
 
-      assert.equal(JSON.stringify(schedule), '[{"_id":1,"witness":"witness31","blockNumber":2,"round":1},{"_id":2,"witness":"witness32","blockNumber":3,"round":1},{"_id":3,"witness":"witness30","blockNumber":4,"round":1},{"_id":4,"witness":"witness34","blockNumber":5,"round":1},{"_id":5,"witness":"witness29","blockNumber":6,"round":1}]');
+      assert.equal(JSON.stringify(schedule), '[{"_id":1,"witness":"witness8","blockNumber":2,"round":1},{"_id":2,"witness":"witness7","blockNumber":3,"round":1},{"_id":3,"witness":"witness9","blockNumber":4,"round":1},{"_id":4,"witness":"witness5","blockNumber":5,"round":1},{"_id":5,"witness":"witness10","blockNumber":6,"round":1}]');
 
       resolve();
     })

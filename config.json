@@ -15,5 +15,7 @@
     ],
     "startHiveBlock": 41967000,
     "genesisHiveBlock": 41967000,
-    "witnessEnabled": true
+    "witnessEnabled": true,
+    "enableHashVerification": true,
+    "defaultLogLevel": "warn"
 }

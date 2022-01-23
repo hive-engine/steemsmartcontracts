@@ -6,6 +6,7 @@ const dhive = require('@hiveio/dhive');
 const { Base64 } = require('js-base64');
 const { VM, VMScript } = require('vm2');
 const BigNumber = require('bignumber.js');
+const log = require('loglevel');
 const validator = require('validator');
 const seedrandom = require('seedrandom');
 const { CONSTANTS } = require('../libs/Constants');
@@ -186,7 +187,7 @@ class SmartContracts {
               }
             },
             random: () => rng(),
-            debug: log => console.log(log), // eslint-disable-line no-console
+            debug: logmsg => log.info(logmsg), // eslint-disable-line no-console
             // execute a smart contract from the current smart contract
             executeSmartContract: async (
               contractName, actionName, parameters,
@@ -302,6 +303,7 @@ class SmartContracts {
         refHiveBlockNumber,
       } = transaction;
 
+      log.info('Execute smart contract ', transaction);
       if (RESERVED_ACTIONS.includes(action)) return { logs: { errors: ['you cannot trigger this action'] } };
 
       const payloadObj = payload ? JSON.parse(payload) : {};
@@ -413,7 +415,7 @@ class SmartContracts {
               return false;
             }
           },
-          debug: log => console.log(log), // eslint-disable-line no-console
+          debug: logmsg => log.info(logmsg), // eslint-disable-line no-console
           // execute a smart contract from the current smart contract
           executeSmartContract: async (
             contractName, actionName, parameters,
@@ -508,8 +510,10 @@ class SmartContracts {
 
       return results;
     } catch (e) {
-      // console.error('ERROR DURING CONTRACT EXECUTION: ', e);
+      log.error('ERROR DURING CONTRACT EXECUTION: ', e);
       return { logs: { errors: [`${e.name}: ${e.message}`] } };
+    } finally {
+      log.info('executeSmartContract done');
     }
   }
 
@@ -562,7 +566,6 @@ class SmartContracts {
           });
           // eslint-disable-next-line no-underscore-dangle
           vm.vm._context.done = (error) => {
-            // console.log('error', error);
             vm.inUse = false;
             resolve(error);
           };
@@ -572,7 +575,6 @@ class SmartContracts {
           resolve('no JS VM available');
         }
       } catch (err) {
-        // console.log('error', err);
         vm.inUse = false;
         resolve(err);
       }

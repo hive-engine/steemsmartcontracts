@@ -266,16 +266,16 @@ async function payOutPost(rewardPool, token, post, params) {
   const authorBenePortion = api.BigNumber(postPendingToken).minus(curatorPortion)
     .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
 
-  const beneficiariesPayoutValue = await payOutBeneficiaries(
-    rewardPool, token, post, authorBenePortion,
-  );
-  const authorPortion = api.BigNumber(authorBenePortion).minus(beneficiariesPayoutValue)
-    .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
-
   const curatorPayStatus = await payOutCurators(rewardPool, token, post, curatorPortion, params);
   response.votesProcessed += curatorPayStatus.votesProcessed;
   response.done = curatorPayStatus.done;
   if (curatorPayStatus.done) {
+    const beneficiariesPayoutValue = await payOutBeneficiaries(
+      rewardPool, token, post, authorBenePortion,
+    );
+    const authorPortion = api.BigNumber(authorBenePortion).minus(beneficiariesPayoutValue)
+      .toFixed(token.precision, api.BigNumber.ROUND_DOWN);
+
     const mute = await getMute(post.rewardPoolId, post.author);
     const rewardLog = {
       rewardPoolId: post.rewardPoolId,
@@ -856,7 +856,6 @@ actions.resetPool = async (payload) => {
 
 async function getRewardPoolIds(payload) {
   const {
-    rewardPools,
     jsonMetadata,
     parentAuthor,
     parentPermlink,

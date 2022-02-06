@@ -38,6 +38,10 @@ actions.createSSC = async () => {
       }
       params.updateIndex = 1;
       await api.db.update('params', params);
+    } else if (params.updateIndex === 1) {
+      params.tradeFeeMul = '0.9975';
+      params.updateIndex = 2;
+      await api.db.update('params', params);
     }
   }
 };
@@ -60,22 +64,23 @@ function getQuote(amount, liquidityIn, liquidityOut) {
   return api.BigNumber(amount).times(liquidityOut).dividedBy(liquidityIn);
 }
 
-function getAmountIn(amountOut, liquidityIn, liquidityOut) {
+function getAmountIn(params, amountOut, liquidityIn, liquidityOut) {
   if (!api.assert(api.BigNumber(amountOut).gt(0), 'insufficient output amount')
     || !api.assert(api.BigNumber(liquidityIn).gt(0)
       && api.BigNumber(liquidityOut).gt(0)
       && api.BigNumber(amountOut).lt(liquidityOut), 'insufficient liquidity')) return false;
   const num = api.BigNumber(liquidityIn).times(amountOut);
-  const den = api.BigNumber(liquidityOut).minus(amountOut);
+  const den = api.BigNumber(liquidityOut).minus(amountOut).times(params.tradeFeeMul);
   return num.dividedBy(den);
 }
 
-function getAmountOut(amountIn, liquidityIn, liquidityOut) {
+function getAmountOut(params, amountIn, liquidityIn, liquidityOut) {
   if (!api.assert(api.BigNumber(amountIn).gt(0), 'insufficient output amount')
     || !api.assert(api.BigNumber(liquidityIn).gt(0)
       && api.BigNumber(liquidityOut).gt(0), 'insufficient liquidity')) return false;
-  const num = api.BigNumber(amountIn).times(liquidityOut);
-  const den = api.BigNumber(liquidityIn).plus(amountIn);
+  const amountInWithFee = api.BigNumber(amountIn).times(params.tradeFeeMul);
+  const num = api.BigNumber(amountInWithFee).times(liquidityOut);
+  const den = api.BigNumber(liquidityIn).plus(amountInWithFee);
   const amountOut = num.dividedBy(den);
   if (!api.assert(api.BigNumber(amountOut).lt(liquidityOut), 'insufficient liquidity')) return false;
   return amountOut;
@@ -482,25 +487,39 @@ actions.swapTokens = async (payload) => {
     symbolOut = baseSymbol;
   }
 
+  const params = await api.db.findOne('params', {});
   const tokenIn = await api.db.findOneInTable('tokens', 'tokens', { symbol: symbolIn });
   const tokenOut = await api.db.findOneInTable('tokens', 'tokens', { symbol: symbolOut });
 
   const senderBase = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: symbolIn });
   let senderBaseFunded = false;
   let tokenPairDelta;
+  let tokenPairFee;
   let tokenQuantity;
   if (tradeType === 'exactInput') {
-    const tokenAmountAdjusted = api.BigNumber(getAmountOut(tokenAmount, liquidityIn, liquidityOut));
+    const tokenAmountAdjusted = api.BigNumber(getAmountOut(params, tokenAmount, liquidityIn, liquidityOut));
     if (!tokenAmountAdjusted.isFinite()) return;
     senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmount);
     tokenPairDelta = tokenSymbol === baseSymbol ? [tokenAmount, api.BigNumber(tokenAmountAdjusted).negated()] : [api.BigNumber(tokenAmountAdjusted).negated(), tokenAmount];
+    tokenPairFee = {
+      symbol: symbolOut,
+      amount: api.BigNumber(tokenAmountAdjusted).dividedBy(params.tradeFeeMul)
+        .minus(tokenAmountAdjusted)
+        .toFixed(tokenOut.precision, api.BigNumber.ROUND_HALF_UP),
+    };
     tokenQuantity = { in: tokenAmount, out: tokenAmountAdjusted };
     if (!api.assert(api.BigNumber(tokenQuantity.in).dp() <= tokenIn.precision, 'symbolIn precision mismatch')) return;
   } else if (tradeType === 'exactOutput') {
-    const tokenAmountAdjusted = api.BigNumber(getAmountIn(tokenAmount, liquidityIn, liquidityOut));
+    const tokenAmountAdjusted = api.BigNumber(getAmountIn(params, tokenAmount, liquidityIn, liquidityOut));
     if (!tokenAmountAdjusted.isFinite()) return;
     senderBaseFunded = senderBase && api.BigNumber(senderBase.balance).gte(tokenAmountAdjusted.toFixed(tokenIn.precision, api.BigNumber.ROUND_HALF_UP));
     tokenPairDelta = tokenSymbol === baseSymbol ? [api.BigNumber(tokenAmount).negated(), tokenAmountAdjusted] : [tokenAmountAdjusted, api.BigNumber(tokenAmount).negated()];
+    tokenPairFee = {
+      symbol: symbolIn,
+      amount: api.BigNumber(tokenAmountAdjusted).dividedBy(params.tradeFeeMul)
+        .minus(tokenAmountAdjusted)
+        .toFixed(tokenIn.precision, api.BigNumber.ROUND_HALF_UP),
+    };
     tokenQuantity = { in: tokenAmountAdjusted, out: tokenAmount };
     if (!api.assert(api.BigNumber(tokenQuantity.out).dp() <= tokenOut.precision, 'symbolOut precision mismatch')) return;
   }
@@ -527,6 +546,6 @@ actions.swapTokens = async (payload) => {
     && res.events && res.events.find(el => el.contract === 'tokens' && el.event === 'transferToContract' && el.data.from === api.sender && el.data.to === 'marketpools' && el.data.quantity === tokenQuantity.in.toFixed()) !== undefined) {
     await api.transferTokens(api.sender, symbolOut, tokenQuantity.out.toFixed(), 'user');
     await updatePoolStats(pool, tokenPairDelta[0], tokenPairDelta[1], false, true);
-    api.emit('swapTokens', { symbolIn, symbolOut });
+    api.emit('swapTokens', { symbolIn, symbolOut, fee: tokenPairFee });
   }
 };

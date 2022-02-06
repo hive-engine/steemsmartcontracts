@@ -594,12 +594,19 @@ actions.buy = async (payload) => {
               account: order.account,
               ownedBy: order.ownedBy,
               nftIds: [],
+              nftSales: [],
               paymentTotal: api.BigNumber(0),
             };
 
           sellerInfo.paymentTotal = sellerInfo.paymentTotal.plus(finalPayment);
           sellerInfo.nftIds.push(order.nftId);
           sellerMap[key] = sellerInfo;
+          sellerInfo.nftSales.push({
+            id: order.nftId,
+            price: finalPrice,
+            fee: finalFee,
+            symbol: priceSymbol,
+          });
         }
 
         const params = await api.db.findOne('params', { symbol });

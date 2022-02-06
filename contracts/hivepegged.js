@@ -35,8 +35,8 @@ actions.buy = async (payload) => {
     if (api.assert(unit === 'HIVE', 'only HIVE can be used')) {
       let quantityToSend = res[0];
 
-      // calculate the 1% fee (with a min of 0.001 HIVE)
-      let fee = api.BigNumber(quantityToSend).multipliedBy(0.01).toFixed(3);
+      // calculate the 0.75% fee (with a min of 0.001 HIVE)
+      let fee = api.BigNumber(quantityToSend).multipliedBy('0.0075').toFixed(3);
 
       if (api.BigNumber(fee).lt('0.001')) {
         fee = '0.001';
@@ -67,8 +67,8 @@ actions.withdraw = async (payload) => {
     && api.BigNumber(quantity).dp() <= 3, 'invalid params')
     && api.assert(api.BigNumber(quantity).gte(0.002), 'minimum withdrawal is 0.002')
   ) {
-    // calculate the 1% fee (with a min of 0.001 HIVE)
-    let fee = api.BigNumber(quantity).multipliedBy(0.01).toFixed(3);
+    // calculate the 0.75% fee (with a min of 0.001 HIVE)
+    let fee = api.BigNumber(quantity).multipliedBy('0.0075').toFixed(3);
 
     if (api.BigNumber(fee).lt('0.001')) {
       fee = '0.001';

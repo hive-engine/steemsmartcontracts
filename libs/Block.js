@@ -32,6 +32,8 @@ class Block {
 
   // calculate the hash of the block
   calculateHash() {
+    const txs = JSON.parse(JSON.stringify(this.transactions));
+    txs.forEach(t => delete t.processingTime);
     return SHA256(
       this.previousHash
       + this.previousDatabaseHash
@@ -41,7 +43,7 @@ class Block {
       + this.prevRefHiveBlockId
       + this.timestamp
       + this.merkleRoot
-      + JSON.stringify(this.transactions) // eslint-disable-line
+      + JSON.stringify(txs) // eslint-disable-line
     )
       .toString(enchex);
   }
@@ -106,6 +108,9 @@ class Block {
 
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
+    console.time("produceBlock");
+    let blockProcessingTime = 0;
+
     await this.blockAdjustments(database);
 
     const nbTransactions = this.transactions.length;
@@ -117,7 +122,12 @@ class Block {
     for (let i = 0; i < nbTransactions; i += 1) {
       const transaction = this.transactions[i];
       log.info('Processing tx ', transaction);
+      const start = process.hrtime();
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
+      const txProcessingTime = process.hrtime(start);
+      const txProcessingTimeNanos = txProcessingTime[0] * 1000000000 + txProcessingTime[1];
+      transaction.processingTime = txProcessingTimeNanos;
+      blockProcessingTime += txProcessingTimeNanos;
 
       currentDatabaseHash = transaction.databaseHash;
 
@@ -159,7 +169,12 @@ class Block {
       const transaction = virtualTransactions[i];
       transaction.refHiveBlockNumber = this.refHiveBlockNumber;
       transaction.transactionId = `${this.refHiveBlockNumber}-${i}`;
+      const start = process.hrtime();
       await this.processTransaction(database, jsVMTimeout, transaction, currentDatabaseHash); // eslint-disable-line
+      const txProcessingTime = process.hrtime(start);
+      const txProcessingTimeNanos = txProcessingTime[0] * 1000000000 + txProcessingTime[1];
+      transaction.processingTime = txProcessingTimeNanos;
+      blockProcessingTime += txProcessingTimeNanos;
       currentDatabaseHash = transaction.databaseHash;
       // if there are outputs in the virtual transaction we save the transaction into the block
       // the "unknown error" errors are removed as they are related to a non existing action
@@ -208,6 +223,8 @@ class Block {
       this.merkleRoot = merkleRoots.hash;
       this.databaseHash = merkleRoots.databaseHash;
       this.hash = this.calculateHash();
+      this.processingTime = blockProcessingTime;
+      console.timeEnd("produceBlock");
     } else if (currentDatabaseHash !== this.previousDatabaseHash) {
       await database.noteHashChange(this.refHiveBlockNumber);
     }

@@ -242,8 +242,8 @@ actions.createSSC = async () => {
     await api.db.createTable('tradesHistory', ['symbol']);
     await api.db.createTable('metrics', ['symbol']);
   } else {
-    // remove stuck LVL order
-    const order = await api.db.findOne('buyBook', { txId: 'aafa6009e922f0c5435fb6d6ef8fc10fe00bab9a' });
+    // remove stuck SPS order
+    const order = await api.db.findOne('buyBook', { txId: '4733dde04a5a35f426e14205a3e869fef5566651' });
     if (order) {
       await api.db.remove('buyBook', order);
       await updateBidMetric(order.symbol);

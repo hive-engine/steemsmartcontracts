@@ -151,7 +151,7 @@ const parseAndValidateAirdrop = async ({ symbol, sender, senderType, list, start
     && api.validator.isAlpha(symbol)
     && api.validator.isUppercase(symbol)
     && symbol.length > 0
-    && await api.db.tableExists(instanceTableName) !== false,
+    && await api.db.findOneInTable('nft', 'nfts', { symbol }) !== null,
     'invalid symbol',
   )) {
     // Validate list of airdrops.

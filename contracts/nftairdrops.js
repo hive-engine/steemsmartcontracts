@@ -6,7 +6,7 @@ const CONTRACT_NAME = 'nftairdrops';
 
 /* eslint-disable no-template-curly-in-string */
 const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
-const UTILITY_TOKEN_PRECISION = "'${CONSTANTS.UTILITY_TOKEN_PRECISION}$'";
+const UTILITY_TOKEN_PRECISION = '${CONSTANTS.UTILITY_TOKEN_PRECISION}$';
 /* eslint-enable no-template-curly-in-string */
 
 const ALLOWED_TO_TYPES = ['user', 'contract'];
@@ -189,7 +189,7 @@ const parseAndValidateAirdrop = async ({ symbol, sender, senderType, list, start
         if (api.assert(result === null, 'cannot airdrop nfts that are delegated or not owned by this account')) {
           // blockNumber shall be greater than the current block number.
           if (api.assert(Number.isInteger(airdrop.blockNumber) && airdrop.blockNumber > api.blockNumber, 'invalid startBlockNumber')) {
-            airdrop.totalFee = api.BigNumber(params.feePerTransaction).times(airdrop.nftIds.length); //.toFixed(UTILITY_TOKEN_PRECISION);
+            airdrop.totalFee = api.BigNumber(params.feePerTransaction).times(airdrop.nftIds.length).toFixed(UTILITY_TOKEN_PRECISION);
             if (api.assert(api.BigNumber(airdrop.totalFee).gte(0), 'unable to calculate total airdrop fee')) {
               airdrop.isValid = true;
             }

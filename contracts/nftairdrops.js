@@ -31,12 +31,10 @@ const arrayHasDuplicates = arr => new Set(arr).size !== arr.length;
 /* eslint-disable-next-line object-curly-newline */
 const tokenTransferVerified = ({ transaction, from, to, quantity }) => {
   const { errors, events } = transaction;
-  const eventType = (from === CONTRACT_NAME) ? 'transferFromContract' : 'transferToContract';
 
   if (errors === undefined
     && events
     && events.find(el => el.contract === 'tokens'
-      && el.event === eventType
       && el.data.symbol === UTILITY_TOKEN_SYMBOL
       && el.data.from === from
       && el.data.to === to
@@ -48,11 +46,16 @@ const tokenTransferVerified = ({ transaction, from, to, quantity }) => {
 
 // Check if NFTs have been successfully moved to the new account.
 /* eslint-disable-next-line object-curly-newline */
-const nftTransferVerified = async ({ symbol, to, ids }) => {
+const nftTransferVerified = async ({ symbol, to, toType, ids }) => {
+  const newOwnedBy = (toType === 'contract') ? 'c' : 'u';
   const verification = await api.db.findInTable('nft', symbol + 'instances', /* eslint-disable-line prefer-template */
     {
       _id: { $in: ids.map(x => api.BigNumber(x).toNumber()) },
-      account: { $ne: to },
+      $or: [{
+        account: { $ne: to },
+      }, {
+        ownedBy: { $ne: newOwnedBy },
+      }],
     },
     ids.length,
     0);
@@ -60,50 +63,73 @@ const nftTransferVerified = async ({ symbol, to, ids }) => {
 };
 
 // Transfers the fee to the contract and verifies the transaction.
-const reserveFee = async (quantity) => {
-  const transaction = await api.executeSmartContract('tokens', 'transferToContract', {
+/* eslint-disable-next-line object-curly-newline */
+const reserveFee = async ({ from, fromType, quantity }) => {
+  // Don't need to do anything when fee is 0.
+  if (api.BigNumber(quantity).eq(0)) return true;
+
+  let transaction = null;
+  if (fromType === 'contract') {
+    transaction = await api.transferTokensFromCallingContract(
+      CONTRACT_NAME,
+      UTILITY_TOKEN_SYMBOL,
+      quantity,
+      'contract',
+    );
+  } else {
+    transaction = await api.executeSmartContract('tokens', 'transferToContract', {
+      from,
+      to: CONTRACT_NAME,
+      symbol: UTILITY_TOKEN_SYMBOL,
+      quantity,
+    });
+  }
+  return tokenTransferVerified({
+    transaction,
+    from,
     to: CONTRACT_NAME,
-    symbol: UTILITY_TOKEN_SYMBOL,
     quantity,
   });
-  return tokenTransferVerified({ transaction, from: api.sender, to: CONTRACT_NAME, quantity }); /* eslint-disable-line object-curly-newline */
 };
 
 // Burns the fee locked in the contract.
 const burnFee = async (quantity) => {
-  const transaction = await api.executeSmartContract('tokens', 'transferFromContract', {
-    to: 'null',
-    type: 'user',
-    symbol: UTILITY_TOKEN_SYMBOL,
-    quantity,
-  });
-  return tokenTransferVerified({ transaction, from: CONTRACT_NAME, to: 'null', quantity }); /* eslint-disable-line object-curly-newline */
-};
+  // Don't need to do anything when fee is 0.
+  if (api.BigNumber(quantity).eq(0)) return true;
 
-// Sends the fee back to the account specified.
-/* eslint-disable-next-line object-curly-newline */
-const reimburseFee = async ({ to, toType, quantity }) => {
-  const transaction = await api.executeSmartContract('tokens', 'transferFromContract', {
-    to,
-    type: toType,
-    symbol: UTILITY_TOKEN_SYMBOL,
+  const transaction = await api.transferTokens(
+    'null',
+    UTILITY_TOKEN_SYMBOL,
+    quantity,
+    'user',
+  );
+  return tokenTransferVerified({
+    transaction,
+    from: CONTRACT_NAME,
+    to: 'null',
     quantity,
   });
-  return tokenTransferVerified({ transaction, from: CONTRACT_NAME, to, quantity }); /* eslint-disable-line object-curly-newline */
 };
 
 // Transfers the NFTs to the contract and verifies the transactions.
 /* eslint-disable-next-line object-curly-newline */
-const reserveNFTs = async ({ symbol, ids, batchSize }) => {
+const reserveNFTs = async ({ fromType, symbol, ids, batchSize }) => {
   for (let i = 0, n = ids.length; i < n; i += batchSize) {
     const transfer = await api.executeSmartContract('nft', 'transfer', {
+      fromType,
       to: CONTRACT_NAME,
       toType: 'contract',
       nfts: [{ symbol, ids: ids.slice(i, i + batchSize) }],
+      isSignedWithActiveKey: true,
     });
-    if (transfer.errors !== undefined) break;
+    if (transfer.errors !== undefined) return false;
   }
-  return nftTransferVerified({ symbol, to: CONTRACT_NAME, ids });
+  return nftTransferVerified({
+    symbol,
+    to: CONTRACT_NAME,
+    toType: 'contract',
+    ids,
+  });
 };
 
 /* eslint-disable-next-line object-curly-newline */
@@ -113,18 +139,27 @@ const reimburseNFTs = async ({ to, toType, symbol, ids, batchSize = undefined })
     {
       _id: { $in: ids.map(x => api.BigNumber(x).toNumber()) },
       account: CONTRACT_NAME,
+      ownedBy: 'c',
     },
     ids.length,
     0,
     [{ index: '_id', descending: false }]);
-  for (let i = 0, n = reservedNfts.length; i < n; i += batchSize) {
+  const reimbursableNfts = reservedNfts.map(x => api.BigNumber(x._id).toString()); /* eslint-disable-line no-underscore-dangle */
+  for (let i = 0, n = reimbursableNfts.length; i < n; i += batchSize) {
     await api.executeSmartContract('nft', 'transfer', {
+      fromType: 'contract',
       to,
       toType,
-      nfts: [{ symbol, ids: reservedNfts.slice(i, i + batchSize) }],
+      nfts: [{ symbol, ids: reimbursableNfts.slice(i, i + batchSize) }],
+      isSignedWithActiveKey: true,
     });
   }
-  return nftTransferVerified({ symbol, to, ids });
+  return nftTransferVerified({
+    symbol,
+    to,
+    toType,
+    ids,
+  });
 };
 
 /* eslint-disable-next-line object-curly-newline */
@@ -177,11 +212,14 @@ const parseAndValidateAirdrop = async ({ symbol, sender, senderType, list, start
     )) {
       if (api.assert(!arrayHasDuplicates(airdrop.nftIds), 'airdrop list contains duplicate nfts')) {
         // Check NFT delegation and ownership. We can do this in a single query.
+        const ownedByType = (senderType === 'contract') ? 'c' : 'u';
         const result = await api.db.findOneInTable('nft', instanceTableName,
           {
             _id: { $in: airdrop.nftIds.map(x => api.BigNumber(x).toNumber()) },
             $or: [{
               account: { $ne: sender },
+            }, {
+              ownedBy: { $ne: ownedByType },
             }, {
               delegatedTo: { $exists: true },
             }],
@@ -190,9 +228,7 @@ const parseAndValidateAirdrop = async ({ symbol, sender, senderType, list, start
           // blockNumber shall be greater than the current block number.
           if (api.assert(Number.isInteger(airdrop.blockNumber) && airdrop.blockNumber > api.blockNumber, 'invalid startBlockNumber')) {
             airdrop.totalFee = api.BigNumber(params.feePerTransaction).times(airdrop.nftIds.length).toFixed(UTILITY_TOKEN_PRECISION);
-            if (api.assert(api.BigNumber(airdrop.totalFee).gte(0), 'unable to calculate total airdrop fee')) {
-              airdrop.isValid = true;
-            }
+            airdrop.isValid = true;
           }
         }
       }
@@ -204,7 +240,6 @@ const parseAndValidateAirdrop = async ({ symbol, sender, senderType, list, start
 
 const processAirdrop = async (airdrop, batchSize) => {
   const {
-    airdropId,
     softFail,
     symbol,
     list,
@@ -212,6 +247,8 @@ const processAirdrop = async (airdrop, batchSize) => {
   } = airdrop;
 
   const processed = [];
+  const failed = [];
+  // We iterate the list in reverse so it's more easy to modify it in-place.
   for (let i = list.length - 1; i >= 0; i -= 1) {
     const { to, toType, ids } = list.pop();
     // Make sure we don't exceed the batch size for a single item.
@@ -221,11 +258,17 @@ const processAirdrop = async (airdrop, batchSize) => {
 
     if (batch.length > 0) {
       const transfer = await api.executeSmartContract('nft', 'transfer', {
+        fromType: 'contract',
         to,
         toType,
         nfts: [{ symbol, ids: batch }],
+        isSignedWithActiveKey: true,
       });
-      if (!api.assert(transfer.errors === undefined || softFail === true, `error transferring nfts, airdrop ${airdropId} failed`)) {
+      if (transfer.errors !== undefined) {
+        const succes = (transfer.events) ? transfer.events.map(x => x.data.id) : [];
+        failed.push(...batch.filter(x => !succes.includes(x)));
+      }
+      if (failed.length > 0 && softFail !== true) {
         // We have errors and the initiator has requested a 'hard fail'.
         airdrop.isValid = false; /* eslint-disable-line no-param-reassign */
         break;
@@ -239,8 +282,8 @@ const processAirdrop = async (airdrop, batchSize) => {
   // If we've processed everything from the list, mark the airdrop for cleanup and removal from db.
   if (list.length === 0) airdrop.isValid = false; /* eslint-disable-line no-param-reassign */
 
-  // Remove processed NFTs from the nftIds array. We use splice here to modify the nftIds array in-place.
-  nftIds.splice(0, nftIds.length, ...nftIds.filter(id => !processed.includes(id)));
+  // Remove successfully processed NFTs from the nftIds array. We use splice here to modify the nftIds array in-place.
+  nftIds.splice(0, nftIds.length, ...nftIds.filter(x => failed.includes(x) || !processed.includes(x)));
 
   return processed.length;
 };
@@ -311,6 +354,9 @@ actions.updateParams = async (payload) => {
     }
 
     await api.db.update('params', params);
+
+    delete params._id; /* eslint-disable-line no-underscore-dangle */
+    api.emit('paramsUpdated', params);
   }
 };
 
@@ -320,23 +366,39 @@ actions.newAirdrop = async (payload) => {
     list,
     startBlockNumber,
     softFail,
+    fromType,
     isSignedWithActiveKey,
     callingContractInfo,
   } = payload;
 
   if (api.assert(isSignedWithActiveKey === true, 'you must use a custom_json signed with your active key')) {
-    const senderType = (callingContractInfo === undefined) ? 'user' : 'contract';
+    const senderType = (callingContractInfo === undefined || fromType !== 'contract') ? 'user' : 'contract';
     const sender = (senderType === 'user') ? api.sender : callingContractInfo.name;
     const params = await api.db.findOne('params', {});
-    const airdrop = await parseAndValidateAirdrop({ symbol, sender, senderType, list, startBlockNumber, softFail, params }); /* eslint-disable-line object-curly-newline */
-api.debug(airdrop);
+    const airdrop = await parseAndValidateAirdrop({
+      symbol, sender, senderType, list, startBlockNumber, softFail, params,
+    });
+
     if (airdrop.isValid) {
       // Airdrop data is valid, reserve the fee.
-      const utilityToken = await api.db.findOneInTable('tokens', 'balances', { account: api.sender, symbol: UTILITY_TOKEN_SYMBOL });
+      const tokensTable = (senderType === 'contract') ? 'contractsBalances' : 'balances';
+      const utilityToken = await api.db.findOneInTable('tokens', tokensTable, {
+        account: sender,
+        symbol: UTILITY_TOKEN_SYMBOL,
+      });
       if (api.assert(utilityToken && api.BigNumber(utilityToken.balance).gte(airdrop.totalFee), 'you must have enough tokens to cover the airdrop fee')) {
-        if (api.assert(await reserveFee(airdrop.totalFee), 'could not secure airdrop fee')) {
+        if (api.assert(await reserveFee({
+          from: sender,
+          fromType: senderType,
+          quantity: airdrop.totalFee,
+        }), 'could not secure airdrop fee')) {
           // Fee has been reserved, transfer NFTs to the contract.
-          if (api.assert(await reserveNFTs({ symbol, ids: airdrop.nftIds, batchSize: params.processingBatchSize }), 'could not secure NFTs')) {
+          if (api.assert(await reserveNFTs({
+            fromType: senderType,
+            symbol,
+            ids: airdrop.nftIds,
+            batchSize: params.processingBatchSize,
+          }), 'could not secure NFTs')) {
             // NFTs have been reserved, burn the fee.
             await burnFee(airdrop.totalFee);
             // Add airdrop to db to start the process.
@@ -344,21 +406,28 @@ api.debug(airdrop);
             api.emit('newNftAirdrop', {
               airdropId: airdrop.airdropId,
               sender,
+              senderType,
               symbol,
-              startBlockNumber,
+              startBlockNumber: airdrop.blockNumber,
             });
-          } else {
-            // Somehow could not initiate airdrop. Return the reserved NFTs to the sender.
-            await reimburseNFTs({ to: sender, toType: senderType, symbol, ids: airdrop.nftIds }); /* eslint-disable-line object-curly-newline */
+            return true;
           }
+          // Somehow could not initiate airdrop. Return any reserved NFTs to the sender.
+          await reimburseNFTs({
+            to: sender,
+            toType: senderType,
+            symbol,
+            ids: airdrop.nftIds,
+          });
         }
       }
     }
   }
+  return false;
 };
 
 actions.tick = async () => {
-  if (api.assert(api.sender === 'null', 'not authorized')) {
+  if (api.assert(api.sender === 'null', `not authorized: ${api.sender}`)) {
     const params = await api.db.findOne('params', {});
     const pendingAirdrops = await api.db.find('pendingAirdrops',
       {
@@ -383,11 +452,18 @@ actions.tick = async () => {
         } else {
           api.db.remove('pendingAirdrops', airdrop);
           // Send remaining locked NFTs, if any, back to the previous owner.
-          await reimburseNFTs({ to: airdrop.from, toType: airdrop.FromType, symbol: airdrop.symbol, ids: airdrop.nftIds }); /* eslint-disable-line object-curly-newline */
-          api.emit('nftAirdropFinished', {
-            airdropId: airdrop.airdropId,
-            symbol: airdrop.symbol,
-          });
+          await reimburseNFTs({ to: airdrop.from, toType: airdrop.fromType, symbol: airdrop.symbol, ids: airdrop.nftIds }); /* eslint-disable-line object-curly-newline */
+          if (airdrop.softFail === false && airdrop.nftIds.length > 0) {
+            api.emit('nftAirdropFailed', {
+              airdropId: airdrop.airdropId,
+              symbol: airdrop.symbol,
+            });
+          } else {
+            api.emit('nftAirdropFinished', {
+              airdropId: airdrop.airdropId,
+              symbol: airdrop.symbol,
+            });
+          }
         }
       }
     }
@@ -412,9 +488,3 @@ actions.tick = async () => {
 /*
     payload = {"symbol":"TUNZ","list":[{"to":"bait002","ids":["11"]},]}
 */
-
-// 1. Parse and validate input
-// 2. Determine if all NFTs exist and belong to sender
-// 3. Transfer instances to contract
-// 4. Transfer instances to contract
-// 5.

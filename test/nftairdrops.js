@@ -259,23 +259,14 @@ describe('NFT Airdrops Smart Contract', function () {
       // Make sure there were no unexpected errors.
       await tableAsserts.assertNoErrorInLastBlock();
 
-      // Check if the fee has been transferred to the contract and was burned thereafter.
+      // Check if the fee has been burned.
       const blockInfo = await fixture.database.getLatestBlockInfo();
       const eventLog = JSON.parse(blockInfo.transactions[0].logs).events;
       assert.ok(eventLog.find(x => {
         return (
           x.contract === 'tokens'
-          && x.event === 'transferToContract'
+          && x.event === 'transfer'
           && x.data.from === 'bennierex'
-          && x.data.to === 'nftairdrops'
-          && x.data.symbol === `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`
-          && x.data.quantity === '1.50000000');
-      }), 'could not verify fee transfer to contract');
-      assert.ok(eventLog.find(x => {
-        return (
-          x.contract === 'tokens'
-          && x.event === 'transferFromContract'
-          && x.data.from === 'nftairdrops'
           && x.data.to === 'null'
           && x.data.symbol === `${CONSTANTS.UTILITY_TOKEN_SYMBOL}`
           && x.data.quantity === '1.50000000');

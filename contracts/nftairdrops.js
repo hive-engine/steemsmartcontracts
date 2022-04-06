@@ -29,12 +29,19 @@ const arrayHasDuplicates = arr => new Set(arr).size !== arr.length;
 
 // Check if the requested amount of tokens has been transferred to the expected account.
 /* eslint-disable-next-line object-curly-newline */
-const tokenTransferVerified = ({ transaction, from, to, quantity }) => {
+const tokenTransferVerified = ({ transaction, from, fromType, to, toType, quantity }) => {
   const { errors, events } = transaction;
+  let eventType = 'transfer';
+  if (fromType === 'contract') {
+    eventType = 'transferFromContract';
+  } else if (toType === 'contract') {
+    eventType = 'transferToContract';
+  }
 
   if (errors === undefined
     && events
     && events.find(el => el.contract === 'tokens'
+      && el.event === eventType
       && el.data.symbol === UTILITY_TOKEN_SYMBOL
       && el.data.from === from
       && el.data.to === to
@@ -62,24 +69,24 @@ const nftTransferVerified = async ({ symbol, to, toType, ids }) => {
   return (verification.length === 0);
 };
 
-// Transfers the fee to the contract and verifies the transaction.
+// Burns the fee and verifies the transaction
 /* eslint-disable-next-line object-curly-newline */
-const reserveFee = async ({ from, fromType, quantity }) => {
+const burnFee = async ({ from, fromType, quantity }) => {
   // Don't need to do anything when fee is 0.
   if (api.BigNumber(quantity).eq(0)) return true;
 
   let transaction = null;
   if (fromType === 'contract') {
     transaction = await api.transferTokensFromCallingContract(
-      CONTRACT_NAME,
+      'null',
       UTILITY_TOKEN_SYMBOL,
       quantity,
-      'contract',
+      'user',
     );
   } else {
-    transaction = await api.executeSmartContract('tokens', 'transferToContract', {
+    transaction = await api.executeSmartContract('tokens', 'transfer', {
       from,
-      to: CONTRACT_NAME,
+      to: 'null',
       symbol: UTILITY_TOKEN_SYMBOL,
       quantity,
     });
@@ -87,26 +94,9 @@ const reserveFee = async ({ from, fromType, quantity }) => {
   return tokenTransferVerified({
     transaction,
     from,
-    to: CONTRACT_NAME,
-    quantity,
-  });
-};
-
-// Burns the fee locked in the contract.
-const burnFee = async (quantity) => {
-  // Don't need to do anything when fee is 0.
-  if (api.BigNumber(quantity).eq(0)) return true;
-
-  const transaction = await api.transferTokens(
-    'null',
-    UTILITY_TOKEN_SYMBOL,
-    quantity,
-    'user',
-  );
-  return tokenTransferVerified({
-    transaction,
-    from: CONTRACT_NAME,
+    fromType,
     to: 'null',
+    toType: 'user',
     quantity,
   });
 };
@@ -387,20 +377,18 @@ actions.newAirdrop = async (payload) => {
         symbol: UTILITY_TOKEN_SYMBOL,
       });
       if (api.assert(utilityToken && api.BigNumber(utilityToken.balance).gte(airdrop.totalFee), 'you must have enough tokens to cover the airdrop fee')) {
-        if (api.assert(await reserveFee({
+        if (api.assert(await burnFee({
           from: sender,
           fromType: senderType,
           quantity: airdrop.totalFee,
         }), 'could not secure airdrop fee')) {
-          // Fee has been reserved, transfer NFTs to the contract.
+          // Fee has been burned, transfer NFTs to the contract.
           if (api.assert(await reserveNFTs({
             fromType: senderType,
             symbol,
             ids: airdrop.nftIds,
             batchSize: params.processingBatchSize,
           }), 'could not secure NFTs')) {
-            // NFTs have been reserved, burn the fee.
-            await burnFee(airdrop.totalFee);
             // Add airdrop to db to start the process.
             await api.db.insert('pendingAirdrops', airdrop);
             api.emit('newNftAirdrop', {

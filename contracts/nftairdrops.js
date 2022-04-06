@@ -459,20 +459,3 @@ actions.tick = async () => {
 };
 
 // END contract actions
-
-/*
-    payload = {
-      "symbol": "TUNZ",
-      "list": [
-        {"to": "bait002", "ids": ["11", "12"]},
-        {"to": "aggroed", "ids": ["13", "14"]},
-        {"to": "bennierex", "ids": ["39"]},
-        {"to": "cryptomancer", "ids": ["16", "19", "24"]},
-        {"to": "nftmarket", "toType": "contract", "ids": ["253", "237", "239"]}
-      ]
-    }
-*/
-
-/*
-    payload = {"symbol":"TUNZ","list":[{"to":"bait002","ids":["11"]},]}
-*/

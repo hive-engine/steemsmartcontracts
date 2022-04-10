@@ -436,9 +436,9 @@ actions.tick = async () => {
           transactionCount: nftsProcessed,
         });
         if (airdrop.isValid === true) {
-          api.db.update('pendingAirdrops', airdrop);
+          await api.db.update('pendingAirdrops', airdrop);
         } else {
-          api.db.remove('pendingAirdrops', airdrop);
+          await api.db.remove('pendingAirdrops', airdrop);
           // Send remaining locked NFTs, if any, back to the previous owner.
           await reimburseNFTs({ to: airdrop.from, toType: airdrop.fromType, symbol: airdrop.symbol, ids: airdrop.nftIds }); /* eslint-disable-line object-curly-newline */
           if (airdrop.softFail === false && airdrop.nftIds.length > 0) {

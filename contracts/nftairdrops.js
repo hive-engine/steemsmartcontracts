@@ -69,7 +69,7 @@ const nftTransferVerified = async ({ symbol, to, toType, ids }) => {
   return (verification.length === 0);
 };
 
-// Burns the fee and verifies the transaction
+// Burns the fee and verifies the transaction.
 /* eslint-disable-next-line object-curly-newline */
 const burnFee = async ({ from, fromType, quantity }) => {
   // Don't need to do anything when fee is 0.
@@ -255,8 +255,8 @@ const processAirdrop = async (airdrop, batchSize) => {
         isSignedWithActiveKey: true,
       });
       if (transfer.errors !== undefined) {
-        const succes = (transfer.events) ? transfer.events.map(x => x.data.id) : [];
-        failed.push(...batch.filter(x => !succes.includes(x)));
+        const success = (transfer.events) ? transfer.events.map(x => x.data.id) : [];
+        failed.push(...batch.filter(x => !success.includes(x)));
       }
       if (failed.length > 0 && softFail !== true) {
         // We have errors and the initiator has requested a 'hard fail'.

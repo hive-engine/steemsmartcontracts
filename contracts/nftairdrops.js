@@ -10,6 +10,7 @@ const UTILITY_TOKEN_PRECISION = '${CONSTANTS.UTILITY_TOKEN_PRECISION}$';
 /* eslint-enable no-template-curly-in-string */
 
 const ALLOWED_TO_TYPES = ['user', 'contract'];
+const ALLOWED_FROM_TYPES = ['user', 'contract'];
 
 // BEGIN helper functions
 
@@ -55,7 +56,7 @@ const tokenTransferVerified = ({ transaction, from, fromType, to, toType, quanti
 /* eslint-disable-next-line object-curly-newline */
 const nftTransferVerified = async ({ symbol, to, toType, ids }) => {
   const newOwnedBy = (toType === 'contract') ? 'c' : 'u';
-  const verification = await api.db.findInTable('nft', symbol + 'instances', /* eslint-disable-line prefer-template */
+  const verification = await api.db.findOneInTable('nft', symbol + 'instances', /* eslint-disable-line prefer-template */
     {
       _id: { $in: ids.map(x => api.BigNumber(x).toNumber()) },
       $or: [{
@@ -63,10 +64,8 @@ const nftTransferVerified = async ({ symbol, to, toType, ids }) => {
       }, {
         ownedBy: { $ne: newOwnedBy },
       }],
-    },
-    ids.length,
-    0);
-  return (verification.length === 0);
+    });
+  return (verification === null);
 };
 
 // Burns the fee and verifies the transaction.
@@ -123,24 +122,26 @@ const reserveNFTs = async ({ fromType, symbol, ids, batchSize }) => {
 };
 
 /* eslint-disable-next-line object-curly-newline */
-const reimburseNFTs = async ({ to, toType, symbol, ids, batchSize = undefined }) => {
-  batchSize = batchSize || ids.length; /* eslint-disable-line no-param-reassign */
-  const reservedNfts = await api.db.findInTable('nft', symbol + 'instances', /* eslint-disable-line prefer-template */
-    {
-      _id: { $in: ids.map(x => api.BigNumber(x).toNumber()) },
-      account: CONTRACT_NAME,
-      ownedBy: 'c',
-    },
-    ids.length,
-    0,
-    [{ index: '_id', descending: false }]);
-  const reimbursableNfts = reservedNfts.map(x => api.BigNumber(x._id).toString()); /* eslint-disable-line no-underscore-dangle */
-  for (let i = 0, n = reimbursableNfts.length; i < n; i += batchSize) {
+const reimburseNFTs = async ({ to, toType, symbol, ids, batchSize }) => {
+  const reservedNfts = [];
+  for (let i = 0, n = ids.length; i < n; i += 1000) {
+    const nftsInContract = await api.db.findInTable('nft', symbol + 'instances', /* eslint-disable-line prefer-template */
+      {
+        _id: { $in: ids.map(x => api.BigNumber(x).toNumber()) },
+        account: CONTRACT_NAME,
+        ownedBy: 'c',
+      },
+      1000,
+      i,
+      [{ index: '_id', descending: false }]);
+    reservedNfts.push(...nftsInContract.map(x => api.BigNumber(x._id).toString())); /* eslint-disable-line no-underscore-dangle */
+  }
+  for (let i = 0, n = reservedNfts.length; i < n; i += batchSize) {
     await api.executeSmartContract('nft', 'transfer', {
       fromType: 'contract',
       to,
       toType,
-      nfts: [{ symbol, ids: reimbursableNfts.slice(i, i + batchSize) }],
+      nfts: [{ symbol, ids: reservedNfts.slice(i, i + batchSize) }],
       isSignedWithActiveKey: true,
     });
   }
@@ -148,7 +149,7 @@ const reimburseNFTs = async ({ to, toType, symbol, ids, batchSize = undefined })
     symbol,
     to,
     toType,
-    ids,
+    ids: reservedNfts,
   });
 };
 
@@ -170,55 +171,58 @@ const parseAndValidateAirdrop = async ({ symbol, sender, senderType, list, start
     totalFee: null,
   };
 
-  // Check if symbol exists in db.
-  if (api.assert(
-    typeof symbol === 'string'
-    && api.validator.isAlpha(symbol)
-    && api.validator.isUppercase(symbol)
-    && symbol.length > 0
-    && await api.db.findOneInTable('nft', 'nfts', { symbol }) !== null,
-    'invalid symbol',
-  )) {
-    // Validate list of airdrops.
+  // Check if fromType is allowed.
+  if (api.assert(params.enabledFromTypes.includes(senderType), 'invalid fromType')) {
+    // Check if symbol exists in db.
     if (api.assert(
-      Array.isArray(list)
-      && list.length > 0
-      && api.assert(list.length <= params.maxTransactionsPerAirdrop, 'exceeded airdrop transactions limit') // Don't even bother if the list is already too long.
-      && list.every((element, index) => {
-        if (typeof element === 'object') {
-          const { to, ids } = element;
-          const toType = element.toType || 'user';
-
-          if (api.assert(isValidAccountName(to, toType), `invalid account ${to} at index ${index}`)
-            && api.assert(Array.isArray(ids) && ids.length > 0 && ids.length <= params.maxTransactionsPerAccount && ids.every(i => (typeof i === 'string' && api.BigNumber(i).gt(0))), `invalid nft ids array for account ${to} at index ${index}`)
-            && api.assert(airdrop.nftIds.length < params.maxTransactionsPerAirdrop, 'exceeded airdrop transactions limit')) {
-            airdrop.nftIds.push(...ids);
-            return true;
-          }
-        }
-        return false;
-      }),
-      'invalid list',
+      typeof symbol === 'string'
+      && api.validator.isAlpha(symbol)
+      && api.validator.isUppercase(symbol)
+      && symbol.length > 0
+      && await api.db.findOneInTable('nft', 'nfts', { symbol }) !== null,
+      'invalid symbol',
     )) {
-      if (api.assert(!arrayHasDuplicates(airdrop.nftIds), 'airdrop list contains duplicate nfts')) {
-        // Check NFT delegation and ownership. We can do this in a single query.
-        const ownedByType = (senderType === 'contract') ? 'c' : 'u';
-        const result = await api.db.findOneInTable('nft', instanceTableName,
-          {
-            _id: { $in: airdrop.nftIds.map(x => api.BigNumber(x).toNumber()) },
-            $or: [{
-              account: { $ne: sender },
-            }, {
-              ownedBy: { $ne: ownedByType },
-            }, {
-              delegatedTo: { $exists: true },
-            }],
-          });
-        if (api.assert(result === null, 'cannot airdrop nfts that are delegated or not owned by this account')) {
-          // blockNumber shall be greater than the current block number.
-          if (api.assert(Number.isInteger(airdrop.blockNumber) && airdrop.blockNumber > api.blockNumber, 'invalid startBlockNumber')) {
-            airdrop.totalFee = api.BigNumber(params.feePerTransaction).times(airdrop.nftIds.length).toFixed(UTILITY_TOKEN_PRECISION);
-            airdrop.isValid = true;
+      // Validate list of airdrops.
+      if (api.assert(
+        Array.isArray(list)
+        && list.length > 0
+        && api.assert(list.length <= params.maxTransactionsPerAirdrop, 'exceeded airdrop transactions limit') // Don't even bother if the list is already too long.
+        && list.every((element, index) => {
+          if (typeof element === 'object') {
+            const { to, ids } = element;
+            const toType = element.toType || 'user';
+
+            if (api.assert(isValidAccountName(to, toType), `invalid account ${to} at index ${index}`)
+              && api.assert(Array.isArray(ids) && ids.length > 0 && ids.length <= params.maxTransactionsPerAccount && ids.every(i => (typeof i === 'string' && api.BigNumber(i).gt(0))), `invalid nft ids array for account ${to} at index ${index}`)
+              && api.assert(airdrop.nftIds.length < params.maxTransactionsPerAirdrop, 'exceeded airdrop transactions limit')) {
+              airdrop.nftIds.push(...ids);
+              return true;
+            }
+          }
+          return false;
+        }),
+        'invalid list',
+      )) {
+        if (api.assert(!arrayHasDuplicates(airdrop.nftIds), 'airdrop list contains duplicate nfts')) {
+          // Check NFT delegation and ownership. We can do this in a single query.
+          const ownedByType = (senderType === 'contract') ? 'c' : 'u';
+          const result = await api.db.findOneInTable('nft', instanceTableName,
+            {
+              _id: { $in: airdrop.nftIds.map(x => api.BigNumber(x).toNumber()) },
+              $or: [{
+                account: { $ne: sender },
+              }, {
+                ownedBy: { $ne: ownedByType },
+              }, {
+                delegatedTo: { $exists: true },
+              }],
+            });
+          if (api.assert(result === null, 'cannot airdrop nfts that are delegated or not owned by this account')) {
+            // blockNumber shall be greater than the current block number.
+            if (api.assert(Number.isInteger(airdrop.blockNumber) && airdrop.blockNumber > api.blockNumber, 'invalid startBlockNumber')) {
+              airdrop.totalFee = api.BigNumber(params.feePerTransaction).times(airdrop.nftIds.length).toFixed(UTILITY_TOKEN_PRECISION);
+              airdrop.isValid = true;
+            }
           }
         }
       }
@@ -295,6 +299,7 @@ actions.createSSC = async () => {
     params.maxTransactionsPerBlock = 50;
     params.maxAirdropsPerBlock = 1;
     params.processingBatchSize = 50;
+    params.enabledFromTypes = ['user'];
     await api.db.insert('params', params);
   }
 };
@@ -308,6 +313,7 @@ actions.updateParams = async (payload) => {
       maxTransactionsPerBlock,
       maxAirdropsPerBlock,
       processingBatchSize,
+      enabledFromTypes,
     } = payload;
 
     const params = await api.db.findOne('params', {});
@@ -340,6 +346,11 @@ actions.updateParams = async (payload) => {
     if (processingBatchSize !== undefined) {
       if (api.assert(Number.isInteger(processingBatchSize) && processingBatchSize > 0, 'invalid processingBatchSize')) {
         params.processingBatchSize = processingBatchSize;
+      }
+    }
+    if (enabledFromTypes !== undefined) {
+      if (api.assert(Array.isArray(enabledFromTypes) && enabledFromTypes.length > 0 && enabledFromTypes.every(x => ALLOWED_FROM_TYPES.includes(x)), 'invalid enabledFromTypes')) {
+        params.enabledFromTypes = Array.from(new Set(enabledFromTypes));
       }
     }
 
@@ -406,6 +417,7 @@ actions.newAirdrop = async (payload) => {
             toType: senderType,
             symbol,
             ids: airdrop.nftIds,
+            batchSize: params.processingBatchSize,
           });
         }
       }
@@ -440,7 +452,13 @@ actions.tick = async () => {
         } else {
           await api.db.remove('pendingAirdrops', airdrop);
           // Send remaining locked NFTs, if any, back to the previous owner.
-          await reimburseNFTs({ to: airdrop.from, toType: airdrop.fromType, symbol: airdrop.symbol, ids: airdrop.nftIds }); /* eslint-disable-line object-curly-newline */
+          await reimburseNFTs({
+            to: airdrop.from,
+            toType: airdrop.fromType,
+            symbol: airdrop.symbol,
+            ids: airdrop.nftIds,
+            batchSize: params.processingBatchSize,
+          });
           if (airdrop.softFail === false && airdrop.nftIds.length > 0) {
             api.emit('nftAirdropFailed', {
               airdropId: airdrop.airdropId,

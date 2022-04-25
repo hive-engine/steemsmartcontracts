@@ -96,7 +96,15 @@ describe('NFT Airdrops Smart Contract', function () {
       const refBlockNumber = fixture.getNextRefBlockNumber();
       const transactions = [];
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"feePerTransaction": "0.3", "maxTransactionsPerAirdrop": 30001, "maxTransactionsPerAccount": 11, "maxTransactionsPerBlock": 31, "maxAirdropsPerBlock": 3, "processingBatchSize": 33}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', `{
+        "feePerTransaction": "0.3",
+        "maxTransactionsPerAirdrop": 30001,
+        "maxTransactionsPerAccount": 11,
+        "maxTransactionsPerBlock": 31,
+        "maxAirdropsPerBlock": 3,
+        "processingBatchSize": 33,
+        "enabledFromTypes": ["user", "contract"]
+      }`));
 
       const block = {
         refHiveBlockNumber: refBlockNumber,
@@ -124,6 +132,7 @@ describe('NFT Airdrops Smart Contract', function () {
       assert.strictEqual(params.maxTransactionsPerBlock, 31);
       assert.strictEqual(params.maxAirdropsPerBlock, 3);
       assert.strictEqual(params.processingBatchSize, 33);
+      assert.ok(params.enabledFromTypes[0] === 'user' && params.enabledFromTypes[1] === 'contract');
 
       resolve();
     })
@@ -148,6 +157,9 @@ describe('NFT Airdrops Smart Contract', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"maxTransactionsPerBlock": -3}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"maxAirdropsPerBlock": []}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"processingBatchSize": 0}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"enabledFromTypes": ["user", "whatever"]}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"enabledFromTypes": []}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"enabledFromTypes": null}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"wrongKey": "whatever"}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'bennierex', 'nftairdrops', 'updateParams', '{"feePerTransaction": "0.3", "maxTransactionsPerAirdrop": 30001, "maxTransactionsPerBlock": 31, "maxAirdropsPerBlock": 3}'));
 
@@ -164,14 +176,17 @@ describe('NFT Airdrops Smart Contract', function () {
       const res = await fixture.database.getLatestBlockInfo();
       const txs = res.transactions;
 
-      assertError(txs[1], 'invalid feePerTransaction');
-      assertError(txs[2], 'invalid maxTransactionsPerAirdrop');
-      assertError(txs[3], 'invalid maxTransactionsPerAccount'); // maxTransactionsPerAccount > 0
-      assertError(txs[4], 'invalid maxTransactionsPerAccount'); // maxTransactionsPerAccount <= params.maxTransactionsPerAirdrop
-      assertError(txs[5], 'invalid maxTransactionsPerBlock');
-      assertError(txs[6], 'invalid maxAirdropsPerBlock');
-      assertError(txs[7], 'invalid processingBatchSize');
-      assertError(txs[9], 'not authorized');
+      assertError(txs[1],  'invalid feePerTransaction');
+      assertError(txs[2],  'invalid maxTransactionsPerAirdrop');
+      assertError(txs[3],  'invalid maxTransactionsPerAccount'); // maxTransactionsPerAccount > 0
+      assertError(txs[4],  'invalid maxTransactionsPerAccount'); // maxTransactionsPerAccount <= params.maxTransactionsPerAirdrop
+      assertError(txs[5],  'invalid maxTransactionsPerBlock');
+      assertError(txs[6],  'invalid maxAirdropsPerBlock');
+      assertError(txs[7],  'invalid processingBatchSize');
+      assertError(txs[8],  'invalid enabledFromTypes'); // wrong value in array
+      assertError(txs[9],  'invalid enabledFromTypes'); // empty array
+      assertError(txs[10], 'invalid enabledFromTypes'); // wrong type
+      assertError(txs[12], 'not authorized');
 
       // check parameters remain unchanged
       const params = await fixture.database.findOne({
@@ -185,6 +200,7 @@ describe('NFT Airdrops Smart Contract', function () {
       assert.strictEqual(params.maxTransactionsPerAccount, 50);
       assert.strictEqual(params.maxTransactionsPerBlock, 50);
       assert.strictEqual(params.maxAirdropsPerBlock, 1);
+      assert.ok(params.enabledFromTypes.length === 1 && params.enabledFromTypes[0] === 'user');
       assert.strictEqual(('wrongKey' in params), false);
 
       resolve();
@@ -726,7 +742,7 @@ describe('NFT Airdrops Smart Contract', function () {
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(nftContractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(testContractPayload)));
-      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"feePerTransaction": "0.15", "maxTransactionsPerAirdrop": 3, "maxTransactionsPerAccount": 2, "maxTransactionsPerBlock": 4, "maxAirdropsPerBlock": 2, "processingBatchSize": 5}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"feePerTransaction": "0.15", "maxTransactionsPerAirdrop": 3, "maxTransactionsPerAccount": 2, "maxTransactionsPerBlock": 4, "maxAirdropsPerBlock": 2, "processingBatchSize": 5, "enabledFromTypes": ["user", "contract"]}'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'registerTick', '{ "contractName": "nftairdrops", "tickAction": "tick" }'));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "nftairdrops", "quantity": "10", "isSignedWithActiveKey": true }`));
       transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "bennierex", "quantity": "1100.35", "isSignedWithActiveKey": true }`));

@@ -814,6 +814,9 @@ actions.proposeRound = async (payload) => {
 
           // calculate new schedule
           await manageWitnessesSchedule();
+
+          // cleanup blocks unneeded by light nodes
+          await api.db.cleanupBlocks(lastVerifiedBlockNumber - 1);
         }
       }
     }

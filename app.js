@@ -11,6 +11,7 @@ const replay = require('./plugins/Replay');
 const p2p = require('./plugins/P2P');
 
 const conf = require('./config');
+const { Database } = require('./libs/Database');
 
 const logger = createLogger({
   format: format.combine(
@@ -131,20 +132,6 @@ const unloadPlugin = async (plugin) => {
   return res;
 };
 
-// start streaming the Hive blockchain and produce the sidechain blocks accordingly
-const start = async (requestedPlugins) => {
-  let res = await loadPlugin(blockchain, requestedPlugins);
-  if (res && res.payload === null) {
-    res = await loadPlugin(streamer, requestedPlugins);
-    if (res && res.payload === null) {
-      res = await loadPlugin(p2p, requestedPlugins);
-      if (res && res.payload === null) {
-        res = await loadPlugin(jsonRPCServer, requestedPlugins);
-      }
-    }
-  }
-};
-
 const stop = async () => {
   logger.info('Stopping node...');
   await unloadPlugin(jsonRPCServer);
@@ -177,6 +164,63 @@ const stopApp = async (signal = 0) => {
   process.kill(process.pid, signal);
 };
 
+// graceful app closing
+let shuttingDown = false;
+
+const gracefulShutdown = () => {
+  if (shuttingDown === false) {
+    shuttingDown = true;
+    stopApp('SIGINT');
+  }
+};
+
+const initLightNode = async () => {
+  const {
+    databaseURL,
+    databaseName,
+    lightNode,
+  } = conf;
+  const database = new Database();
+  await database.init(databaseURL, databaseName, lightNode);
+
+  if (!lightNode) {
+    // check if was previously a light node
+    const wasLightNode = await database.wasLightNodeBefore();
+    if (wasLightNode) {
+      console.log('Can\'t switch from a node, which was previously a light node, to a full node. Please restore your database from a full node dump.');
+      await gracefulShutdown();
+      process.exit();
+    }
+    return;
+  }
+  console.log('Initializing light node - this may take a while..');
+
+  // get the last verified block
+  const params = await database.findOne({ contract: 'witnesses', table: 'params', query: {} });
+  if (params && params.lastVerifiedBlockNumber) {
+    // cleanup already verified blocks
+    await database.cleanupBlocks(params.lastVerifiedBlockNumber - 1);
+  }
+  // cleanup transactions
+  await database.cleanupTransactions();
+};
+
+// start streaming the Hive blockchain and produce the sidechain blocks accordingly
+const start = async (requestedPlugins) => {
+  await initLightNode();
+
+  let res = await loadPlugin(blockchain, requestedPlugins);
+  if (res && res.payload === null) {
+    res = await loadPlugin(streamer, requestedPlugins);
+    if (res && res.payload === null) {
+      res = await loadPlugin(p2p, requestedPlugins);
+      if (res && res.payload === null) {
+        res = await loadPlugin(jsonRPCServer, requestedPlugins);
+      }
+    }
+  }
+};
+
 // replay the sidechain from a blocks log file
 const replayBlocksLog = async () => {
   let res = await loadPlugin(blockchain);
@@ -201,16 +245,6 @@ if (program.replay !== undefined) {
 } else {
   start(requestedPlugins);
 }
-
-// graceful app closing
-let shuttingDown = false;
-
-const gracefulShutdown = () => {
-  if (shuttingDown === false) {
-    shuttingDown = true;
-    stopApp('SIGINT');
-  }
-};
 
 process.on('SIGTERM', () => {
   gracefulShutdown();

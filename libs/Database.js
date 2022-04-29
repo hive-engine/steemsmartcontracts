@@ -71,6 +71,7 @@ class Database {
     this.session = null;
     this.contractCache = {};
     this.objectCache = {};
+    this.lightNode = false;
   }
 
   startSession() {
@@ -132,10 +133,11 @@ class Database {
     });
   }
 
-  async init(databaseURL, databaseName) {
+  async init(databaseURL, databaseName, lightNode = false) {
     // init the database
     this.client = await MongoClient.connect(databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
     this.database = await this.client.db(databaseName);
+    this.lightNode = lightNode;
     // await database.dropDatabase();
     // return
     // get the chain collection and init the chain if not done yet
@@ -218,6 +220,9 @@ class Database {
   }
 
   async getTransactionInfo(txid) {
+    if (this.lightNode) {
+      throw new Error('getTransactionInfo not available for light node');
+    }
     const transactionsTable = this.database.collection('transactions');
 
     const transaction = await transactionsTable.findOne({ _id: txid }, { session: this.session });
@@ -240,6 +245,10 @@ class Database {
     const finalBlock = block;
     finalBlock._id = await this.getNextSequence('chain'); // eslint-disable-line no-underscore-dangle
     await this.chain.insertOne(finalBlock, { session: this.session });
+    // do not insert transactions for lightnode
+    if (this.lightNode) {
+      return;
+    }
     await this.addTransactions(finalBlock);
   }
 
@@ -1014,6 +1023,50 @@ class Database {
     const tableInDb = this.database.collection(table);
     await this.updateTableHash(table.split('_')[0], table.split('_')[1]);
     await tableInDb.deleteOne({ _id: record._id }, { session: this.session }); // eslint-disable-line no-underscore-dangle
+  }
+
+  /**
+   * Used by light nodes to cleanup (unneeded) blocks already verified
+   * by witnesses <= @lastVerifiedBlockNumber
+   * @param lastVerifiedBlockNumber
+   * @returns {Promise<void>}
+   */
+  async cleanupBlocks(lastVerifiedBlockNumber) {
+    if (!this.lightNode) {
+      return;
+    }
+    // await this.chain.deleteMany({ _id: { $lte: lastVerifiedBlockNumber } }, { session: this.session });
+
+    await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: lastVerifiedBlockNumber } }] }, { session: this.session });
+  }
+
+  /**
+   * Used by light nodes to cleanup (unneeded) transactions
+   * @returns {Promise<void>}
+   */
+  async cleanupTransactions() {
+    if (!this.lightNode) {
+      return;
+    }
+    const transactionsTable = this.database.collection('transactions');
+    await transactionsTable.drop({ session: this.session });
+    await this.database.createCollection('transactions', { session: this.session });
+  }
+
+  /**
+   * Checks if a node was a light node previously and returns true in case it was. Light nodes
+   * don't store transaction data, so the check simply checks if there are any transactions in
+   * the database.
+   * @returns {Promise<boolean>}
+   */
+  async wasLightNodeBefore() {
+    const transactionsTable = this.database.collection('transactions');
+    const someTransaction = await transactionsTable.findOne({}, { session: this.session });
+    if (someTransaction) {
+      // transaction table should be empty for a light node
+      return false;
+    }
+    return true;
   }
 }
 

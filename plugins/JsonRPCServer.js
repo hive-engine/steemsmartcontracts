@@ -30,6 +30,9 @@ function blockchainRPC() {
       }
     },
     getBlockInfo: async (args, callback) => {
+      if (config.lightNode) {
+        throw new Error('getBlockInfo not available for light nodes');
+      }
       try {
         const { blockNumber } = args;
 
@@ -47,6 +50,9 @@ function blockchainRPC() {
       }
     },
     getTransactionInfo: async (args, callback) => {
+      if (config.lightNode) {
+        throw new Error('getTransactionInfo not available for light nodes');
+      }
       try {
         const { txid } = args;
 
@@ -72,7 +78,6 @@ function blockchainRPC() {
         if (block) {
           result.lastBlockNumber = block.blockNumber;
           result.lastBlockRefHiveBlockNumber = block.refHiveBlockNumber;
-          result.lastHash = block.hash;
         }
 
         // get the Hive block number that the streamer is currently parsing
@@ -89,6 +94,11 @@ function blockchainRPC() {
 
         // get the ssc chain id from config
         result.chainId = config.chainId;
+
+        // check if node is a light node
+        if (config.lightNode) {
+          result.lightNode = true;
+        }
 
         callback(null, result);
       } catch (error) {

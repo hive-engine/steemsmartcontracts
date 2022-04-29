@@ -351,6 +351,8 @@ class SmartContracts {
         tableExists: table => SmartContracts.tableExists(database, contract, table),
         // get block information
         getBlockInfo: blockNum => SmartContracts.getBlockInfo(database, blockNum),
+        // cleanup already verified blocks not needed by light nodes anymore
+        cleanupBlocks: lastVerifiedBlockNumber => SmartContracts.cleanupBlocks(database, lastVerifiedBlockNumber),
       };
 
       // logs used to store events or errors
@@ -852,6 +854,12 @@ class SmartContracts {
 
   static async getBlockInfo(database, blockNumber) {
     const result = await database.getBlockInfo(blockNumber);
+
+    return result;
+  }
+
+  static async cleanupBlocks(database, lastVerifiedBlockNumber) {
+    const result = await database.cleanupBlocks(lastVerifiedBlockNumber);
 
     return result;
   }

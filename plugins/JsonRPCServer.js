@@ -72,6 +72,7 @@ function blockchainRPC() {
         if (block) {
           result.lastBlockNumber = block.blockNumber;
           result.lastBlockRefHiveBlockNumber = block.refHiveBlockNumber;
+          result.lastHash = block.hash;
         }
 
         // get the Hive block number that the streamer is currently parsing

@@ -19,6 +19,40 @@ let serverRPC = null;
 let server = null;
 let database = null;
 
+async function generateStatus() {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const result = {};
+      // retrieve the last block of the sidechain
+      const block = await database.getLatestBlockMetadata();
+
+      if (block) {
+        result.lastBlockNumber = block.blockNumber;
+        result.lastBlockRefHiveBlockNumber = block.refHiveBlockNumber;
+      }
+
+      // get the Hive block number that the streamer is currently parsing
+      const res = await ipc.send(
+        { to: STREAMER_PLUGIN_NAME, action: STREAMER_PLUGIN_ACTION.GET_CURRENT_BLOCK },
+      );
+
+      if (res && res.payload) {
+        result.lastParsedHiveBlockNumber = res.payload;
+      }
+
+      // get the version of the SSC node
+      result.SSCnodeVersion = packagejson.version;
+
+      // get the ssc chain id from config
+      result.chainId = config.chainId;
+
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 function blockchainRPC() {
   return {
     getLatestBlockInfo: async (args, callback) => {
@@ -65,30 +99,7 @@ function blockchainRPC() {
     },
     getStatus: async (args, callback) => {
       try {
-        const result = {};
-        // retrieve the last block of the sidechain
-        const block = await database.getLatestBlockMetadata();
-
-        if (block) {
-          result.lastBlockNumber = block.blockNumber;
-          result.lastBlockRefHiveBlockNumber = block.refHiveBlockNumber;
-        }
-
-        // get the Hive block number that the streamer is currently parsing
-        const res = await ipc.send(
-          { to: STREAMER_PLUGIN_NAME, action: STREAMER_PLUGIN_ACTION.GET_CURRENT_BLOCK },
-        );
-
-        if (res && res.payload) {
-          result.lastParsedHiveBlockNumber = res.payload;
-        }
-
-        // get the version of the SSC node
-        result.SSCnodeVersion = packagejson.version;
-
-        // get the ssc chain id from config
-        result.chainId = config.chainId;
-
+        const result = await generateStatus();
         callback(null, result);
       } catch (error) {
         callback(error, null);
@@ -201,6 +212,15 @@ const init = async (conf, callback) => {
   serverRPC.set('trust proxy', 'loopback');
   serverRPC.post('/blockchain', jayson.server(blockchainRPC()).middleware());
   serverRPC.post('/contracts', jayson.server(contractsRPC()).middleware());
+  serverRPC.get('/', async (_, res) => {
+    try {
+      const status = await generateStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500);
+      res.json({ error: 'Error generating status.' });
+    }
+  });
 
   server = http.createServer(serverRPC)
     .listen(rpcNodePort, () => {

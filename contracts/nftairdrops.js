@@ -294,9 +294,9 @@ actions.createSSC = async () => {
 
     const params = {};
     params.feePerTransaction = '0.1';
-    params.maxTransactionsPerAirdrop = 50000;
+    params.maxTransactionsPerAirdrop = 10000;
     params.maxTransactionsPerAccount = 50;
-    params.maxTransactionsPerBlock = 50;
+    params.maxTransactionsPerBlock = 500;
     params.maxAirdropsPerBlock = 1;
     params.processingBatchSize = 50;
     params.enabledFromTypes = ['user'];

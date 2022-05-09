@@ -4,6 +4,10 @@
 /* eslint-disable no-console */
 /* eslint-disable func-names */
 
+const PERFORMANCE_CHECKS_ENABLED = false;
+const { performance, PerformanceObserver } = require('perf_hooks');
+const crypto = require('crypto');
+
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
 
@@ -42,7 +46,11 @@ const tableAsserts = new TableAsserts(fixture);
 
 // smart contract
 describe('NFT Airdrops Smart Contract', function () {
-  this.timeout(20000);
+  if (PERFORMANCE_CHECKS_ENABLED) {
+    this.timeout(1800000);
+  } else {
+    this.timeout(20000);
+  }
 
   before((done) => {
     new Promise(async (resolve) => {
@@ -84,6 +92,160 @@ describe('NFT Airdrops Smart Contract', function () {
       resolve();
     })
       .then(() => {
+        done();
+      });
+  });
+
+  it('testing performance on operating on large amounts of NFTs', (done) => {
+    new Promise(async (resolve) => {
+
+      await fixture.setUp();
+
+      if (PERFORMANCE_CHECKS_ENABLED !== true) {
+        console.log("Performace checks disabled; skipping");
+        resolve();
+      }
+
+      const performanceObs = new PerformanceObserver((items) => {
+        items.getEntries().forEach((entry) => {
+          console.log(entry);
+        });
+      });
+      performanceObs.observe({
+        entryTypes: ['measure'],
+        buffer: true,
+      });
+
+      let refBlockNumber = fixture.getNextRefBlockNumber();
+      let transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(nftContractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(contractPayload)));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'nftairdrops', 'updateParams', '{"feePerTransaction": "0.01", "maxTransactionsPerAirdrop": 50000, "maxTransactionsPerAccount": 50, "maxTransactionsPerBlock": 1000, "maxAirdropsPerBlock": 2, "processingBatchSize": 50}'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'registerTick', '{ "contractName": "nftairdrops", "tickAction": "tick" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'tokens', 'transfer', `{ "symbol": "${CONSTANTS.UTILITY_TOKEN_SYMBOL}", "to": "bennierex", "quantity": "10000", "isSignedWithActiveKey": true }`));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'bennierex', 'nft', 'create', '{ "isSignedWithActiveKey": true, "name": "test NFT", "symbol": "TSTNFT", "url": "http://mynft.com", "maxSupply": "100000" }'));
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'bennierex', 'nft', 'addProperty', '{ "isSignedWithActiveKey":true, "symbol":"TSTNFT", "name":"edition", "type":"number" }'));
+
+      let block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD2',
+        prevRefHiveBlockId: 'ABCD1',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      // make sure there were no unexpected errors
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      console.log("Adding 50k NFT's to database...");
+      for (let i = 1; i < 51; i++) {
+        console.log(`\t>> edition ${i} of 50 <<`);
+        for (let j = 0; j < 1000; j++) {
+          await fixture.database.insert({
+            contract: 'nft',
+            table: 'TSTNFTinstances',
+            record: {
+              account: 'bennierex',
+              ownedBy: 'u',
+              lockedTokens: {},
+              properties: {edition: i},
+            },
+          });
+        }
+      }
+      // Add one that isn't owned by the expected account to force an error.
+      await fixture.database.insert({
+        contract: 'nft',
+        table: 'TSTNFTinstances',
+        record: {
+          account: 'bogus',
+          ownedBy: 'u',
+          lockedTokens: {},
+          properties: { edition: 51 },
+        },
+      });
+
+      let largeAirdrop = {
+        isSignedWithActiveKey: true,
+        symbol: "TSTNFT",
+        list: [],
+      }
+      for (let i = 1; i < 10001; i++) {
+        largeAirdrop.list.push({
+          to: `a-${crypto.randomBytes(4).toString('hex')}`,
+          ids: [i.toString()],
+        });
+      }
+      largeAirdrop.list[9999].ids.push('50001');
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'bennierex', 'nftairdrops', 'newAirdrop', JSON.stringify(largeAirdrop)));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD2',
+        prevRefHiveBlockId: 'ABCD1',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      await fixture.sendBlock(block);
+      let blockInfo = await fixture.database.getLatestBlockInfo();
+      let txs = blockInfo.transactions;
+      assertError(txs[0], 'cannot airdrop nfts that are delegated or not owned by this account');
+
+      // Continue with invalid NFT removed.
+      largeAirdrop.list[9999].ids.pop();
+
+      refBlockNumber = fixture.getNextRefBlockNumber();
+      transactions = [];
+      transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'bennierex', 'nftairdrops', 'newAirdrop', JSON.stringify(largeAirdrop)));
+
+      block = {
+        refHiveBlockNumber: refBlockNumber,
+        refHiveBlockId: 'ABCD2',
+        prevRefHiveBlockId: 'ABCD1',
+        timestamp: '2018-06-01T00:00:00',
+        transactions,
+      };
+
+      performance.mark('airdrop-init-start');
+      await fixture.sendBlock(block);
+      performance.mark('airdrop-init-end');
+
+      // make sure there were no unexpected errors
+      await tableAsserts.assertNoErrorInLastBlock();
+
+      for (let i = 0; i < 10; i++) {
+        refBlockNumber = fixture.getNextRefBlockNumber();
+        transactions = [];
+        transactions.push(new Transaction(refBlockNumber, fixture.getNextTxId(), 'bennierex', 'no-op', 'no-op', {}));
+
+        block = {
+          refHiveBlockNumber: refBlockNumber,
+          refHiveBlockId: 'ABCD2',
+          prevRefHiveBlockId: 'ABCD1',
+          timestamp: '2018-06-01T00:00:00',
+          transactions,
+        };
+
+        performance.mark(`airdrop-dist-start-${i}`);
+        await fixture.sendBlock(block);
+        performance.mark(`airdrop-dist-end-${i}`);
+      }
+
+      performance.measure('nft-airdrop-init', 'airdrop-init-start', 'airdrop-init-end');
+      for (let i = 0; i < 10; i++) {
+        performance.measure('nft-airdrop-dist', `airdrop-dist-start-${i}`, `airdrop-dist-end-${i}`);
+      }
+
+      resolve();
+    })
+      .then(() => {
+        fixture.tearDown();
         done();
       });
   });
@@ -196,9 +358,9 @@ describe('NFT Airdrops Smart Contract', function () {
       });
 
       assert.strictEqual(params.feePerTransaction, '0.1');
-      assert.strictEqual(params.maxTransactionsPerAirdrop, 50000);
+      assert.strictEqual(params.maxTransactionsPerAirdrop, 10000);
       assert.strictEqual(params.maxTransactionsPerAccount, 50);
-      assert.strictEqual(params.maxTransactionsPerBlock, 50);
+      assert.strictEqual(params.maxTransactionsPerBlock, 500);
       assert.strictEqual(params.maxAirdropsPerBlock, 1);
       assert.ok(params.enabledFromTypes.length === 1 && params.enabledFromTypes[0] === 'user');
       assert.strictEqual(('wrongKey' in params), false);

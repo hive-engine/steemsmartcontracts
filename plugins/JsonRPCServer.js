@@ -43,6 +43,9 @@ async function generateStatus() {
       // get the version of the SSC node
       result.SSCnodeVersion = packagejson.version;
 
+      // gets the domain of the SSC node
+      result.domain = config.domain;
+
       // get the ssc chain id from config
       result.chainId = config.chainId;
 

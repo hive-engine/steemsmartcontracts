@@ -5,8 +5,8 @@
 const CONTRACT_NAME = 'nftairdrops';
 
 /* eslint-disable no-template-curly-in-string */
-const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
-const UTILITY_TOKEN_PRECISION = '${CONSTANTS.UTILITY_TOKEN_PRECISION}$';
+const UTILITY_TOKEN_SYMBOL = 'BEE';
+const UTILITY_TOKEN_PRECISION = 8;
 /* eslint-enable no-template-curly-in-string */
 
 const ALLOWED_TO_TYPES = ['user', 'contract'];

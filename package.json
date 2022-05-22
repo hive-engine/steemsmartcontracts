@@ -26,7 +26,8 @@
     "test16": "./node_modules/mocha/bin/mocha ./test/nftauction.js",
     "test17": "./node_modules/mocha/bin/mocha ./test/comments.js",
     "test18": "./node_modules/mocha/bin/mocha ./test/ticks.js",
-    "test19": "./node_modules/mocha/bin/mocha ./test/hivepegged.js"
+    "test19": "./node_modules/mocha/bin/mocha ./test/hivepegged.js",
+    "test20": "./node_modules/mocha/bin/mocha ./test/nftairdrops.js"
   },
   "engines": {
     "node": ">=13.7.0",

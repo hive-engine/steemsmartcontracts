@@ -1027,17 +1027,15 @@ class Database {
 
   /**
    * Used by light nodes to cleanup (unneeded) blocks already verified
-   * by witnesses <= @lastVerifiedBlockNumber
-   * @param lastVerifiedBlockNumber
+   * by witnesses <= @cleanupUntilBlock
+   * @param cleanupUntilBlock
    * @returns {Promise<void>}
    */
-  async cleanupBlocks(lastVerifiedBlockNumber) {
+  async cleanupBlocks(cleanupUntilBlock) {
     if (!this.lightNode) {
       return;
     }
-    // await this.chain.deleteMany({ _id: { $lte: lastVerifiedBlockNumber } }, { session: this.session });
-
-    await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: lastVerifiedBlockNumber } }] }, { session: this.session });
+    await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: cleanupUntilBlock } }] }, { session: this.session });
   }
 
   /**

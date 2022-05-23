@@ -17,5 +17,6 @@
     "genesisHiveBlock": 41967000,
     "witnessEnabled": true,
     "defaultLogLevel": "warn",
-    "lightNode": false
+    "lightNode": false,
+    "domain" : ""
 }

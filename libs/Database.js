@@ -72,6 +72,7 @@ class Database {
     this.contractCache = {};
     this.objectCache = {};
     this.lightNode = false;
+    this.blocksToKeep = 14400;
   }
 
   startSession() {
@@ -133,11 +134,12 @@ class Database {
     });
   }
 
-  async init(databaseURL, databaseName, lightNode = false) {
+  async init(databaseURL, databaseName, lightNode = false, blocksToKeep = 14400) {
     // init the database
     this.client = await MongoClient.connect(databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
     this.database = await this.client.db(databaseName);
     this.lightNode = lightNode;
+    this.blocksToKeep = blocksToKeep;
     // await database.dropDatabase();
     // return
     // get the chain collection and init the chain if not done yet
@@ -1035,7 +1037,7 @@ class Database {
     if (!this.lightNode) {
       return;
     }
-    await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: cleanupUntilBlock } }] }, { session: this.session });
+    await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: cleanupUntilBlock - this.blocksToKeep } }] }, { session: this.session });
   }
 
   /**

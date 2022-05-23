@@ -167,13 +167,14 @@ const init = async (conf, callback) => {
     databaseURL,
     databaseName,
     lightNode,
+    blocksToKeep,
   } = conf;
   javascriptVMTimeout = conf.javascriptVMTimeout; // eslint-disable-line prefer-destructuring
   enableHashVerification = conf.enableHashVerification; // eslint-disable-line prefer-destructuring
   log.setDefaultLevel(conf.defaultLogLevel ? conf.defaultLogLevel : 'warn');
 
   database = new Database();
-  await database.init(databaseURL, databaseName, lightNode);
+  await database.init(databaseURL, databaseName, lightNode, blocksToKeep);
 
   await createGenesisBlock(conf);
 

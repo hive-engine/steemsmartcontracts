@@ -104,8 +104,20 @@ class Block {
     }
   }
 
+  /**
+   * Try cleaning up blocks after every 100 blocks if node is a light node.
+   * @param database
+   * @returns {Promise<void>}
+   */
+  async cleanupBlocks(database) {
+    if (this.blockNumber % 100 === 0) {
+      await database.cleanupBlocks();
+    }
+  }
+
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
+    await this.cleanupBlocks(database);
     await this.blockAdjustments(database);
 
     const nbTransactions = this.transactions.length;

@@ -196,12 +196,8 @@ const initLightNode = async () => {
   }
   console.log('Initializing light node - this may take a while..');
 
-  // get the last verified block
-  const params = await database.findOne({ contract: 'witnesses', table: 'params', query: {} });
-  if (params && params.lastVerifiedBlockNumber) {
-    // cleanup already verified blocks
-    await database.cleanupBlocks(params.lastVerifiedBlockNumber - 1);
-  }
+  // cleanup already verified blocks
+  await database.cleanupBlocks();
   // cleanup transactions
   await database.cleanupTransactions();
 };

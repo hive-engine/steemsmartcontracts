@@ -49,11 +49,10 @@ async function generateStatus() {
 
       // get the ssc chain id from config
       result.chainId = config.chainId;
-      
-      // check if node is a light node
-      if (config.lightNode) {
-        result.lightNode = true;
-      }
+
+      // get light node config of the SSC node
+      result.lightNode = config.lightNode;
+      result.blocksToKeep = config.blocksToKeep;
 
       resolve(result);
     } catch (error) {
@@ -73,9 +72,6 @@ function blockchainRPC() {
       }
     },
     getBlockInfo: async (args, callback) => {
-      if (config.lightNode) {
-        throw new Error('getBlockInfo not available for light nodes');
-      }
       try {
         const { blockNumber } = args;
 
@@ -93,9 +89,6 @@ function blockchainRPC() {
       }
     },
     getTransactionInfo: async (args, callback) => {
-      if (config.lightNode) {
-        throw new Error('getTransactionInfo not available for light nodes');
-      }
       try {
         const { txid } = args;
 

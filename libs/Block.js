@@ -109,15 +109,15 @@ class Block {
    * @param database
    * @returns {Promise<void>}
    */
-  async cleanupBlocks(database) {
+  async cleanupLightNode(database) {
     if (this.blockNumber % 100 === 0) {
-      await database.cleanupBlocks();
+      await database.cleanupLightNode();
     }
   }
 
   // produce the block (deploy a smart contract or execute a smart contract)
   async produceBlock(database, jsVMTimeout, mainBlock) {
-    await this.cleanupBlocks(database);
+    await this.cleanupLightNode(database);
     await this.blockAdjustments(database);
 
     const nbTransactions = this.transactions.length;

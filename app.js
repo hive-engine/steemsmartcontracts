@@ -196,10 +196,8 @@ const initLightNode = async () => {
   }
   console.log('Initializing light node - this may take a while..');
 
-  // cleanup already verified blocks
-  await database.cleanupBlocks();
-  // cleanup transactions
-  await database.cleanupTransactions();
+  // cleanup old blocks / transactions for light nodes
+  await database.cleanupLightNode();
 };
 
 // start streaming the Hive blockchain and produce the sidechain blocks accordingly

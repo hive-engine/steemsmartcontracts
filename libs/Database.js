@@ -222,9 +222,6 @@ class Database {
   }
 
   async getTransactionInfo(txid) {
-    if (this.lightNode) {
-      throw new Error('getTransactionInfo not available for light node');
-    }
     const transactionsTable = this.database.collection('transactions');
 
     const transaction = await transactionsTable.findOne({ _id: txid }, { session: this.session });
@@ -247,10 +244,6 @@ class Database {
     const finalBlock = block;
     finalBlock._id = await this.getNextSequence('chain'); // eslint-disable-line no-underscore-dangle
     await this.chain.insertOne(finalBlock, { session: this.session });
-    // do not insert transactions for lightnode
-    if (this.lightNode) {
-      return;
-    }
     await this.addTransactions(finalBlock);
   }
 
@@ -1028,48 +1021,51 @@ class Database {
   }
 
   /**
-   * Used by light nodes to cleanup (unneeded) blocks already verified
+   * Used by light nodes to cleanup (unneeded) blocks / transactions already verified
    * by witnesses <= lastVerifiedBlockNumber - blocksToKeep
    * @returns {Promise<void>}
    */
-  async cleanupBlocks() {
+  async cleanupLightNode() {
     if (!this.lightNode) {
       return;
     }
     const params = await this.findOne({ contract: 'witnesses', table: 'params', query: {} });
     if (params && params.lastVerifiedBlockNumber) {
+      console.log(`cleaning up light node blocks and transactions`);
       const cleanupUntilBlock = params.lastVerifiedBlockNumber - 1 - this.blocksToKeep;
-      await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: cleanupUntilBlock } }] }, { session: this.session });
+      await this.cleanupBlocks(cleanupUntilBlock);
+      await this.cleanupTransactions(cleanupUntilBlock);
     }
+  }
+
+  /**
+   * Used by light nodes to cleanup (unneeded) blocks already verified
+   * by witnesses <= lastVerifiedBlockNumber - blocksToKeep
+   * @param cleanupUntilBlock cleanup blocks with a smaller blockNumber
+   * @returns {Promise<void>}
+   */
+  async cleanupBlocks(cleanupUntilBlock) {
+    await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: cleanupUntilBlock } }] }, { session: this.session });
   }
 
   /**
    * Used by light nodes to cleanup (unneeded) transactions
+   * @param cleanupUntilBlock cleanup transactions with a smaller blockNumber
    * @returns {Promise<void>}
    */
-  async cleanupTransactions() {
-    if (!this.lightNode) {
-      return;
-    }
-    const transactionsTable = this.database.collection('transactions');
-    await transactionsTable.drop({ session: this.session });
-    await this.database.createCollection('transactions', { session: this.session });
+  async cleanupTransactions(cleanupUntilBlock) {
+    await this.database.collection('transactions').deleteMany({ blockNumber: { $lte: cleanupUntilBlock } }, { session: this.session });
   }
 
   /**
    * Checks if a node was a light node previously and returns true in case it was. Light nodes
-   * don't store transaction data, so the check simply checks if there are any transactions in
+   * drop transaction data after a certain time, so the check tries to get the first transaction. form
    * the database.
    * @returns {Promise<boolean>}
    */
   async wasLightNodeBefore() {
-    const transactionsTable = this.database.collection('transactions');
-    const someTransaction = await transactionsTable.findOne({}, { session: this.session });
-    if (someTransaction) {
-      // transaction table should be empty for a light node
-      return false;
-    }
-    return true;
+    const transaction = await this.getTransactionInfo(0);
+    return !transaction;
   }
 }
 

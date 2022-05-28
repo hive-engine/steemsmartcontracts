@@ -72,7 +72,7 @@ class Database {
     this.contractCache = {};
     this.objectCache = {};
     this.lightNode = false;
-    this.blocksToKeep = 14400;
+    this.blocksToKeep = 864000;
   }
 
   startSession() {
@@ -134,7 +134,7 @@ class Database {
     });
   }
 
-  async init(databaseURL, databaseName, lightNode = false, blocksToKeep = 14400) {
+  async init(databaseURL, databaseName, lightNode = false, blocksToKeep = 864000) {
     // init the database
     this.client = await MongoClient.connect(databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
     this.database = await this.client.db(databaseName);

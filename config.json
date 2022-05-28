@@ -18,6 +18,6 @@
     "witnessEnabled": true,
     "defaultLogLevel": "warn",
     "lightNode": false,
-    "blocksToKeep": 14400,
+    "blocksToKeep": 864000,
     "domain" : ""
 }

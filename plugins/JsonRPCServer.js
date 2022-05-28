@@ -54,6 +54,12 @@ async function generateStatus() {
       result.lightNode = config.lightNode;
       result.blocksToKeep = config.blocksToKeep;
 
+      // first block currently stored by light node
+      if (result.lightNode) {
+        const firstBlock = await database.chain.findOne({ blockNumber: {$gt: 0} }, { session: database.session });
+        result.firstBlockNumber = firstBlock?.blockNumber;
+      }
+
       resolve(result);
     } catch (error) {
       reject(error);

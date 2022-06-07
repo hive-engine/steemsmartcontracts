@@ -72,7 +72,7 @@ class Database {
     this.contractCache = {};
     this.objectCache = {};
     this.lightNode = false;
-    this.blocksToKeep = 864000;
+    this.blocksToKeep = 864000; // this only applies if lightNode is true
   }
 
   startSession() {
@@ -139,7 +139,7 @@ class Database {
     this.client = await MongoClient.connect(databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
     this.database = await this.client.db(databaseName);
     this.lightNode = lightNode;
-    this.blocksToKeep = blocksToKeep;
+    this.blocksToKeep = blocksToKeep; // this only applies if lightNode is true
     // await database.dropDatabase();
     // return
     // get the chain collection and init the chain if not done yet
@@ -1045,6 +1045,8 @@ class Database {
    * @returns {Promise<void>}
    */
   async cleanupBlocks(cleanupUntilBlock) {
+    // block 0 is specifically excluded, as the genesis block is also kept by light nodes, due to the condition in
+    // createGenesisBlock in Blockchain.js
     await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: cleanupUntilBlock } }] }, { session: this.session });
   }
 
@@ -1059,13 +1061,13 @@ class Database {
 
   /**
    * Checks if a node was a light node previously and returns true in case it was. Light nodes
-   * drop transaction data after a certain time, so the check tries to get the first transaction. form
-   * the database.
+   * drop block data after a configured number of blocksToKeep, which means that block 1 is not stored
+   * by light nodes, otherwise it would be a full node.
    * @returns {Promise<boolean>}
    */
   async wasLightNodeBefore() {
-    const transaction = await this.getTransactionInfo(0);
-    return !transaction;
+    const block = await this.getBlockInfo(1);
+    return !block;
   }
 }
 

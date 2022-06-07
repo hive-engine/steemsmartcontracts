@@ -52,7 +52,9 @@ async function generateStatus() {
 
       // get light node config of the SSC node
       result.lightNode = config.lightNode;
-      result.blocksToKeep = config.blocksToKeep;
+      if (config.lightNode) {
+        result.blocksToKeep = config.blocksToKeep;
+      }
 
       // first block currently stored by light node
       if (result.lightNode) {

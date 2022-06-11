@@ -12,6 +12,10 @@ const {
   rpcNodePort, p2pPort, streamNodes, chainId,
 } = config;
 
+// For external NATed-ports customization
+const extRPCNodePort = Number(String(process.env.RPCNODEPORT)) || rpcNodePort;
+const extP2PPort = Number(String(process.env.P2PPORT)) || p2pPort;
+
 function broadcastWitnessAction(contractAction, contractPayload) {
   const client = new dhive.Client(streamNodes[0]);
   const transaction = {
@@ -46,8 +50,8 @@ program
   .command('register')
   .action(() => broadcastWitnessAction('register', {
     IP: ip,
-    RPCPort: rpcNodePort,
-    P2PPort: p2pPort,
+    RPCPort: extRPCNodePort,
+    P2PPort: extP2PPort,
     signingKey: publicSigningKey,
     enabled: true,
   }));
@@ -56,8 +60,8 @@ program
   .command('unregister')
   .action(() => broadcastWitnessAction('register', {
     IP: ip,
-    RPCPort: rpcNodePort,
-    P2PPort: p2pPort,
+    RPCPort: extRPCNodePort,
+    P2PPort: extP2PPort,
     signingKey: publicSigningKey,
     enabled: false,
   }));

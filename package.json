@@ -30,7 +30,7 @@
     "test20": "./node_modules/mocha/bin/mocha ./test/nftairdrops.js"
   },
   "engines": {
-    "node": ">=13.7.0",
+    "node": ">=14.0.0",
     "npm": ">=6.13.6"
   },
   "keywords": [],

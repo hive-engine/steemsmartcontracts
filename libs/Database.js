@@ -71,6 +71,8 @@ class Database {
     this.session = null;
     this.contractCache = {};
     this.objectCache = {};
+    this.lightNode = false;
+    this.blocksToKeep = 864000; // this only applies if lightNode is true
   }
 
   startSession() {
@@ -132,10 +134,12 @@ class Database {
     });
   }
 
-  async init(databaseURL, databaseName) {
+  async init(databaseURL, databaseName, lightNode = false, blocksToKeep = 864000) {
     // init the database
     this.client = await MongoClient.connect(databaseURL, { useNewUrlParser: true, useUnifiedTopology: true });
     this.database = await this.client.db(databaseName);
+    this.lightNode = lightNode;
+    this.blocksToKeep = blocksToKeep; // this only applies if lightNode is true
     // await database.dropDatabase();
     // return
     // get the chain collection and init the chain if not done yet
@@ -1014,6 +1018,56 @@ class Database {
     const tableInDb = this.database.collection(table);
     await this.updateTableHash(table.split('_')[0], table.split('_')[1]);
     await tableInDb.deleteOne({ _id: record._id }, { session: this.session }); // eslint-disable-line no-underscore-dangle
+  }
+
+  /**
+   * Used by light nodes to cleanup (unneeded) blocks / transactions already verified
+   * by witnesses <= lastVerifiedBlockNumber - blocksToKeep
+   * @returns {Promise<void>}
+   */
+  async cleanupLightNode() {
+    if (!this.lightNode) {
+      return;
+    }
+    const params = await this.findOne({ contract: 'witnesses', table: 'params', query: {} });
+    if (params && params.lastVerifiedBlockNumber) {
+      console.log(`cleaning up light node blocks and transactions`);
+      const cleanupUntilBlock = params.lastVerifiedBlockNumber - 1 - this.blocksToKeep;
+      await this.cleanupBlocks(cleanupUntilBlock);
+      await this.cleanupTransactions(cleanupUntilBlock);
+    }
+  }
+
+  /**
+   * Used by light nodes to cleanup (unneeded) blocks already verified
+   * by witnesses <= lastVerifiedBlockNumber - blocksToKeep
+   * @param cleanupUntilBlock cleanup blocks with a smaller blockNumber
+   * @returns {Promise<void>}
+   */
+  async cleanupBlocks(cleanupUntilBlock) {
+    // block 0 is specifically excluded, as the genesis block is also kept by light nodes, due to the condition in
+    // createGenesisBlock in Blockchain.js
+    await this.chain.deleteMany({ $and: [{ _id: { $gt: 0 } }, { _id: { $lte: cleanupUntilBlock } }] }, { session: this.session });
+  }
+
+  /**
+   * Used by light nodes to cleanup (unneeded) transactions
+   * @param cleanupUntilBlock cleanup transactions with a smaller blockNumber
+   * @returns {Promise<void>}
+   */
+  async cleanupTransactions(cleanupUntilBlock) {
+    await this.database.collection('transactions').deleteMany({ blockNumber: { $lte: cleanupUntilBlock } }, { session: this.session });
+  }
+
+  /**
+   * Checks if a node was a light node previously and returns true in case it was. Light nodes
+   * drop block data after a configured number of blocksToKeep, which means that block 1 is not stored
+   * by light nodes, otherwise it would be a full node.
+   * @returns {Promise<boolean>}
+   */
+  async wasLightNodeBefore() {
+    const block = await this.getBlockInfo(1);
+    return !block;
   }
 }
 

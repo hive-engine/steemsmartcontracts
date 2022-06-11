@@ -16,5 +16,8 @@
     "startHiveBlock": 41967000,
     "genesisHiveBlock": 41967000,
     "witnessEnabled": true,
-    "defaultLogLevel": "warn"
+    "defaultLogLevel": "warn",
+    "lightNode": false,
+    "blocksToKeep": 864000,
+    "domain" : ""
 }

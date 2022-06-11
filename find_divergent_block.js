@@ -90,45 +90,65 @@ async function findDivergentBlock() {
   const {
     databaseURL,
     databaseName,
+    lightNode,
   } = conf;
   const database = new Database();
   await database.init(databaseURL, databaseName);
   const chain = database.database.collection('chain');
 
   let block = (await chain.find().sort({ _id: -1 }).limit(1).toArray())[0];
-  let low = 0;
-  let high = block._id;
-  const headBlock = high;
   let mainBlock;
-  while (high - low >= 1) {
-    console.log(`low ${low} high ${high}`);
-    const check = Math.floor((low + high) / 2);
-    mainBlock = await getBlock(check);
-    if (!mainBlock) {
-      break;
+  if (lightNode) {
+    let retries = 0;
+    while (!mainBlock && retries < 10) {
+      await new Promise(r => setTimeout(r, 1000)); // sleep 1 second
+      mainBlock = await getBlock(block._id);
+      retries += 1;
     }
-    block = await chain.findOne({ _id: check });
-    // Different comparison modes, uncomment desired comparison.
-    if (mainBlock.hash !== block.hash) {
-    // if (mainBlock.refHiveBlockNumber !== block.refHiveBlockNumber) {
-    // if (!compareBlocks(mainBlock, block)) {
-      high = check;
-    } else {
-      low = check + 1;
-    }
-  }
-  mainBlock = await getBlock(high);
-  block = await chain.findOne({ _id: high });
 
-  if (high === headBlock && high - low <= 0) {
-    console.log('ok');
-  } else if (high !== low) {
-    console.log('not caught up or error fetching block');
+    if (!mainBlock) {
+      console.log(`failed to fetch block ${block._id} from ${node}`);
+    } else if (mainBlock.hash === block.hash) {
+      console.log('ok');
+    } else {
+      console.log(`head block divergent from ${node}`);
+      console.log(`hash should be ${mainBlock.hash} is ${block.hash}`);
+    }
   } else {
-    console.log('### high block');
-    printBlockDiff(block, mainBlock);
-    console.log(`divergent block id at ${high}`);
+    let low = 0;
+    let high = block._id;
+    const headBlock = high;
+    while (high - low >= 1) {
+      console.log(`low ${low} high ${high}`);
+      const check = Math.floor((low + high) / 2);
+      mainBlock = await getBlock(check);
+      if (!mainBlock) {
+        break;
+      }
+      block = await chain.findOne({ _id: check });
+      // Different comparison modes, uncomment desired comparison.
+      if (mainBlock.hash !== block.hash) {
+        // if (mainBlock.refHiveBlockNumber !== block.refHiveBlockNumber) {
+        // if (!compareBlocks(mainBlock, block)) {
+        high = check;
+      } else {
+        low = check + 1;
+      }
+    }
+    mainBlock = await getBlock(high);
+    block = await chain.findOne({ _id: high });
+
+    if (high === headBlock && high - low <= 0) {
+      console.log('ok');
+    } else if (high !== low) {
+      console.log('not caught up or error fetching block');
+    } else {
+      console.log('### high block');
+      printBlockDiff(block, mainBlock);
+      console.log(`divergent block id at ${high}`);
+    }
   }
+
   database.close();
 }
 

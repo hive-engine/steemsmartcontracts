@@ -9,6 +9,7 @@ const SHA256 = require('crypto-js/sha256');
 const enchex = require('crypto-js/enc-hex');
 const dhive = require('@hiveio/dhive');
 const axios = require('axios');
+const net = require('net');
 const { Queue } = require('../libs/Queue');
 const { IPC } = require('../libs/IPC');
 const { Database } = require('../libs/Database');
@@ -222,7 +223,11 @@ const proposeRound = async (witness, round, retry = 0) => {
         round,
       },
     };
-    const url = `http://${witnessRec.IP}:${witnessRec.P2PPort}/p2p`;
+    let witIP = witnessRec.IP;
+    if (net.isIPv6(witIP)){
+      witIP = `[${witIP}]`;
+    }
+    const url = `http://${witIP}:${witnessRec.P2PPort}/p2p`;
 
     console.log(url);
     const response = await axios({

@@ -62,6 +62,11 @@ async function generateStatus() {
         result.firstBlockNumber = firstBlock?.blockNumber;
       }
 
+      const witnessParams = await database.findOne({ contract: 'witnesses', table: 'params', query: {} });
+      if (witnessParams && witnessParams.lastVerifiedBlockNumber) {
+        result.lastVerifiedBlockNumber = witnessParams.lastVerifiedBlockNumber;
+      }
+
       resolve(result);
     } catch (error) {
       reject(error);

@@ -144,6 +144,10 @@ const parseTransactions = (refBlockNumber, block) => {
               && extensions[0] && extensions[0].length > 1
               && extensions[0][1].beneficiaries) {
               beneficiaries = extensions[0][1].beneficiaries; // eslint-disable-line
+            } else if (extensions
+              && extensions[0] && extensions[0].value
+              && extensions[0].value.beneficiaries) {
+              beneficiaries = extensions[0].value.beneficiaries; // eslint-disable-line
             }
 
             sscTransactions = [

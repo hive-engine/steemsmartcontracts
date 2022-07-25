@@ -35,10 +35,10 @@ function awaitValidation(trxID, tries = 1) {
       const parsedLogs = JSON.parse(res.data.result.logs);
       if (parsedLogs.errors) {
         // eslint-disable-next-line no-console
-        console.log(`Failed registration with reason "${parsedLogs.errors[0]}", your trx id: ${trxID}`);
+        console.log(`Failed action with reason "${parsedLogs.errors[0]}", your trx id: ${trxID}`);
       } else {
         // eslint-disable-next-line no-console
-        console.log(`Successfully registered, transaction id is ${trxID}`);
+        console.log(`Successfull, transaction id is ${trxID}`);
       }
     } else {
       if (tries >= 4) {

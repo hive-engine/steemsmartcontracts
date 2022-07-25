@@ -18,7 +18,7 @@ const { node } = program;
 
 let id = 1;
 
-async function getBlock(blockNumber) {
+async function getBlock(blockNumber, tries=1) {
   id += 1;
   try {
     return (await axios({
@@ -32,8 +32,14 @@ async function getBlock(blockNumber) {
       },
     })).data.result;
   } catch (error) {
-    console.error(error);
-    return null;
+    if (tries >= 3) {
+      console.error(error);
+      return null;
+    } else {
+      console.log(`Attempt #${tries} failed, retrying...`);
+      await new Promise((r) => setTimeout(() => r(), 500));
+      return await getBlock(blockNumber, tries + 1);
+    }
   }
 }
 

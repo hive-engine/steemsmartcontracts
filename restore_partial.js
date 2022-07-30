@@ -18,9 +18,10 @@ program
   .option('-n, --node [url]', 'compare with given node', 'https://api.hive-engine.com/rpc')
   .option('-a, --archive [archive]', 'archive to restore')
   .option('-s, --snapshot-url [url]', 'base directory of light node snapshots to download', 'https://snap.primersion.com/light/')
+  .option('-d, --drop', 'drops the database instead of trying to repair')
   .parse(process.argv);
 
-const { node, snapshotUrl } = program;
+const { node, snapshotUrl, drop } = program;
 let { archive } = program;
 
 let id = 1;
@@ -173,25 +174,30 @@ async function restorePartial() {
 
   console.log(`restoring from archive ${archive}`);
   const archiveHiveBlock = archive.match(/[0-9]+(?!.*[0-9])/)[0];
-  const divergentBlock = await chain.findOne({ _id: divergentBlockNum });
-  const refHiveBlockDiff = divergentBlock.refHiveBlockNumber - archiveHiveBlock;
-  const archiveBlockNum = divergentBlockNum - refHiveBlockDiff;
+  if (drop) {
+    await database.database.dropDatabase();
+  } else {
+    const divergentBlock = await chain.findOne({ _id: divergentBlockNum });
+    const refHiveBlockDiff = divergentBlock.refHiveBlockNumber - archiveHiveBlock;
+    const archiveBlockNum = divergentBlockNum - refHiveBlockDiff;
 
-  const deleteFromBlock = Math.min(divergentBlockNum, archiveBlockNum) - 7; // delete 7 more blocks just to be on the safe side
-  console.log(`Divergent block: ${divergentBlockNum} (${divergentBlock.refHiveBlockNumber}) Archive block: ${archiveBlockNum} (${archiveHiveBlock}) Restoring to: ${deleteFromBlock}`);
+    const deleteFromBlock = Math.min(divergentBlockNum, archiveBlockNum) - 7; // delete 7 more blocks just to be on the safe side
+    console.log(`Divergent block: ${divergentBlockNum} (${divergentBlock.refHiveBlockNumber}) Archive block: ${archiveBlockNum} (${archiveHiveBlock}) Restoring to: ${deleteFromBlock}`);
 
-  const collectionsToRemove = await database.database.listCollections().toArray();
-  for (const col of collectionsToRemove) {
-    if (col.name !== 'chain' && col.name !== 'transactions') {
-      console.log(`removing collection ${col.name}`);
-      await database.database.collection(col.name).drop();
+    const collectionsToRemove = await database.database.listCollections().toArray();
+    for (const col of collectionsToRemove) {
+      if (col.name !== 'chain' && col.name !== 'transactions') {
+        console.log(`removing collection ${col.name}`);
+        await database.database.collection(col.name).drop();
+      }
     }
-  }
-  console.log(`removing blocks >= ${deleteFromBlock}`);
-  await chain.deleteMany({ _id: { $gte: deleteFromBlock } });
+    console.log(`removing blocks >= ${deleteFromBlock}`);
+    await chain.deleteMany({ _id: { $gte: deleteFromBlock } });
 
-  console.log(`removing transactions >= ${deleteFromBlock}`);
-  await database.database.collection('transactions').deleteMany({ blockNumber: { $gte: deleteFromBlock } });
+    console.log(`removing transactions >= ${deleteFromBlock}`);
+    await database.database.collection('transactions').deleteMany({ blockNumber: { $gte: deleteFromBlock } });
+  }
+  await database.close();
 
   const config = fs.readJSONSync('./config.json');
   config.startHiveBlock = archiveHiveBlock;
@@ -200,9 +206,8 @@ async function restorePartial() {
 
   console.log(`starting restore using 'mongorestore --quiet --gzip --archive=${archive}'`);
   console.log('this will take 30 to 60 minutes without any log output...');
-  await database.close();
 
-  exec(`mongorestore --quiet --gzip --archive=${archive}`, (error, stdout, stderr) => {
+  exec(`mongorestore${drop ? '' : ' --quiet'} --gzip --archive=${archive}`, (error, stdout, stderr) => {
     if (error) {
       console.log('failed to restore');
       console.log(`error: ${error.message}`);

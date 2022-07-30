@@ -17,9 +17,11 @@ const { Database } = require('./libs/Database');
 program
   .option('-n, --node [url]', 'compare with given node', 'https://api.hive-engine.com/rpc')
   .option('-a, --archive [archive]', 'archive to restore')
+  .option('-s, --snapshot-url [url]', 'base directory of light node snapshots to download', 'https://snap.primersion.com/light/')
   .parse(process.argv);
 
-const { node, archive } = program;
+const { node, snapshotUrl } = program;
+let { archive } = program;
 
 let id = 1;
 
@@ -83,11 +85,62 @@ async function findDivergentBlock(chain, lightNode) {
   return high;
 }
 
-async function restorePartial() {
-  if (!archive || typeof archive !== 'string') {
-    console.log('start program with \'node restore_partial.js --archive <archive name>\'');
-    return;
+async function fetchSnapshots(tries = 1) {
+  try {
+    return (await axios({
+      url: snapshotUrl,
+      method: 'GET',
+    })).data;
+  } catch (error) {
+    if (tries >= 3) {
+      console.error(error);
+      return null;
+    }
+    console.log(`Attempt #${tries} failed, retrying...`);
+    await new Promise(r => setTimeout(() => r(), 500));
+    return fetchSnapshots(tries + 1);
   }
+}
+
+async function downloadSnapshot(url, name) {
+  return axios({
+    method: 'GET',
+    url,
+    responseType: 'stream',
+  }).then(response => new Promise((resolve, reject) => {
+    const writer = fs.createWriteStream(`./${name}`);
+    response.data.pipe(writer);
+
+    let error = null;
+    writer.on('error', (err) => {
+      error = err;
+      writer.close();
+      reject(err);
+    });
+    writer.on('close', () => {
+      if (!error) {
+        resolve(true);
+      }
+    });
+  }));
+}
+
+async function downloadLatestSnapshot() {
+  const snapshots = await fetchSnapshots();
+  if (!snapshots || snapshots.length === 0) {
+    console.log(`could not find any snapshots at ${snapshotUrl}`);
+    return null;
+  }
+  console.log(`found ${snapshots.length} snapshots at ${snapshotUrl}`);
+  const snapshot = snapshots[snapshots.length - 1];
+  console.log(`downloading snapshot ${snapshot.name}`);
+
+  await downloadSnapshot(`${snapshotUrl}/${snapshot.name}`, snapshot.name);
+  console.log(`finished downloading ${snapshot.name}`);
+  return snapshot.name;
+}
+
+async function restorePartial() {
   const {
     databaseURL,
     databaseName,
@@ -109,6 +162,15 @@ async function restorePartial() {
     return;
   }
   console.log(`divergent block id at ${divergentBlockNum}`);
+
+  if (!archive || typeof archive !== 'string') {
+    archive = await downloadLatestSnapshot();
+    if (!archive) {
+      console.log('start program with \'node restore_partial.js --archive <archive name>\' or add a valid snapshot-url');
+      return;
+    }
+  }
+
   console.log(`restoring from archive ${archive}`);
   const archiveHiveBlock = archive.match(/[0-9]+(?!.*[0-9])/)[0];
   const divergentBlock = await chain.findOne({ _id: divergentBlockNum });

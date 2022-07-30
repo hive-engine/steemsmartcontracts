@@ -10,6 +10,7 @@ require('dotenv').config();
 const program = require('commander');
 const axios = require('axios');
 const fs = require('fs-extra');
+const { exec } = require('child_process');
 const conf = require('./config');
 const { Database } = require('./libs/Database');
 
@@ -135,9 +136,24 @@ async function restorePartial() {
   fs.writeJSONSync('./config.json', config, { spaces: 4 });
   console.log(`set config.json startHiveBlock to ${archiveHiveBlock}`);
 
-  console.log('all done - now run (takes 30 to 60 minutes):');
-  console.log(`mongorestore --quiet --gzip --archive=${archive}`);
+  console.log(`starting restore using 'mongorestore --quiet --gzip --archive=${archive}'`);
+  console.log('this will take 30 to 60 minutes without any log output...');
   await database.close();
+
+  exec(`mongorestore --quiet --gzip --archive=${archive}`, (error, stdout, stderr) => {
+    if (error) {
+      console.log('failed to restore');
+      console.log(`error: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.log('failed to restore');
+      console.log(`stderr: ${stderr}`);
+      return;
+    }
+    console.log(`stdout: ${stdout}`);
+    console.log('finished restoring db. now restart your node');
+  });
 }
 
 restorePartial();

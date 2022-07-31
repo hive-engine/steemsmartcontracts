@@ -173,7 +173,7 @@ async function restorePartial() {
   }
 
   console.log(`restoring from archive ${archive}`);
-  const archiveHiveBlock = archive.match(/[0-9]+(?!.*[0-9])/)[0];
+  const archiveHiveBlock = +archive.match(/[0-9]+(?!.*[0-9])/)[0];
   if (drop) {
     await database.database.dropDatabase();
   } else {
@@ -186,7 +186,9 @@ async function restorePartial() {
 
     const collectionsToRemove = await database.database.listCollections().toArray();
     for (const col of collectionsToRemove) {
-      if (col.name !== 'chain' && col.name !== 'transactions') {
+      if (col.name === 'system.profile') {
+        // skip
+      } else if (col.name !== 'chain' && col.name !== 'transactions') {
         console.log(`removing collection ${col.name}`);
         await database.database.collection(col.name).drop();
       }

@@ -150,19 +150,20 @@ async function restorePartial() {
   const database = new Database();
   await database.init(databaseURL, databaseName);
   const chain = database.database.collection('chain');
-
-  const divergentBlockNum = await findDivergentBlock(chain, lightNode);
-  if (divergentBlockNum === -1) {
-    console.log('ok');
-    await database.close();
-    return;
+  if (!drop){
+    const divergentBlockNum = await findDivergentBlock(chain, lightNode);
+    if (divergentBlockNum === -1) {
+      console.log('ok');
+      await database.close();
+      return;
+    }
+    if (divergentBlockNum === -2) {
+      console.log('not caught up or error fetching block');
+      await database.close();
+      return;
+    }
+    console.log(`divergent block id at ${divergentBlockNum}`);
   }
-  if (divergentBlockNum === -2) {
-    console.log('not caught up or error fetching block');
-    await database.close();
-    return;
-  }
-  console.log(`divergent block id at ${divergentBlockNum}`);
 
   if (!archive || typeof archive !== 'string') {
     archive = await downloadLatestSnapshot();

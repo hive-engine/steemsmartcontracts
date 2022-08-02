@@ -243,27 +243,22 @@ actions.createSSC = async () => {
     await api.db.createTable('metrics', ['symbol']);
   } else {
     // remove stuck 0 quantity orders
-    let order = await api.db.findOne('buyBook', { txId: 'e702247e170cc24e194b54fd6755e0600eb09d3d' });
+    let order = await api.db.findOne('buyBook', { txId: '4df01638062bb7fccd360ec4aa6cc94015a6dd9c' });
     if (order) {
       await api.db.remove('buyBook', order);
       await updateBidMetric(order.symbol);
     }
-    order = await api.db.findOne('buyBook', { txId: 'd7be6cbc408c003e87ab6ac08851a336482f28ca' });
+    order = await api.db.findOne('buyBook', { txId: 'efad210634c88aeb84b184d971056ff23c3399ac' });
     if (order) {
       await api.db.remove('buyBook', order);
       await updateBidMetric(order.symbol);
     }
-    order = await api.db.findOne('buyBook', { txId: 'e306b3504d50e1c9552d0ce84ddf570c6c97cdd9' });
+    order = await api.db.findOne('buyBook', { txId: '7f96b9e9c8ef7bef13c69b136cf019953ca04c20' });
     if (order) {
       await api.db.remove('buyBook', order);
       await updateBidMetric(order.symbol);
     }
-    order = await api.db.findOne('buyBook', { txId: '1529d0903c3a9238d4ba7b0046fb5032ea16995c' });
-    if (order) {
-      await api.db.remove('buyBook', order);
-      await updateBidMetric(order.symbol);
-    }
-    order = await api.db.findOne('buyBook', { txId: '1bf800d620306eeb35b8b3b18e1b1775a9e7d46c' });
+    order = await api.db.findOne('buyBook', { txId: '0eeb1ad4f58dc9df0e2d2620fec2c3c03f37a503' });
     if (order) {
       await api.db.remove('buyBook', order);
       await updateBidMetric(order.symbol);

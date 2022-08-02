@@ -14,16 +14,15 @@ actions.createSSC = async () => {
 
 actions.issueNewTokens = async () => {
   if (api.sender !== 'null') return;
-  // 100k tokens per year = 11.41552511 tokens per hour (an hour = 1200 blocks)
-  const nbTokens = '11.41552511';
 
   // issue tokens to HIVE_ENGINE_ACCOUNT (100k/year)
+  // 100k tokens per year = 11.41552511 tokens per hour (an hour = 1200 blocks)
   await api.executeSmartContract('tokens', 'issue',
-    { symbol: UTILITY_TOKEN_SYMBOL, quantity: nbTokens, to: HIVE_ENGINE_ACCOUNT });
+    { symbol: UTILITY_TOKEN_SYMBOL, quantity: '11.41552511', to: HIVE_ENGINE_ACCOUNT });
 
-  // issue tokens to "witnesses" contract (100k/year)
+  // issue tokens to "witnesses" contract (200k/year)
   await api.executeSmartContract('tokens', 'issueToContract',
-    { symbol: UTILITY_TOKEN_SYMBOL, quantity: nbTokens, to: 'witnesses' });
+    { symbol: UTILITY_TOKEN_SYMBOL, quantity: '22.83105022', to: 'witnesses' });
 
   // establish utility token DTFs
   if (api.refHiveBlockNumber === 56977200) {

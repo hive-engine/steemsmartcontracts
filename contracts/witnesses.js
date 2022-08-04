@@ -8,8 +8,8 @@ const NB_WITNESSES = NB_TOP_WITNESSES + NB_BACKUP_WITNESSES;
 const NB_WITNESSES_SIGNATURES_REQUIRED = 14;
 const MAX_ROUNDS_MISSED_IN_A_ROW = 3; // after that the witness is disabled
 const MAX_ROUND_PROPOSITION_WAITING_PERIOD = 40; // number of blocks
-const NB_TOKENS_TO_REWARD = '0.00951293'; // inflation.js tokens per block
-const NB_TOKENS_NEEDED_BEFORE_REWARDING = '0.04756465'; // 5x to reward
+const NB_TOKENS_TO_REWARD = '0.01902586'; // inflation.js tokens per block
+const NB_TOKENS_NEEDED_BEFORE_REWARDING = '0.0951293'; // 5x to reward
 // eslint-disable-next-line no-template-curly-in-string
 const UTILITY_TOKEN_SYMBOL = "'${CONSTANTS.UTILITY_TOKEN_SYMBOL}$'";
 // eslint-disable-next-line no-template-curly-in-string
@@ -795,7 +795,9 @@ actions.proposeRound = async (payload) => {
             const schedule = schedules[index];
             // reward the witness that help verifying this round
             if (rewardWitnesses === true) {
-              await api.transferTokens(schedule.witness, UTILITY_TOKEN_SYMBOL, NB_TOKENS_TO_REWARD, 'user');
+              await api.executeSmartContract('tokens', 'stakeFromContract', {
+                to: schedule.witness, symbol: UTILITY_TOKEN_SYMBOL, quantity: NB_TOKENS_TO_REWARD,
+              });
             }
             await api.db.remove('schedules', schedule);
           }

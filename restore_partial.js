@@ -2,9 +2,19 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-underscore-dangle */
 /**
- * Used to restore a diverged database using a light node snapshot, by deleting all collections except for
- * chain and transactions and for them deleting blocks and transactions >= the diverged block and restoring
- * the collections using mongorestore and the lightnode snapshot. */
+ * Script for helping to restore / repair hive-engine node databases. The restore mode will simply drop the
+ * existing database and do a full restore.
+ * The repair mode will delete all invalid blocks / transactions and drop all other collections and restore the
+ * last valid state using a light node snapshot.
+ *
+ * These are the different modes:
+ * - FULL node:
+ *   - Restore by executing `node restore_partial.js`     (~30-60 minutes)
+ *   - Drop    by executing `node restore_partial.js -d -s https://snap.primersion.com/` (~6 hours)
+ * - LIGHT node:
+ *   - Drop    by executing `node restore_partial.js -d`  (~30-60 minutes)
+ *   - Restore is not supported as dropping is faster
+ * */
 
 require('dotenv').config();
 const program = require('commander');
@@ -26,6 +36,12 @@ let { archive } = program;
 
 let id = 1;
 
+/**
+ * Fetches the hive-engine block with the given @blockNumber from a hive-engine node.
+ * @param blockNumber to fetch from the node
+ * @param tries number of retries - will cancel after 3 tries
+ * @returns {Promise<null|*|undefined>} the hive-engine block or null if the block doesn't exist or the request failed
+ */
 async function getBlock(blockNumber, tries = 1) {
   id += 1;
   try {
@@ -50,6 +66,12 @@ async function getBlock(blockNumber, tries = 1) {
   }
 }
 
+/**
+ * Checks if the local hive-engine node has diverged and is in a different state than the reference @node.
+ * @param chain connection to the chain mongo collection of the local hive-engine node
+ * @param lightNode whether the node is a light node or not
+ * @returns {Promise<number>} return -1 if the node is OK. -2 if the node is not caugth up or there was an error fetching a block or returns the diverged block number if one was found.
+ */
 async function findDivergentBlock(chain, lightNode) {
   let block = (await chain.find().sort({ _id: -1 }).limit(1).toArray())[0];
   let mainBlock;
@@ -86,6 +108,11 @@ async function findDivergentBlock(chain, lightNode) {
   return high;
 }
 
+/**
+ * Fetches a list of snapshots from the given snapshotUrl, which should point to a server with directory listing enabled.
+ * @param tries number of retries - will cancel after 3 tries
+ * @returns {Promise<any|null|undefined>}
+ */
 async function fetchSnapshots(tries = 1) {
   try {
     return (await axios({
@@ -103,6 +130,12 @@ async function fetchSnapshots(tries = 1) {
   }
 }
 
+/**
+ * Download the snapshot with the given @name from the given @url.
+ * @param url to fetch the snapshot from
+ * @param name of the snapshot
+ * @returns {Promise<unknown>} returns a promise which will resolve once the download finished.
+ */
 async function downloadSnapshot(url, name) {
   return axios({
     method: 'GET',
@@ -126,6 +159,11 @@ async function downloadSnapshot(url, name) {
   }));
 }
 
+/**
+ * Downloads the latest snapshot from the @snapshotUrl, by first fetching all available snapshots and then download the
+ * latest one to the current directory.
+ * @returns {Promise<null|*>} blocks until the download finished and returns the downloaded snapshot name afterwards.
+ */
 async function downloadLatestSnapshot() {
   const snapshots = await fetchSnapshots();
   if (!snapshots || snapshots.length === 0) {
@@ -141,6 +179,10 @@ async function downloadLatestSnapshot() {
   return snapshot.name;
 }
 
+/**
+ * Updates the @startHiveBlock in the config.json file to the @newStartBlock.
+ * @param newStartBlock to set in the config.json
+ */
 async function updateConfigJson(newStartBlock) {
   const config = fs.readJSONSync('./config.json');
   config.startHiveBlock = newStartBlock;
@@ -148,6 +190,12 @@ async function updateConfigJson(newStartBlock) {
   console.log(`set config.json startHiveBlock to ${newStartBlock}`);
 }
 
+/**
+ * Executes the mongorestore command with the given archive. The restore will be executed in --quiet mode without
+ * any log output if an existing database is restored as there will be a lot of duplicate key errors otherwise
+ * for the already existing chain and transaction entries.
+ * @param archiveName to use for restoring.
+ */
 async function execMongorestore(archiveName) {
   console.log(`starting restore using 'mongorestore --quiet --gzip --archive=${archiveName}'`);
   console.log('this will take 30 to 60 minutes without any log output...');
@@ -168,6 +216,13 @@ async function execMongorestore(archiveName) {
   });
 }
 
+/**
+ * Reverts the mongo database by deleting blocks and transactions after a given block and dropping all other collections.
+ * @param database connection to mongo database
+ * @param chain connection to the chain collection of the mongo database
+ * @param divergentBlockNum the divergent block number
+ * @param archiveHiveBlock the block number of the archive
+ */
 async function revertDatabase(database, chain, divergentBlockNum, archiveHiveBlock) {
   const divergentBlock = await chain.findOne({ _id: divergentBlockNum });
   const refHiveBlockDiff = divergentBlock.refHiveBlockNumber - archiveHiveBlock;
@@ -192,6 +247,11 @@ async function revertDatabase(database, chain, divergentBlockNum, archiveHiveBlo
   await database.database.collection('transactions').deleteMany({ blockNumber: { $gte: deleteFromBlock } });
 }
 
+/**
+ * Executes the restoring process by either dropping an existing databsae and doing a full restore or by checking
+ * for a divergent state and trying to restore the database by removing invalid blocks / transactions and restoring
+ * from a light node snapshot.
+ */
 async function restorePartial() {
   const {
     databaseURL,

@@ -2,6 +2,7 @@ require('dotenv').config();
 const axios = require('axios');
 const dhive = require('@hiveio/dhive');
 const program = require('commander');
+const { exec } = require('child_process');
 const packagejson = require('./package.json');
 const config = require('./config.json');
 
@@ -20,10 +21,11 @@ const extP2PPort = Number(String(process.env.P2PPORT)) || p2pPort;
 program
   .option('-v, --verify', 'verify transaction on hive-engine', false)
   .option('-e, --engineNode [url]', 'verify with given hive-engine node', 'https://api.hive-engine.com/rpc')
+  .option('-s, --skipDiverganceCheck', 'skips divergance check', false)
   .parse(process.argv);
 
 let { engineNode } = program;
-const { verify } = program;
+const { verify, skipDiverganceCheck } = program;
 
 engineNode = engineNode.replace(/\/$/, '');
 
@@ -100,13 +102,33 @@ program
 
 program
   .command('register')
-  .action(() => broadcastWitnessAction('register', {
-    IP: ip,
-    RPCPort: extRPCNodePort,
-    P2PPort: extP2PPort,
-    signingKey: publicSigningKey,
-    enabled: true,
-  }));
+  .action(() => {
+    if (!skipDiverganceCheck) {
+      exec(`node find_divergent_block.js -n ${engineNode}`).on('exit', (code) => {
+        if (code != 0) {
+          // eslint-disable-next-line no-console
+          console.log(`A divergent block was found, not registering. Run node find_divergent -n ${engineNode} to learn where.`)
+          return
+        } else {
+          broadcastWitnessAction('register', {
+            IP: ip,
+            RPCPort: extRPCNodePort,
+            P2PPort: extP2PPort,
+            signingKey: publicSigningKey,
+            enabled: true,
+          })
+        }
+      })
+    } else {
+      broadcastWitnessAction('register', {
+        IP: ip,
+        RPCPort: extRPCNodePort,
+        P2PPort: extP2PPort,
+        signingKey: publicSigningKey,
+        enabled: true,
+      })
+    }
+  });
 
 program
   .command('unregister')

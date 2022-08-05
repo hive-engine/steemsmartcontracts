@@ -198,6 +198,12 @@ async function restorePartial() {
     databaseName,
     lightNode,
   } = conf;
+
+  if (lightNode && !drop) {
+    console.log('Restoring a light node database is not supported. Please add the \'-d\' flag to completely restore your db.');
+    return;
+  }
+
   const database = new Database();
   await database.init(databaseURL, databaseName);
   const chain = database.database.collection('chain');

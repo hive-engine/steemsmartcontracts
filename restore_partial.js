@@ -168,6 +168,30 @@ async function execMongorestore(archiveName) {
   });
 }
 
+async function revertDatabase(database, chain, divergentBlockNum, archiveHiveBlock) {
+  const divergentBlock = await chain.findOne({ _id: divergentBlockNum });
+  const refHiveBlockDiff = divergentBlock.refHiveBlockNumber - archiveHiveBlock;
+  const archiveBlockNum = divergentBlockNum - refHiveBlockDiff;
+
+  const deleteFromBlock = Math.min(divergentBlockNum, archiveBlockNum) - 7; // delete 7 more blocks just to be on the safe side
+  console.log(`Divergent block: ${divergentBlockNum} (${divergentBlock.refHiveBlockNumber}) Archive block: ${archiveBlockNum} (${archiveHiveBlock}) Restoring to: ${deleteFromBlock}`);
+
+  const collectionsToRemove = await database.database.listCollections().toArray();
+  for (const col of collectionsToRemove) {
+    if (col.name === 'system.profile') {
+      // skip
+    } else if (col.name !== 'chain' && col.name !== 'transactions') {
+      console.log(`removing collection ${col.name}`);
+      await database.database.collection(col.name).drop();
+    }
+  }
+  console.log(`removing blocks >= ${deleteFromBlock}`);
+  await chain.deleteMany({ _id: { $gte: deleteFromBlock } });
+
+  console.log(`removing transactions >= ${deleteFromBlock}`);
+  await database.database.collection('transactions').deleteMany({ blockNumber: { $gte: deleteFromBlock } });
+}
+
 async function restorePartial() {
   const {
     databaseURL,
@@ -177,8 +201,10 @@ async function restorePartial() {
   const database = new Database();
   await database.init(databaseURL, databaseName);
   const chain = database.database.collection('chain');
+
+  let divergentBlockNum = Number.MAX_SAFE_INTEGER;
   if (!drop) {
-    const divergentBlockNum = await findDivergentBlock(chain, lightNode);
+    divergentBlockNum = await findDivergentBlock(chain, lightNode);
     if (divergentBlockNum === -1) {
       console.log('ok');
       await database.close();
@@ -203,29 +229,10 @@ async function restorePartial() {
   console.log(`restoring from archive ${archive}`);
   const archiveHiveBlock = +archive.match(/[0-9]+(?!.*[0-9])/)[0];
   if (drop) {
+    console.log('dropping database');
     await database.database.dropDatabase();
   } else {
-    const divergentBlock = await chain.findOne({ _id: divergentBlockNum });
-    const refHiveBlockDiff = divergentBlock.refHiveBlockNumber - archiveHiveBlock;
-    const archiveBlockNum = divergentBlockNum - refHiveBlockDiff;
-
-    const deleteFromBlock = Math.min(divergentBlockNum, archiveBlockNum) - 7; // delete 7 more blocks just to be on the safe side
-    console.log(`Divergent block: ${divergentBlockNum} (${divergentBlock.refHiveBlockNumber}) Archive block: ${archiveBlockNum} (${archiveHiveBlock}) Restoring to: ${deleteFromBlock}`);
-
-    const collectionsToRemove = await database.database.listCollections().toArray();
-    for (const col of collectionsToRemove) {
-      if (col.name === 'system.profile') {
-        // skip
-      } else if (col.name !== 'chain' && col.name !== 'transactions') {
-        console.log(`removing collection ${col.name}`);
-        await database.database.collection(col.name).drop();
-      }
-    }
-    console.log(`removing blocks >= ${deleteFromBlock}`);
-    await chain.deleteMany({ _id: { $gte: deleteFromBlock } });
-
-    console.log(`removing transactions >= ${deleteFromBlock}`);
-    await database.database.collection('transactions').deleteMany({ blockNumber: { $gte: deleteFromBlock } });
+    await revertDatabase(database, chain, divergentBlockNum, archiveHiveBlock);
   }
   await database.close();
 

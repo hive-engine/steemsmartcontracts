@@ -141,6 +141,33 @@ async function downloadLatestSnapshot() {
   return snapshot.name;
 }
 
+async function updateConfigJson(newStartBlock) {
+  const config = fs.readJSONSync('./config.json');
+  config.startHiveBlock = newStartBlock;
+  fs.writeJSONSync('./config.json', config, { spaces: 4 });
+  console.log(`set config.json startHiveBlock to ${newStartBlock}`);
+}
+
+async function execMongorestore(archiveName) {
+  console.log(`starting restore using 'mongorestore --quiet --gzip --archive=${archiveName}'`);
+  console.log('this will take 30 to 60 minutes without any log output...');
+
+  exec(`mongorestore${drop ? '' : ' --quiet'} --gzip --archive=${archiveName}`, (error, stdout, stderr) => {
+    if (error) {
+      console.log('failed to restore');
+      console.log(`error: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.log('failed to restore');
+      console.log(`stderr: ${stderr}`);
+      return;
+    }
+    console.log(`stdout: ${stdout}`);
+    console.log('finished restoring db. now restart your node');
+  });
+}
+
 async function restorePartial() {
   const {
     databaseURL,
@@ -150,7 +177,7 @@ async function restorePartial() {
   const database = new Database();
   await database.init(databaseURL, databaseName);
   const chain = database.database.collection('chain');
-  if (!drop){
+  if (!drop) {
     const divergentBlockNum = await findDivergentBlock(chain, lightNode);
     if (divergentBlockNum === -1) {
       console.log('ok');
@@ -202,28 +229,8 @@ async function restorePartial() {
   }
   await database.close();
 
-  const config = fs.readJSONSync('./config.json');
-  config.startHiveBlock = archiveHiveBlock;
-  fs.writeJSONSync('./config.json', config, { spaces: 4 });
-  console.log(`set config.json startHiveBlock to ${archiveHiveBlock}`);
-
-  console.log(`starting restore using 'mongorestore --quiet --gzip --archive=${archive}'`);
-  console.log('this will take 30 to 60 minutes without any log output...');
-
-  exec(`mongorestore${drop ? '' : ' --quiet'} --gzip --archive=${archive}`, (error, stdout, stderr) => {
-    if (error) {
-      console.log('failed to restore');
-      console.log(`error: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.log('failed to restore');
-      console.log(`stderr: ${stderr}`);
-      return;
-    }
-    console.log(`stdout: ${stdout}`);
-    console.log('finished restoring db. now restart your node');
-  });
+  await updateConfigJson(archiveHiveBlock);
+  await execMongorestore(archive);
 }
 
 restorePartial();

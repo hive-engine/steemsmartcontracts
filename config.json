@@ -2,7 +2,7 @@
     "chainId": "mainnet-hive",
     "rpcNodePort": 5000,
     "p2pPort": 5001,
-    "databaseURL": "mongodb://localhost:27017",
+    "databaseURL": "mongodb://127.0.0.1:27017",
     "databaseName": "hsc",
     "blocksLogFilePath": "./blocks.log",
     "javascriptVMTimeout": 10000,
@@ -10,7 +10,6 @@
         "https://api.deathwing.me",
         "https://rpc.ecency.com",
         "https://hived.emre.sh",
-        "https://api.hive.blog",
         "https://api.openhive.network"
     ],
     "startHiveBlock": 41967000,

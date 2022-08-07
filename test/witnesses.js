@@ -37,6 +37,7 @@ const tokensContractPayload = setupContractPayload('tokens', './contracts/tokens
 const miningContractPayload = setupContractPayload('mining', './contracts/mining.js');
 const tokenfundsContractPayload = setupContractPayload('tokenfunds', './contracts/tokenfunds.js');
 const nftauctionContractPayload = setupContractPayload('nftauction', './contracts/nftauction.js');
+const inflationContractPayload = setupContractPayload('inflation', './contracts/inflation.js');
 const witnessesContractPayload = setupContractPayload('witnesses', './contracts/witnesses.js',
     (contractCode) => contractCode.replace(/NB_TOP_WITNESSES = .*;/, 'NB_TOP_WITNESSES = 4;').replace(/MAX_ROUND_PROPOSITION_WAITING_PERIOD = .*;/, 'MAX_ROUND_PROPOSITION_WAITING_PERIOD = 20;').replace(/NB_WITNESSES_SIGNATURES_REQUIRED = .*;/, 'NB_WITNESSES_SIGNATURES_REQUIRED = 3;'));
 
@@ -1186,12 +1187,13 @@ describe('witnesses', function () {
       });
   });
 
-  it('verifies a block with liquid pay', (done) => {
+  it('verifies a block with staked pay', (done) => {
     new Promise(async (resolve) => {
       
       await fixture.setUp();
       let transactions = [];
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(tokensContractPayload)));
+      transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'update', JSON.stringify(inflationContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(miningContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(tokenfundsContractPayload)));
       transactions.push(new Transaction(37899120, fixture.getNextTxId(), CONSTANTS.HIVE_ENGINE_ACCOUNT, 'contract', 'deploy', JSON.stringify(nftauctionContractPayload)));
@@ -1363,7 +1365,7 @@ describe('witnesses', function () {
       }
 
       for (i = 0; i < schedules.length; i += 1) {
-        await tableAsserts.assertUserBalances({ account: schedules[i].witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0.00951293", stake: "0"});
+        await tableAsserts.assertUserBalances({ account: schedules[i].witness, symbol: CONSTANTS.UTILITY_TOKEN_SYMBOL, balance: "0", stake: "0.01902586"});
       }
 
       resolve();

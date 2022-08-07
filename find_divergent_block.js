@@ -12,9 +12,10 @@ const { Database } = require('./libs/Database');
 
 program
   .option('-n, --node [url]', 'compare with given node', 'https://api.hive-engine.com/rpc')
+  .option('-h, --head-only', 'compare only the head block')
   .parse(process.argv);
 
-const { node } = program;
+const { node, headOnly } = program;
 
 let id = 1;
 
@@ -104,7 +105,7 @@ async function findDivergentBlock() {
 
   let block = (await chain.find().sort({ _id: -1 }).limit(1).toArray())[0];
   let mainBlock;
-  if (lightNode) {
+  if (headOnly) {
     let retries = 0;
     while (!mainBlock && retries < 10) {
       await new Promise(r => setTimeout(r, 1000)); // sleep 1 second
@@ -117,11 +118,17 @@ async function findDivergentBlock() {
     } else if (mainBlock.hash === block.hash) {
       console.log('ok');
     } else {
-      console.log(`head block divergent from ${node}`);
+      console.log(`head block ${block._id} divergent from ${node}`);
       console.log(`hash should be ${mainBlock.hash} is ${block.hash}`);
     }
   } else {
     let low = 0;
+    if (lightNode) {
+        const firstBlock = await chain.findOne({ blockNumber: { $gt: 0 } });
+        if (firstBlock) {
+            low = firstBlock.blockNumber;
+        }
+    }
     let high = block._id;
     const headBlock = high;
     while (high - low >= 1) {

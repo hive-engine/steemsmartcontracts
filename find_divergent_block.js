@@ -94,6 +94,7 @@ function printBlockDiff(block, mainBlock) {
 }
 
 async function findDivergentBlock() {
+  let exitCode = 0;
   const {
     databaseURL,
     databaseName,
@@ -115,11 +116,13 @@ async function findDivergentBlock() {
 
     if (!mainBlock) {
       console.log(`failed to fetch block ${block._id} from ${node}`);
+      exitCode = 3;
     } else if (mainBlock.hash === block.hash) {
       console.log('ok');
     } else {
       console.log(`head block ${block._id} divergent from ${node}`);
       console.log(`hash should be ${mainBlock.hash} is ${block.hash}`);
+      exitCode = 2;
     }
   } else {
     let low = 0;
@@ -155,14 +158,17 @@ async function findDivergentBlock() {
       console.log('ok');
     } else if (high !== low) {
       console.log('not caught up or error fetching block');
+      exitCode = 1;
     } else {
       console.log('### high block');
       printBlockDiff(block, mainBlock);
       console.log(`divergent block id at ${high}`);
+      exitCode = 2;
     }
   }
 
   database.close();
+  process.exit(exitCode);
 }
 
 findDivergentBlock();

@@ -20,7 +20,7 @@ let server = null;
 let database = null;
 
 const requestLogger = function (req, _, next) {
-  console.log(`Incoming request from ${req.headers['x-forwarded-for'] || req.socket.remoteAddress} - ${JSON.stringify(req.body)}`);
+  console.log(`Incoming request from ${req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress} - ${JSON.stringify(req.body)}`);
   next();
 }
 

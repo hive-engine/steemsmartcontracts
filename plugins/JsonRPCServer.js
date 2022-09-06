@@ -19,6 +19,11 @@ let serverRPC = null;
 let server = null;
 let database = null;
 
+const requestLogger = function (req, _, next) {
+  console.log(`Incoming request from ${req.headers['x-forwarded-for'] || req.socket.remoteAddress} - ${JSON.stringify(req.body)}`);
+  next();
+}
+
 async function generateStatus() {
   return new Promise(async (resolve, reject) => {
     try {
@@ -247,6 +252,9 @@ const init = async (conf, callback) => {
   serverRPC.use(bodyParser.json());
   serverRPC.set('trust proxy', true);
   serverRPC.set('trust proxy', 'loopback');
+  if (config.rpcConfig.logRequests) {
+    serverRPC.use(requestLogger);
+  }
   serverRPC.post('/blockchain', jayson.server(blockchainRPC()).middleware());
   serverRPC.post('/contracts', jayson.server(contractsRPC()).middleware());
   serverRPC.get('/', async (_, res) => {

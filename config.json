@@ -22,6 +22,6 @@
     "rpcConfig" : {
         "maxLimit" : 1000,
         "maxOffset" : -1,
-        "logRequests" : true
+        "logRequests" : false
     }
 }

@@ -19,6 +19,11 @@ let serverRPC = null;
 let server = null;
 let database = null;
 
+const requestLogger = function (req, _, next) {
+  console.log(`Incoming request from ${req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress} - ${JSON.stringify(req.body)}`);
+  next();
+}
+
 async function generateStatus() {
   return new Promise(async (resolve, reject) => {
     try {
@@ -58,7 +63,7 @@ async function generateStatus() {
 
       // first block currently stored by light node
       if (result.lightNode) {
-        const firstBlock = await database.chain.findOne({ blockNumber: {$gt: 0} }, { session: database.session });
+        const firstBlock = await database.chain.findOne({ blockNumber: { $gt: 0 } }, { session: database.session });
         result.firstBlockNumber = firstBlock?.blockNumber;
       }
 
@@ -188,9 +193,25 @@ function contractsRPC() {
         if (contract && typeof contract === 'string'
           && table && typeof table === 'string'
           && query && typeof query === 'object') {
-          const lim = limit || 1000;
+          const lim = limit || config.rpcConfig.maxLimit;
           const off = offset || 0;
           const ind = indexes || [];
+
+          if (lim > config.rpcConfig.maxLimit) {
+            callback({
+              code: 400,
+              message: `limit is too high, maximum limit is ${config.rpcConfig.maxLimit}`,
+            }, null);
+            return;
+          }
+
+          if (config.rpcConfig.maxOffset != -1 && off > config.rpcConfig.maxOffset) {
+            callback({
+              code: 400,
+              message: `offset is too high, maximum offset is ${config.rpcConfig.maxOffset}`,
+            }, null);
+            return;
+          }
 
           const result = await database.find({
             contract,
@@ -231,6 +252,9 @@ const init = async (conf, callback) => {
   serverRPC.use(bodyParser.json());
   serverRPC.set('trust proxy', true);
   serverRPC.set('trust proxy', 'loopback');
+  if (config.rpcConfig.logRequests) {
+    serverRPC.use(requestLogger);
+  }
   serverRPC.post('/blockchain', jayson.server(blockchainRPC()).middleware());
   serverRPC.post('/contracts', jayson.server(contractsRPC()).middleware());
   serverRPC.get('/', async (_, res) => {

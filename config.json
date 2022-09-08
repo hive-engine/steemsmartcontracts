@@ -18,5 +18,10 @@
     "defaultLogLevel": "warn",
     "lightNode": false,
     "blocksToKeep": 864000,
-    "domain" : ""
+    "domain" : "",
+    "rpcConfig" : {
+        "maxLimit" : 1000,
+        "maxOffset" : -1,
+        "logRequests" : false
+    }
 }

@@ -1,6 +1,6 @@
 # Steem Smart Contracts [![Build Status](https://travis-ci.org/harpagon210/steemsmartcontracts.svg?branch=master)](https://travis-ci.org/harpagon210/steemsmartcontracts)[![Coverage Status](https://coveralls.io/repos/github/harpagon210/steemsmartcontracts/badge.svg?branch=master)](https://coveralls.io/github/harpagon210/steemsmartcontracts?branch=master)
 
-**NOTE**: master branch is for Steem Engine, for which further development has been discontinued. Only Hive Engine is currently under active development; please use the **hive-engine branch**.
+**NOTE**: master branch is for Steem Engine, for which further development has been discontinued. Only Hive Engine is currently under active development; This is now at its own repo: https://github.com/hive-engine/hivesmartcontracts.
 
  ## 1.  What is it?
 

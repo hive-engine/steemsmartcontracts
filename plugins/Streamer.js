@@ -11,6 +11,7 @@ const { PLUGIN_NAME, PLUGIN_ACTIONS } = require('./Streamer.constants');
 
 const ipc = new IPC(PLUGIN_NAME);
 let client = null;
+let clients = null;
 let database = null;
 class ForkException {
   constructor(message) {
@@ -28,6 +29,15 @@ let chainIdentifier = '';
 let blockStreamerHandler = null;
 let updaterGlobalPropsHandler = null;
 let lastBlockSentToBlockchain = 0;
+
+// For block prefetch mechanism
+const maxQps = 1;
+let capacity = 0;
+let totalInFlightRequests = 0;
+const inFlightRequests = {};
+const pendingRequests = [];
+const totalRequests = {};
+const totalTime = {};
 
 const getCurrentBlock = () => currentSteemBlock;
 
@@ -274,8 +284,13 @@ const updateGlobalProps = async () => {
       const globProps = await client.database.getDynamicGlobalProperties();
       steemHeadBlockNumber = globProps.head_block_number;
       const delta = steemHeadBlockNumber - currentSteemBlock;
-      // eslint-disable-next-line
+      // eslint-disable-next-line no-console
       console.log(`head_block_number ${steemHeadBlockNumber}`, `currentBlock ${currentSteemBlock}`, `Steem blockchain is ${delta > 0 ? delta : 0} blocks ahead`);
+      const nodes = Object.keys(totalRequests);
+      nodes.forEach((node) => {
+        // eslint-disable-next-line no-console
+        console.log(`Node block fetch average for ${node} is ${totalTime[node] / totalRequests[node]} with ${totalRequests[node]} requests`);
+      });
     }
     updaterGlobalPropsHandler = setTimeout(() => updateGlobalProps(), 10000);
   } catch (ex) {
@@ -299,10 +314,90 @@ const addBlockToBuffer = async (block) => {
   buffer.push(finalBlock);
 };
 
+const throttledGetBlockFromNode = async (blockNumber, node) => {
+  if (inFlightRequests[node] < maxQps) {
+    totalInFlightRequests += 1;
+    inFlightRequests[node] += 1;
+    let res = null;
+    const timeStart = Date.now();
+    try {
+      res = await clients[node].database.getBlock(blockNumber);
+      totalRequests[node] += 1;
+      totalTime[node] += Date.now() - timeStart;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`Error fetching block ${blockNumber} on node ${node}`);
+      // eslint-disable-next-line no-console
+      console.error(err);
+    }
+
+    inFlightRequests[node] -= 1;
+    totalInFlightRequests -= 1;
+    if (pendingRequests.length > 0) {
+      pendingRequests.shift()();
+    }
+    return res;
+  }
+  return null;
+};
+
+const throttledGetBlock = async (blockNumber) => {
+  const nodes = Object.keys(clients);
+  nodes.forEach((n) => {
+    if (inFlightRequests[n] === undefined) {
+      inFlightRequests[n] = 0;
+      totalRequests[n] = 0;
+      totalTime[n] = 0;
+      capacity += maxQps;
+    }
+  });
+  if (totalInFlightRequests < capacity) {
+    // select node in order
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      if (inFlightRequests[node] < maxQps) {
+        return throttledGetBlockFromNode(blockNumber, node);
+      }
+    }
+  }
+  await new Promise(resolve => pendingRequests.push(resolve));
+  return throttledGetBlock(blockNumber);
+};
+
+
+// start at index 1, and rotate.
+const lookaheadBufferSize = 100;
+let lookaheadStartIndex = 0;
+let lookaheadStartBlock = currentSteemBlock;
+const blockLookaheadBuffer = Array(lookaheadBufferSize);
+const getBlock = async (blockNumber) => {
+  // schedule lookahead block fetch
+  let scanIndex = lookaheadStartIndex;
+  for (let i = 0; i < lookaheadBufferSize; i += 1) {
+    if (!blockLookaheadBuffer[scanIndex]) {
+      blockLookaheadBuffer[scanIndex] = throttledGetBlock(lookaheadStartBlock + i);
+    }
+    scanIndex += 1;
+    if (scanIndex >= lookaheadBufferSize) scanIndex -= lookaheadBufferSize;
+  }
+  let lookupIndex = blockNumber - lookaheadStartBlock + lookaheadStartIndex;
+  if (lookupIndex >= lookaheadBufferSize) lookupIndex -= lookaheadBufferSize;
+  if (lookupIndex >= 0 && lookupIndex < lookaheadBufferSize) {
+    const block = await blockLookaheadBuffer[lookupIndex];
+    if (block) {
+      return block;
+    }
+    // retry
+    blockLookaheadBuffer[lookupIndex] = null;
+    return null;
+  }
+  return client.database.getBlock(blockNumber);
+};
+
 const streamBlocks = async (reject) => {
   if (stopStream) return;
   try {
-    const block = await client.database.getBlock(currentSteemBlock);
+    const block = await getBlock(currentSteemBlock);
     let addBlockToBuf = false;
 
     if (block) {
@@ -319,7 +414,7 @@ const streamBlocks = async (reject) => {
         }
       } else {
         // get the previous block
-        const prevBlock = await client.database.getBlock(currentSteemBlock - 1);
+        const prevBlock = await getBlock(currentSteemBlock - 1);
 
         if (prevBlock && prevBlock.block_id === block.previous) {
           addBlockToBuf = true;
@@ -333,6 +428,10 @@ const streamBlocks = async (reject) => {
         await addBlockToBuffer(block);
       }
       currentSteemBlock += 1;
+      blockLookaheadBuffer[lookaheadStartIndex] = null;
+      lookaheadStartIndex += 1;
+      if (lookaheadStartIndex >= lookaheadBufferSize) lookaheadStartIndex -= lookaheadBufferSize;
+      lookaheadStartBlock += 1;
       streamBlocks(reject);
     } else {
       blockStreamerHandler = setTimeout(() => {
@@ -344,11 +443,17 @@ const streamBlocks = async (reject) => {
   }
 };
 
-const initSteemClient = (node, steemAddressPrefix, steemChainId) => {
-  client = new dsteem.Client(node, {
-    addressPrefix: steemAddressPrefix,
-    chainId: steemChainId,
-  });
+const initSteemClient = (streamNodes, node, steemAddressPrefix, steemChainId) => {
+  if (!clients) {
+    clients = {};
+    streamNodes.forEach((n) => {
+      clients[n] = new dsteem.Client(n, {
+        addressPrefix: steemAddressPrefix,
+        chainId: steemChainId,
+      });
+    });
+  }
+  client = clients[node];
 };
 
 const startStreaming = (conf) => {
@@ -360,9 +465,11 @@ const startStreaming = (conf) => {
     steemChainId,
   } = conf;
   currentSteemBlock = startSteemBlock;
+  lookaheadStartIndex = 0;
+  lookaheadStartBlock = currentSteemBlock;
   chainIdentifier = chainId;
   const node = streamNodes[0];
-  initSteemClient(node, steemAddressPrefix, steemChainId);
+  initSteemClient(streamNodes, node, steemAddressPrefix, steemChainId);
 
   return new Promise((resolve, reject) => { // eslint-disable-line no-unused-vars
     console.log('Starting Steem streaming at ', node); // eslint-disable-line no-console
@@ -386,11 +493,11 @@ const init = async (conf) => {
   database = new Database();
   await database.init(databaseURL, databaseName);
 
-  // get latest block metadata to ensure that startHiveBlock saved in the config.json is not lower
+  // get latest block metadata to ensure that startSteemBlock saved in the config.json is not lower
   const block = await getLatestBlockMetadata();
   if (block) {
     if (finalConf.startSteemBlock < block.refSteemBlockNumber) {
-      console.log('adjusted startHiveBlock automatically as it was lower that the refHiveBlockNumber available'); // eslint-disable-line no-console
+      console.log('adjusted startSteemBlock automatically as it was lower that the refSteemBlockNumber available'); // eslint-disable-line no-console
       finalConf.startSteemBlock = block.refSteemBlockNumber + 1;
     }
   }
